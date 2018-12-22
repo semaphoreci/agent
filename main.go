@@ -34,10 +34,26 @@ func build(services []Container) {
 	template += `version: "2"` + "\n"
 	template += `services:` + "\n"
 
-	for _, c := range services {
-		template += `  ` + c.Name + ":\n"
-		template += `    image: "` + c.Image + `"` + "\n"
+	main := services[0]
+	template += `  ` + main.Name + ":\n"
+	template += `    image: "` + main.Image + `"` + "\n"
+
+	if len(services) > 1 {
+		template += `    links:` + "\n"
+
+		// first we add links
+		for _, c := range services[1:] {
+			template += `      - ` + c.Name + "\n"
+		}
+
+		// then we define the rest of the services
+		for _, c := range services[1:] {
+			template += `  ` + c.Name + ":\n"
+			template += `    image: "` + c.Image + `"` + "\n"
+		}
 	}
+
+	fmt.Println(template)
 
 	fmt.Println("* Creating docker-compose template")
 	err := ioutil.WriteFile("/tmp/dc1", []byte(template), 0644)
@@ -53,7 +69,7 @@ func build(services []Container) {
 	err = cmd.Wait()
 	check(err)
 
-	fmt.Println("* Docker services are ready")
+	fmt.Println("* Docker Compose Up")
 }
 
 func run(job Job) {
@@ -62,16 +78,30 @@ func run(job Job) {
 	fmt.Println("* Running commands")
 	cmd := exec.Command("bash", "-c", "docker-compose -f /tmp/dc1 run main bash -c '"+job.Commands[0].Directive+"'")
 
-	cmdReader, err := cmd.StdoutPipe()
+	cmdStdoutReader, err := cmd.StdoutPipe()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error creating StdoutPipe for Cmd", err)
 		os.Exit(1)
 	}
 
-	scanner := bufio.NewScanner(cmdReader)
+	cmdStderrReader, err := cmd.StderrPipe()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error creating StderrPipe for Cmd", err)
+		os.Exit(1)
+	}
+
+	scanner1 := bufio.NewScanner(cmdStdoutReader)
+	scanner2 := bufio.NewScanner(cmdStderrReader)
+
 	go func() {
-		for scanner.Scan() {
-			fmt.Printf("output | %s\n", scanner.Text())
+		for scanner1.Scan() {
+			fmt.Printf("output | %s\n", scanner1.Text())
+		}
+	}()
+
+	go func() {
+		for scanner2.Scan() {
+			fmt.Printf("output | %s\n", scanner2.Text())
 		}
 	}()
 
@@ -89,7 +119,7 @@ func main() {
 			Container{Name: "db", Image: "postgres"},
 		},
 		Commands: []Command{
-			Command{Directive: "echo here"},
+			Command{Directive: "set -x && echo here && apt-get update && apt-get install -y postgresql-client && createdb -h db -p 5432 -U postgres testdb3 && echo Database testdb3 created"},
 		},
 	}
 
