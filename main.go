@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"regexp"
 )
 
 type Command struct {
@@ -72,11 +73,9 @@ func buildExecutor(services []Container) {
 	fmt.Println("* Docker Compose Up")
 }
 
-func compileCommands(commands []Command) {
+func compileCommands(separator string, commands []Command) {
 	os.RemoveAll("/tmp/run/semaphore")
 	os.MkdirAll("/tmp/run/semaphore/commands", os.ModePerm)
-
-	separator := `ae415f5b-966d-4fb3-80e2-c234ec9300ff`
 
 	jobScript := `#!/bin/bash
 set -euo pipefail
@@ -88,9 +87,10 @@ IFS=$'\n\t'
 
 		err := ioutil.WriteFile(path, []byte(c.Directive), 0644)
 
+		jobScript += fmt.Sprintf(`echo "%s start"`+"\n", separator)
 		jobScript += fmt.Sprintf("source %s\n", path)
 		jobScript += fmt.Sprintf("code=$?" + "\n")
-		jobScript += fmt.Sprintf(`echo "%s $code"`+"\n", separator)
+		jobScript += fmt.Sprintf(`echo "%s end $code"`+"\n", separator)
 
 		check(err)
 	}
@@ -104,7 +104,9 @@ IFS=$'\n\t'
 }
 
 func run(job Job) {
-	compileCommands(job.Commands)
+	separator := `ae415f5b966d4fb380e2c234ec9300ff`
+
+	compileCommands(separator, job.Commands)
 	buildExecutor(job.Services)
 
 	fmt.Println("* Running commands")
@@ -122,18 +124,35 @@ func run(job Job) {
 		os.Exit(1)
 	}
 
+	startSeperatorRegex := regexp.MustCompile(separator + " start$")
+	endSeperatorRegex := regexp.MustCompile(separator + " end " + `(\d)` + "$")
+
+	currentlyRunningCommandIndex := 1
+
 	scanner1 := bufio.NewScanner(cmdStdoutReader)
 	scanner2 := bufio.NewScanner(cmdStderrReader)
 
 	go func() {
 		for scanner1.Scan() {
-			fmt.Printf("output | %s\n", scanner1.Text())
+			text := scanner1.Text()
+
+			if startSeperatorRegex.MatchString(text) {
+				// command started
+				fmt.Printf("command %d | Running: %s\n", currentlyRunningCommandIndex, job.Commands[currentlyRunningCommandIndex].Directive)
+			} else if match := endSeperatorRegex.FindStringSubmatch(text); len(match) == 2 {
+				// command finished
+				fmt.Printf("command %d | exit status: %s\n", currentlyRunningCommandIndex, match[1])
+
+				currentlyRunningCommandIndex += 1
+			} else {
+				fmt.Printf("command %d | %s\n", currentlyRunningCommandIndex, text)
+			}
 		}
 	}()
 
 	go func() {
 		for scanner2.Scan() {
-			fmt.Printf("output | %s\n", scanner2.Text())
+			fmt.Printf("command %d | %s\n", currentlyRunningCommandIndex, scanner2.Text())
 		}
 	}()
 
@@ -154,7 +173,6 @@ func main() {
 			Command{Directive: "export DB_HOSTNAME=postgres-db"},
 			Command{Directive: `
 apt-get update
-exit 124
 apt-get install -y postgresql-client
 `},
 			Command{Directive: "createdb -h db -p 5432 -U postgres testdb3"},
