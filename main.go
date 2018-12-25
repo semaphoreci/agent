@@ -29,7 +29,7 @@ func check(e error) {
 	}
 }
 
-func build(services []Container) {
+func buildExecutor(services []Container) {
 	template := ""
 	template += `version: "2"` + "\n"
 	template += `services:` + "\n"
@@ -72,11 +72,43 @@ func build(services []Container) {
 	fmt.Println("* Docker Compose Up")
 }
 
+func compileCommands(commands []Command) {
+	os.RemoveAll("/tmp/run/semaphore")
+	os.MkdirAll("/tmp/run/semaphore/commands", os.ModePerm)
+
+	separator := `ae415f5b-966d-4fb3-80e2-c234ec9300ff`
+
+	jobScript := `#!/bin/bash
+set -euo pipefail
+IFS=$'\n\t'
+`
+
+	for i, c := range commands {
+		path := fmt.Sprintf("/tmp/run/semaphore/commands/%06d", i)
+
+		err := ioutil.WriteFile(path, []byte(c.Directive), 0644)
+
+		jobScript += fmt.Sprintf("source %s\n", path)
+		jobScript += fmt.Sprintf("code=$?" + "\n")
+		jobScript += fmt.Sprintf(`echo "%s $code"`+"\n", separator)
+
+		check(err)
+	}
+
+	fmt.Println("* Compiling job script")
+	fmt.Println(jobScript)
+
+	err := ioutil.WriteFile("/tmp/run/semaphore/job.sh", []byte(jobScript), 0644)
+
+	check(err)
+}
+
 func run(job Job) {
-	build(job.Services)
+	compileCommands(job.Commands)
+	buildExecutor(job.Services)
 
 	fmt.Println("* Running commands")
-	cmd := exec.Command("bash", "-c", "docker-compose -f /tmp/dc1 run main bash -c '"+job.Commands[0].Directive+"'")
+	cmd := exec.Command("bash", "-c", "docker-compose -f /tmp/dc1 run -v /tmp/run/semaphore:/tmp/run/semaphore main bash /tmp/run/semaphore/job.sh")
 
 	cmdStdoutReader, err := cmd.StdoutPipe()
 	if err != nil {
@@ -119,7 +151,14 @@ func main() {
 			Container{Name: "db", Image: "postgres"},
 		},
 		Commands: []Command{
-			Command{Directive: "set -x && echo here && apt-get update && apt-get install -y postgresql-client && createdb -h db -p 5432 -U postgres testdb3 && echo Database testdb3 created"},
+			Command{Directive: "export DB_HOSTNAME=postgres-db"},
+			Command{Directive: `
+apt-get update
+exit 124
+apt-get install -y postgresql-client
+`},
+			Command{Directive: "createdb -h db -p 5432 -U postgres testdb3"},
+			Command{Directive: "echo Database testdb3 created"},
 		},
 	}
 
