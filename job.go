@@ -77,7 +77,7 @@ func buildExecutor(services []Container) {
 	err := ioutil.WriteFile("/tmp/dc1", []byte(template), 0644)
 	check(err)
 
-	cmd := exec.Command("bash", "-c", "docker-compose -f /tmp/dc1 build")
+	cmd := exec.Command("bash", "-c", "docker-compose -f /tmp/dc1 pull --include-deps")
 
 	fmt.Println("* Starting docker compose")
 	err = cmd.Start()
