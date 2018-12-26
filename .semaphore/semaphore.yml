@@ -1,0 +1,25 @@
+version: v1.0
+name: Agent
+agent:
+  machine:
+    type: e1-standard-2
+    os_image: ubuntu1804
+
+blocks:
+  - name: "Acceptance tests"
+    task:
+      jobs:
+      - name: Hello world
+        commands:
+          - checkout
+          - make run JOB=example/hello_world.yaml
+
+      - name: Linked DB service
+        commands:
+          - checkout
+          - make run JOB=example/db_usage.yaml
+
+      - name: Envoy
+        commands:
+          - checkout
+          - make run JOB=example/envoy.yaml
