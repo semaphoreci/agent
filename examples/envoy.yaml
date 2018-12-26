@@ -1,0 +1,9 @@
+services:
+  - name: "main"
+    image: "envoyproxy/envoy-build:a734887ad06609cf0b3c023d38239bf3e79d3717"
+
+commands:
+  - directive: "git clone https://github.com/envoyproxy/envoy.git"
+  - directive: "cd envoy"
+  - directive: "ls"
+  - directive: "ci/do_circle_ci.sh bazel.coverage"
