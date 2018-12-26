@@ -1,0 +1,14 @@
+services:
+  - name: "main"
+    image: "ubuntu"
+
+  - name: "postgres-db"
+    image: "postgres"
+
+commands:
+  - directive: "export DB_HOSTNAME=postgres-db"
+  - directive: |
+      apt-get update
+      apt-get install -y postgresql-client
+  - directive: "createdb -h db -p 5432 -U postgres testdb3"
+  - directive: "echo Database testdb3 created"
