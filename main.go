@@ -1,12 +1,9 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"os/exec"
-	"regexp"
 )
 
 type Command struct {
@@ -73,94 +70,28 @@ func buildExecutor(services []Container) {
 	fmt.Println("* Docker Compose Up")
 }
 
-func compileCommands(separator string, commands []Command) {
-	os.RemoveAll("/tmp/run/semaphore")
-	os.MkdirAll("/tmp/run/semaphore/commands", os.ModePerm)
-
-	jobScript := `#!/bin/bash
-set -euo pipefail
-IFS=$'\n\t'
-`
-
-	for i, c := range commands {
-		path := fmt.Sprintf("/tmp/run/semaphore/commands/%06d", i)
-
-		err := ioutil.WriteFile(path, []byte(c.Directive), 0644)
-
-		jobScript += fmt.Sprintf(`echo "%s start"`+"\n", separator)
-		jobScript += fmt.Sprintf("source %s\n", path)
-		jobScript += fmt.Sprintf("code=$?" + "\n")
-		jobScript += fmt.Sprintf(`echo "%s end $code"`+"\n", separator)
-
-		check(err)
-	}
-
-	fmt.Println("* Compiling job script")
-	fmt.Println(jobScript)
-
-	err := ioutil.WriteFile("/tmp/run/semaphore/job.sh", []byte(jobScript), 0644)
-
-	check(err)
-}
-
 func run(job Job) {
-	separator := `ae415f5b966d4fb380e2c234ec9300ff`
-
-	compileCommands(separator, job.Commands)
 	buildExecutor(job.Services)
 
-	fmt.Println("* Running commands")
-	cmd := exec.Command("bash", "-c", "docker-compose -f /tmp/dc1 run -v /tmp/run/semaphore:/tmp/run/semaphore main bash /tmp/run/semaphore/job.sh")
-
-	cmdStdoutReader, err := cmd.StdoutPipe()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error creating StdoutPipe for Cmd", err)
-		os.Exit(1)
+	commands := []string{}
+	for _, c := range job.Commands {
+		commands = append(commands, c.Directive)
 	}
 
-	cmdStderrReader, err := cmd.StderrPipe()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error creating StderrPipe for Cmd", err)
-		os.Exit(1)
-	}
+	shell := NewShell()
 
-	startSeperatorRegex := regexp.MustCompile(separator + " start$")
-	endSeperatorRegex := regexp.MustCompile(separator + " end " + `(\d)` + "$")
-
-	currentlyRunningCommandIndex := 1
-
-	scanner1 := bufio.NewScanner(cmdStdoutReader)
-	scanner2 := bufio.NewScanner(cmdStderrReader)
-
-	go func() {
-		for scanner1.Scan() {
-			text := scanner1.Text()
-
-			if startSeperatorRegex.MatchString(text) {
-				// command started
-				fmt.Printf("command %d | Running: %s\n", currentlyRunningCommandIndex, job.Commands[currentlyRunningCommandIndex].Directive)
-			} else if match := endSeperatorRegex.FindStringSubmatch(text); len(match) == 2 {
-				// command finished
-				fmt.Printf("command %d | exit status: %s\n", currentlyRunningCommandIndex, match[1])
-
-				currentlyRunningCommandIndex += 1
-			} else {
-				fmt.Printf("command %d | %s\n", currentlyRunningCommandIndex, text)
-			}
+	shell.Run(commands, func(event interface{}) {
+		switch e := event.(type) {
+		case CommandStartedShellEvent:
+			fmt.Printf("command %d | Running: %s\n", e.CommandIndex, e.Command)
+		case CommandOutputShellEvent:
+			fmt.Printf("command %d | %s\n", e.CommandIndex, e.Output)
+		case CommandFinishedShellEvent:
+			fmt.Printf("command %d | exit status: %d\n", e.CommandIndex, e.ExitStatus)
+		default:
+			panic("Unknown shell event")
 		}
-	}()
-
-	go func() {
-		for scanner2.Scan() {
-			fmt.Printf("command %d | %s\n", currentlyRunningCommandIndex, scanner2.Text())
-		}
-	}()
-
-	err = cmd.Start()
-	check(err)
-
-	err = cmd.Wait()
-	check(err)
+	})
 }
 
 func main() {
