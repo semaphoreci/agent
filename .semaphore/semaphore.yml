@@ -8,6 +8,10 @@ agent:
 blocks:
   - name: "Acceptance tests"
     task:
+      prologue:
+        commands:
+          - sem-version go 1.11
+
       jobs:
       - name: Hello world
         commands:
