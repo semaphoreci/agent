@@ -1,0 +1,6 @@
+services:
+  - name: "main"
+    image: "ubuntu"
+
+commands:
+  - directive: "echo 'hello world'"
