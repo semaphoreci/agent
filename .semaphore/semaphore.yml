@@ -11,19 +11,18 @@ blocks:
       prologue:
         commands:
           - sem-version go 1.11
+          - checkout
+          - go build
 
       jobs:
       - name: Hello world
         commands:
-          - checkout
-          - make run JOB=example/hello_world.yaml
+          - make run JOB=examples/hello_world.yaml
 
       - name: Linked DB service
         commands:
-          - checkout
-          - make run JOB=example/db_usage.yaml
+          - make run JOB=examples/db_usage.yaml
 
       - name: Envoy
         commands:
-          - checkout
-          - make run JOB=example/envoy.yaml
+          - make run JOB=examples/envoy.yaml
