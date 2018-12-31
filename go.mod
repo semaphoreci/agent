@@ -1,4 +1,4 @@
-module github.com/renderedtext/agent
+module github.com/semaphoreci/agent
 
 require (
 	github.com/ghodss/yaml v1.0.0
