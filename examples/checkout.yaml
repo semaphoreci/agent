@@ -1,0 +1,10 @@
+services:
+  - name: "main"
+    image: "ubuntu"
+
+commands:
+  - directive: |
+      apt-get update
+      apt-get install -y git
+  - directive: "echo here"
+  - directive: "git clone https://github.com/renderedtext/cli.git"

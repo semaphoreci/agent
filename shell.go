@@ -3,12 +3,15 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"time"
+
+	"github.com/kr/pty"
 )
 
 type Shell struct {
@@ -46,8 +49,8 @@ func NewShell() Shell {
 	return Shell{
 		commandSeparator:             separator,
 		currentlyRunningCommandIndex: 0,
-		commandStartRegex:            regexp.MustCompile(separator + " start$"),
-		commandEndRegex:              regexp.MustCompile(separator + " end " + `(\d)` + "$"),
+		commandStartRegex:            regexp.MustCompile(separator + " start"),
+		commandEndRegex:              regexp.MustCompile(separator + " end " + `(\d)`),
 	}
 }
 
@@ -56,18 +59,9 @@ func (s *Shell) Run(commands []string, handler ShellStreamHandler) error {
 
 	cmd := exec.Command("bash", "-c", "docker-compose -f /tmp/dc1 run -v /tmp/run/semaphore:/tmp/run/semaphore main bash /tmp/run/semaphore/job.sh")
 
-	cmdStdoutReader, err := cmd.StdoutPipe()
-	if err != nil {
-		return err
-	}
+	reader, writter := io.Pipe()
 
-	cmdStderrReader, err := cmd.StderrPipe()
-	if err != nil {
-		return err
-	}
-
-	stdoutScanner := bufio.NewScanner(cmdStdoutReader)
-	stderrScanner := bufio.NewScanner(cmdStderrReader)
+	stdoutScanner := bufio.NewScanner(reader)
 
 	go func() {
 		for stdoutScanner.Scan() {
@@ -106,20 +100,12 @@ func (s *Shell) Run(commands []string, handler ShellStreamHandler) error {
 		}
 	}()
 
-	go func() {
-		for stderrScanner.Scan() {
-			handler(CommandOutputShellEvent{
-				Timestamp:    int(time.Now().Unix()),
-				CommandIndex: s.currentlyRunningCommandIndex,
-				Output:       stderrScanner.Text(),
-			})
-		}
-	}()
-
-	err = cmd.Start()
+	f, err := pty.Start(cmd)
 	if err != nil {
 		return err
 	}
+
+	io.Copy(writter, f)
 
 	return cmd.Wait()
 }
