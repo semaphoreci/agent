@@ -3,10 +3,11 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/ghodss/yaml"
+	"github.com/semaphoreci/agent/pkg/executor"
+	"github.com/semaphoreci/agent/pkg/shell"
 )
 
 type Command struct {
@@ -47,66 +48,43 @@ func NewJobFromYaml(path string) (*Job, error) {
 	return &job, nil
 }
 
-func buildExecutor(services []Container) {
-	template := ""
-	template += `version: "2"` + "\n"
-	template += `services:` + "\n"
+func (job *Job) Run() {
+	containers := []executor.Container{}
 
-	main := services[0]
-	template += `  ` + main.Name + ":\n"
-	template += `    image: "` + main.Image + `"` + "\n"
-
-	if len(services) > 1 {
-		template += `    links:` + "\n"
-
-		// first we add links
-		for _, c := range services[1:] {
-			template += `      - ` + c.Name + "\n"
-		}
-
-		// then we define the rest of the services
-		for _, c := range services[1:] {
-			template += `  ` + c.Name + ":\n"
-			template += `    image: "` + c.Image + `"` + "\n"
-		}
+	for _, c := range job.Services {
+		containers = append(containers, executor.Container{
+			Name:  c.Name,
+			Image: c.Image,
+		})
 	}
 
-	fmt.Println(template)
+	dc, err := executor.NewDockerComposeExecutor(containers)
 
-	fmt.Println("* Creating docker-compose template")
-	err := ioutil.WriteFile("/tmp/dc1", []byte(template), 0644)
+	fmt.Printf("eee")
+	err = dc.Build()
 	check(err)
 
-	cmd := exec.Command("bash", "-c", "docker-compose -f /tmp/dc1 pull --include-deps")
-
-	fmt.Println("* Starting docker compose")
-	err = cmd.Start()
+	fmt.Printf("ccc")
+	err = dc.Setup()
 	check(err)
-
-	fmt.Println("* Waiting for build to finish")
-	err = cmd.Wait()
-	check(err)
-
-	fmt.Println("* Docker Compose Up")
-}
-
-func (job *Job) Run() {
-	buildExecutor(job.Services)
+	fmt.Printf("ddd")
 
 	commands := []string{}
 	for _, c := range job.Commands {
 		commands = append(commands, c.Directive)
 	}
 
-	shell := NewShell()
+	fmt.Printf("aaa")
+	sh := shell.NewShell(dc)
+	fmt.Printf("bbb")
 
-	shell.Run(commands, func(event interface{}) {
+	sh.Run(commands, func(event interface{}) {
 		switch e := event.(type) {
-		case CommandStartedShellEvent:
+		case shell.CommandStartedShellEvent:
 			fmt.Printf("command %d | Running: %s\n", e.CommandIndex, e.Command)
-		case CommandOutputShellEvent:
+		case shell.CommandOutputShellEvent:
 			fmt.Printf("command %d | %s\n", e.CommandIndex, e.Output)
-		case CommandFinishedShellEvent:
+		case shell.CommandFinishedShellEvent:
 			fmt.Printf("command %d | exit status: %d\n", e.CommandIndex, e.ExitStatus)
 		default:
 			panic("Unknown shell event")

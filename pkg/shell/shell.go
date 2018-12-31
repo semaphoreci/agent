@@ -1,20 +1,18 @@
-package main
+package shell
 
 import (
 	"bufio"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"os"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"time"
 
-	"github.com/kr/pty"
+	"github.com/semaphoreci/agent/pkg/executor"
 )
 
 type Shell struct {
+	Executor                     executor.Executor
 	currentlyRunningCommandIndex int
 	commandSeparator             string
 	commandStartRegex            *regexp.Regexp
@@ -42,7 +40,7 @@ type CommandFinishedShellEvent struct {
 	Duration     int
 }
 
-func NewShell() Shell {
+func NewShell(executor executor.Executor) Shell {
 	// TODO: generate random separator
 	separator := `ae415f5b966d4fb380e2c234ec9300ff`
 
@@ -51,13 +49,12 @@ func NewShell() Shell {
 		currentlyRunningCommandIndex: 0,
 		commandStartRegex:            regexp.MustCompile(separator + " start"),
 		commandEndRegex:              regexp.MustCompile(separator + " end " + `(\d)`),
+		Executor:                     executor,
 	}
 }
 
 func (s *Shell) Run(commands []string, handler ShellStreamHandler) error {
-	s.compileCommands(commands)
-
-	cmd := exec.Command("bash", "-c", "docker-compose -f /tmp/dc1 run -v /tmp/run/semaphore:/tmp/run/semaphore main bash /tmp/run/semaphore/job.sh")
+	s.injectJobScript(commands)
 
 	reader, writter := io.Pipe()
 
@@ -100,37 +97,30 @@ func (s *Shell) Run(commands []string, handler ShellStreamHandler) error {
 		}
 	}()
 
-	f, err := pty.Start(cmd)
+	tty, err := s.Executor.Run("bash /tmp/run/semaphore/job.sh")
 	if err != nil {
 		return err
 	}
 
-	io.Copy(writter, f)
+	io.Copy(writter, tty)
 
-	return cmd.Wait()
+	return nil
 }
 
-func (s *Shell) compileCommands(commands []string) error {
-	os.RemoveAll("/tmp/run/semaphore")
-	os.MkdirAll("/tmp/run/semaphore/commands", os.ModePerm)
-
+func (s *Shell) injectJobScript(commands []string) {
 	jobScript := `#!/bin/bash
 set -euo pipefail
 IFS=$'\n\t'
 `
-
 	for i, c := range commands {
 		path := fmt.Sprintf("/tmp/run/semaphore/commands/%06d", i)
-
-		err := ioutil.WriteFile(path, []byte(c), 0644)
+		s.Executor.AddFile(path, c)
 
 		jobScript += fmt.Sprintf(`echo "%s start"`+"\n", s.commandSeparator)
 		jobScript += fmt.Sprintf("source %s\n", path)
 		jobScript += fmt.Sprintf("code=$?" + "\n")
 		jobScript += fmt.Sprintf(`echo "%s end $code"`+"\n", s.commandSeparator)
-
-		check(err)
 	}
 
-	return ioutil.WriteFile("/tmp/run/semaphore/job.sh", []byte(jobScript), 0644)
+	s.Executor.AddFile("/tmp/run/semaphore/job.sh", jobScript)
 }
