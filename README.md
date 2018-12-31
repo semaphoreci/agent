@@ -4,6 +4,7 @@ Base agent responsibilities:
 
 - [x] Run jobs
 - [ ] Provide output logs
+- [ ] Run a server
 
 Compose style CI milestone:
 
