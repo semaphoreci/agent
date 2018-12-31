@@ -1,4 +1,4 @@
-# Semaphore 2.0 Agents
+# [WIP] Semaphore 2.0 Agents
 
 Base agent responsibilities:
 
