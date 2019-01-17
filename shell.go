@@ -57,7 +57,7 @@ func NewShell() Shell {
 func (s *Shell) Run(commands []string, handler ShellStreamHandler) error {
 	s.compileCommands(commands)
 
-	cmd := exec.Command("bash", "-c", "docker-compose -f /tmp/dc1 run -v /tmp/run/semaphore:/tmp/run/semaphore main bash /tmp/run/semaphore/job.sh")
+	cmd := exec.Command("bash", "/tmp/run/semaphore/job.sh")
 
 	reader, writter := io.Pipe()
 
