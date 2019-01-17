@@ -27,7 +27,7 @@ func (s *Server) Serve() {
 
 	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
 
-	log.Fatal(http.ListenAndServe(address, loggedRouter))
+	log.Fatal(http.ListenAndServeTLS(address, "server.crt", "server.key", loggedRouter))
 }
 
 func (s *Server) Status(w http.ResponseWriter, r *http.Request) {
