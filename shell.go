@@ -2,11 +2,13 @@ package main
 
 import (
 	"bufio"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path"
 	"regexp"
 	"strconv"
 	"time"
@@ -54,8 +56,8 @@ func NewShell() Shell {
 	}
 }
 
-func (s *Shell) Run(commands []string, handler ShellStreamHandler) error {
-	s.compileCommands(commands)
+func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) error {
+	s.compileCommands(jobRequest)
 
 	cmd := exec.Command("bash", "/tmp/run/semaphore/job.sh")
 
@@ -72,7 +74,7 @@ func (s *Shell) Run(commands []string, handler ShellStreamHandler) error {
 				handler(CommandStartedShellEvent{
 					Timestamp:    int(time.Now().Unix()),
 					CommandIndex: s.currentlyRunningCommandIndex,
-					Command:      commands[s.currentlyRunningCommandIndex],
+					Command:      jobRequest.Commands[s.currentlyRunningCommandIndex].Directive,
 				})
 			} else if match := s.commandEndRegex.FindStringSubmatch(text); len(match) == 2 {
 				// command finished
@@ -110,19 +112,36 @@ func (s *Shell) Run(commands []string, handler ShellStreamHandler) error {
 	return cmd.Wait()
 }
 
-func (s *Shell) compileCommands(commands []string) error {
+func (s *Shell) compileCommands(jobRequest JobRequest) error {
 	os.RemoveAll("/tmp/run/semaphore")
 	os.MkdirAll("/tmp/run/semaphore/commands", os.ModePerm)
+	os.MkdirAll("/tmp/run/semaphore/files", os.ModePerm)
 
 	jobScript := `#!/bin/bash
 set -euo pipefail
 IFS=$'\n\t'
 `
 
-	for i, c := range commands {
+	for _, e := range jobRequest.EnvVars {
+		value, _ := base64.StdEncoding.DecodeString(e.Value)
+
+		jobScript += fmt.Sprintf("export %s=%s\n", e.Name, value)
+	}
+
+	for i, f := range jobRequest.Files {
+		tmpPath := fmt.Sprintf("/tmp/run/semaphore/files/%06d", i)
+		content, _ := base64.StdEncoding.DecodeString(f.Content)
+
+		ioutil.WriteFile(tmpPath, []byte(content), 0644)
+
+		jobScript += fmt.Sprintf("mkdir -p %s\n", path.Dir(f.Path))
+		jobScript += fmt.Sprintf("cp %s %s\n", tmpPath, f.Path)
+	}
+
+	for i, c := range jobRequest.Commands {
 		path := fmt.Sprintf("/tmp/run/semaphore/commands/%06d", i)
 
-		err := ioutil.WriteFile(path, []byte(c), 0644)
+		err := ioutil.WriteFile(path, []byte(c.Directive), 0644)
 
 		jobScript += fmt.Sprintf(`echo "%s start"`+"\n", s.commandSeparator)
 		jobScript += fmt.Sprintf("source %s\n", path)
