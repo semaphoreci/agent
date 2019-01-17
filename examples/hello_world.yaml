@@ -1,6 +1,20 @@
-services:
-  - name: "main"
-    image: "ubuntu"
+id: "d3d5f394-5fa8-4d61-bf70-aa565825ad50"
+
+env_vars:
+  - name: "A"
+    value: "aGVsbG8K"
+
+files:
+  - path: "/tmp/test.txt"
+    mode: "0644"
+    content: "aGVsbG8K"
 
 commands:
   - directive: "echo 'hello world'"
+
+epilogue_commands:
+  - directive: "echo 'hello world'"
+
+callbacks:
+  started: "http://httpstat.us/200"
+  finished: "http://httpstat.us/200"

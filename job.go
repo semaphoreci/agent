@@ -12,8 +12,21 @@ type Command struct {
 	Directive string `yaml:"directive"`
 }
 
+type EnvVar struct {
+	Name  string `yaml:"name"`
+	Value string `yaml:"value"`
+}
+
+type File struct {
+	Path    string `yaml:"name"`
+	Content string `yaml:"content"`
+	Mode    string `yaml:"mode"`
+}
+
 type JobRequest struct {
 	Commands []Command `yaml:"commands"`
+	EnvVars  []EnvVar  `yaml:"env_vars"`
+	Files    []File    `yaml:"file"`
 }
 
 type Job struct {
@@ -45,14 +58,11 @@ func NewJobFromYaml(path string) (*Job, error) {
 }
 
 func (job *Job) Run() {
-	commands := []string{}
-	for _, c := range job.Request.Commands {
-		commands = append(commands, c.Directive)
-	}
+	fmt.Printf("%+v\n", job.Request)
 
 	shell := NewShell()
 
-	shell.Run(commands, func(event interface{}) {
+	shell.Run(job.Request, func(event interface{}) {
 		switch e := event.(type) {
 		case CommandStartedShellEvent:
 			fmt.Printf("command %d | Running: %s\n", e.CommandIndex, e.Command)
