@@ -1,2 +1,5 @@
 run:
-	go run *.go $(JOB)
+	go run *.go run $(JOB)
+
+serve:
+	go run *.go serve
