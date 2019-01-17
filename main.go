@@ -22,7 +22,7 @@ func (s *Server) Serve() {
 	address := fmt.Sprintf("%s:%d", s.Host, s.Port)
 
 	r.HandleFunc("/status", s.Status).Methods("GET")
-	r.HandleFunc("/run", s.Run).Methods("POST")
+	r.HandleFunc("/jobs", s.Run).Methods("POST")
 	r.HandleFunc("/stop", s.Stop).Methods("POST")
 
 	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
@@ -36,6 +36,12 @@ func (s *Server) Status(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
+	if s.State != "waiting for job" {
+		w.WriteHeader(422)
+		fmt.Fprintf(w, `{"message": "a job is already running"}`)
+		return
+	}
+
 	s.State = "received-job"
 
 	jobRequest := JobRequest{}
