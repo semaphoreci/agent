@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,8 +12,9 @@ import (
 )
 
 type Server struct {
-	Host string
-	Port int
+	Host  string
+	Port  int
+	State string
 }
 
 func (s *Server) Serve() {
@@ -30,11 +32,26 @@ func (s *Server) Serve() {
 
 func (s *Server) Status(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(400)
-	fmt.Fprintf(w, `{"state": "waiting for job", "uptime": "pretty long time"}`)
+	fmt.Fprintf(w, `{"state": "%s", "uptime": "pretty long time"}`, s.State)
 }
 
 func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
-	s.unsuported(w)
+	s.State = "received-job"
+
+	jobRequest := JobRequest{}
+
+	err := json.NewDecoder(r.Body).Decode(&jobRequest)
+
+	if err != nil {
+		fmt.Fprintf(w, `{"message": "%s"}`, err)
+		return
+	}
+
+	job := Job{Request: jobRequest}
+
+	s.State = "job-started"
+
+	go job.Run()
 }
 
 func (s *Server) Stop(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +68,7 @@ func main() {
 
 	switch action {
 	case "serve":
-		server := Server{Host: "0.0.0.0", Port: 8000}
+		server := Server{Host: "0.0.0.0", Port: 8000, State: "waiting for job"}
 		server.Serve()
 
 	case "run":

@@ -12,8 +12,12 @@ type Command struct {
 	Directive string `yaml:"directive"`
 }
 
-type Job struct {
+type JobRequest struct {
 	Commands []Command `yaml:"commands"`
+}
+
+type Job struct {
+	Request JobRequest
 }
 
 func check(e error) {
@@ -42,7 +46,7 @@ func NewJobFromYaml(path string) (*Job, error) {
 
 func (job *Job) Run() {
 	commands := []string{}
-	for _, c := range job.Commands {
+	for _, c := range job.Request.Commands {
 		commands = append(commands, c.Directive)
 	}
 
