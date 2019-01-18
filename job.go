@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"path/filepath"
 
 	"github.com/ghodss/yaml"
@@ -23,10 +25,16 @@ type File struct {
 	Mode    string `yaml:"mode"`
 }
 
+type Callbacks struct {
+	Started  string `yaml:"mode"`
+	Finished string `yaml:"mode"`
+}
+
 type JobRequest struct {
-	Commands []Command `yaml:"commands"`
-	EnvVars  []EnvVar  `yaml:"env_vars"`
-	Files    []File    `yaml:"file"`
+	Commands  []Command `yaml:"commands"`
+	EnvVars   []EnvVar  `yaml:"env_vars"`
+	Files     []File    `yaml:"file"`
+	Callbacks Callbacks `yaml:"callbacks"`
 }
 
 type Job struct {
@@ -47,18 +55,22 @@ func NewJobFromYaml(path string) (*Job, error) {
 		return nil, err
 	}
 
-	var job Job
+	fmt.Printf("%s\n", yamlFile)
 
-	err = yaml.Unmarshal(yamlFile, &job)
+	var jobRequest JobRequest
+
+	err = yaml.Unmarshal(yamlFile, &jobRequest)
 	if err != nil {
 		return nil, err
 	}
 
-	return &job, nil
+	return &Job{Request: jobRequest}, nil
 }
 
 func (job *Job) Run() {
 	fmt.Printf("%+v\n", job.Request)
+
+	job.SendStartedCallback()
 
 	shell := NewShell()
 
@@ -74,4 +86,28 @@ func (job *Job) Run() {
 			panic("Unknown shell event")
 		}
 	})
+
+	job.SendFinishedCallback("passed")
+}
+
+func (job *Job) SendStartedCallback() error {
+	payload := `{"port": 22}`
+
+	return job.SendCallback(job.Request.Callbacks.Started, payload)
+}
+
+func (job *Job) SendFinishedCallback(result string) error {
+	payload := fmt.Sprintf(`{"result": "%s"}`, result)
+
+	return job.SendCallback(job.Request.Callbacks.Finished, payload)
+}
+
+func (job *Job) SendCallback(url string, payload string) error {
+	fmt.Printf("Sending started callback: %s with %+v\n", url, payload)
+
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer([]byte(payload)))
+
+	fmt.Printf("%+v\n", resp)
+
+	return err
 }
