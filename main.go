@@ -29,6 +29,8 @@ func (s *Server) Serve() {
 	r.HandleFunc("/stop", s.Stop).Methods("POST")
 	r.HandleFunc("/jobs/{job_id}/log", s.Logs).Methods("GET")
 
+	fmt.Printf("Agent %s listening on https://%s\n", VERSION, address)
+
 	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
 
 	log.Fatal(http.ListenAndServeTLS(address, "server.crt", "server.key", loggedRouter))
