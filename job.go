@@ -13,6 +13,9 @@ import (
 	"github.com/ghodss/yaml"
 )
 
+const JOB_PASSED = "passed"
+const JOB_FAILED = "failed"
+
 type Command struct {
 	Directive string `yaml:"directive"`
 }
@@ -71,6 +74,8 @@ func NewJobFromYaml(path string) (*Job, error) {
 }
 
 func (job *Job) Run() {
+	result := JOB_FAILED
+
 	fmt.Printf("%+v\n", job.Request)
 
 	os.RemoveAll("/tmp/run/semaphore/logs")
@@ -90,7 +95,7 @@ func (job *Job) Run() {
 
 	shell := NewShell()
 
-	shell.Run(job.Request, func(event interface{}) {
+	exitStatus := shell.Run(job.Request, func(event interface{}) {
 		switch e := event.(type) {
 		case CommandStartedShellEvent:
 			LogCmdStarted(logfile, e.Timestamp, e.Directive)
@@ -105,9 +110,15 @@ func (job *Job) Run() {
 
 	logfile.Sync()
 
-	job.SendFinishedCallback("passed")
+	if exitStatus == 0 {
+		result = JOB_PASSED
+	} else {
+		result = JOB_FAILED
+	}
 
-	LogJobFinish(logfile, "passed")
+	job.SendFinishedCallback(result)
+
+	LogJobFinish(logfile, result)
 }
 
 func LogJobStart(logfile *os.File) {

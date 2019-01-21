@@ -11,6 +11,7 @@ import (
 	"path"
 	"regexp"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/kr/pty"
@@ -57,7 +58,7 @@ func NewShell() Shell {
 	}
 }
 
-func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) error {
+func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) int {
 	s.compileCommands(jobRequest)
 
 	cmd := exec.Command("bash", "/tmp/run/semaphore/job.sh")
@@ -106,12 +107,31 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) error {
 
 	f, err := pty.Start(cmd)
 	if err != nil {
-		return err
+		// return exit code 1
+		return 1
 	}
 
 	io.Copy(writter, f)
 
-	return cmd.Wait()
+	if err := cmd.Wait(); err != nil {
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			// The program has exited with an exit code != 0
+
+			// This works on both Unix and Windows. Although package
+			// syscall is generally platform dependent, WaitStatus is
+			// defined for both Unix and Windows and in both cases has
+			// an ExitStatus() method with the same signature.
+			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+				return status.ExitStatus()
+			}
+		} else {
+			// unknown error happened, setting exit code to 1
+			return 1
+		}
+	}
+
+	// program exited with exit code 0
+	return 0
 }
 
 func (s *Shell) compileCommands(jobRequest JobRequest) error {
