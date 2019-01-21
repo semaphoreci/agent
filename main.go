@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -24,6 +25,7 @@ func (s *Server) Serve() {
 	r.HandleFunc("/status", s.Status).Methods("GET")
 	r.HandleFunc("/jobs", s.Run).Methods("POST")
 	r.HandleFunc("/stop", s.Stop).Methods("POST")
+	r.HandleFunc("/jobs/{job_id}/log", s.Logs).Methods("GET")
 
 	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
 
@@ -33,6 +35,23 @@ func (s *Server) Serve() {
 func (s *Server) Status(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(400)
 	fmt.Fprintf(w, `{"state": "%s", "uptime": "pretty long time"}`, s.State)
+}
+
+func (s *Server) Logs(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "text/plain")
+
+	// not yet supported
+	// start_from = params[:start_from].to_i || 0
+
+	logfile, err := os.Open("/tmp/job_log.json")
+
+	if err != nil {
+		w.WriteHeader(404)
+		return
+	}
+	defer logfile.Close()
+
+	io.Copy(w, logfile)
 }
 
 func (s *Server) Run(w http.ResponseWriter, r *http.Request) {

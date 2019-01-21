@@ -79,7 +79,6 @@ func (job *Job) Run() {
 	// TODO: find better place for this
 	logfile, err := os.Create("/tmp/job_log.json")
 	if err != nil {
-		fmt.Printf("aaaa")
 		panic(err)
 	}
 
@@ -94,13 +93,10 @@ func (job *Job) Run() {
 	shell.Run(job.Request, func(event interface{}) {
 		switch e := event.(type) {
 		case CommandStartedShellEvent:
-			fmt.Printf("aaa")
 			LogCmdStarted(logfile, e.Timestamp, e.Directive)
 		case CommandOutputShellEvent:
-			fmt.Printf("bbb")
 			LogCmdOutput(logfile, e.Timestamp, e.Output)
 		case CommandFinishedShellEvent:
-			fmt.Printf("ccc")
 			LogCmdFinished(logfile, e.Timestamp, e.Directive, e.ExitStatus)
 		default:
 			panic("Unknown shell event")
