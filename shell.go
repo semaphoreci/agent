@@ -11,6 +11,7 @@ import (
 	"path"
 	"regexp"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/kr/pty"
@@ -57,11 +58,12 @@ func NewShell() Shell {
 	}
 }
 
-func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) error {
+func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) int {
 	s.compileCommands(jobRequest)
 
-	cmd := exec.Command("bash", "/tmp/run/semaphore/job.sh")
+	lastExecutedCommandReturnedExitCode := false
 
+	cmd := exec.Command("bash", "/tmp/run/semaphore/job.sh")
 	reader, writter := io.Pipe()
 
 	stdoutScanner := bufio.NewScanner(reader)
@@ -71,6 +73,7 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) error {
 			text := stdoutScanner.Text()
 
 			if s.commandStartRegex.MatchString(text) {
+				lastExecutedCommandReturnedExitCode = false
 				// command started
 				handler(CommandStartedShellEvent{
 					Timestamp:    int(time.Now().Unix()),
@@ -95,6 +98,8 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) error {
 
 				s.currentlyRunningCommandIndex += 1
 			} else {
+				lastExecutedCommandReturnedExitCode = true
+
 				handler(CommandOutputShellEvent{
 					Timestamp:    int(time.Now().Unix()),
 					CommandIndex: s.currentlyRunningCommandIndex,
@@ -106,12 +111,47 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) error {
 
 	f, err := pty.Start(cmd)
 	if err != nil {
-		return err
+		// return exit code 1
+		return 1
 	}
 
 	io.Copy(writter, f)
 
-	return cmd.Wait()
+	exitCode := 1
+
+	if err := cmd.Wait(); err != nil {
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			// The program has exited with an exit code != 0
+
+			// This works on both Unix and Windows. Although package
+			// syscall is generally platform dependent, WaitStatus is
+			// defined for both Unix and Windows and in both cases has
+			// an ExitStatus() method with the same signature.
+			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+				exitCode = status.ExitStatus()
+			} else {
+				exitCode = 1
+			}
+		} else {
+			// unknown error happened, setting exit code to 1
+			exitCode = 1
+		}
+	} else {
+		// program exited with exit code 0
+		exitCode = 0
+	}
+
+	if lastExecutedCommandReturnedExitCode == false {
+		handler(CommandFinishedShellEvent{
+			Timestamp:    int(time.Now().Unix()),
+			CommandIndex: s.currentlyRunningCommandIndex,
+			ExitStatus:   exitCode,
+			Duration:     0,
+			Directive:    jobRequest.Commands[s.currentlyRunningCommandIndex].Directive,
+		})
+	}
+
+	return exitCode
 }
 
 func (s *Shell) compileCommands(jobRequest JobRequest) error {
