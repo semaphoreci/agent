@@ -106,6 +106,6 @@ func main() {
 		job.Run()
 
 	case "version":
-		fmt.Println("v0.0.1")
+		fmt.Println("v0.0.3")
 	}
 }
