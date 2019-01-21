@@ -41,9 +41,10 @@ type CommandOutputShellEvent struct {
 type CommandFinishedShellEvent struct {
 	Timestamp    int
 	CommandIndex int
-	ExitStatus   int
-	Duration     int
+	ExitCode     int
 	Directive    string
+	StartedAt    int
+	FinishedAt   int
 }
 
 func NewShell() Shell {
@@ -62,6 +63,7 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) int {
 	s.compileCommands(jobRequest)
 
 	lastExecutedCommandReturnedExitCode := false
+	lastCommandStartedAt := 0
 
 	cmd := exec.Command("bash", "/tmp/run/semaphore/job.sh")
 	reader, writter := io.Pipe()
@@ -74,6 +76,8 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) int {
 
 			if s.commandStartRegex.MatchString(text) {
 				lastExecutedCommandReturnedExitCode = false
+				lastCommandStartedAt = int(time.Now().Unix())
+
 				// command started
 				handler(CommandStartedShellEvent{
 					Timestamp:    int(time.Now().Unix()),
@@ -91,8 +95,9 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) int {
 				handler(CommandFinishedShellEvent{
 					Timestamp:    int(time.Now().Unix()),
 					CommandIndex: s.currentlyRunningCommandIndex,
-					ExitStatus:   exitStatus,
-					Duration:     0,
+					ExitCode:     exitStatus,
+					StartedAt:    lastCommandStartedAt,
+					FinishedAt:   int(time.Now().Unix()),
 					Directive:    jobRequest.Commands[s.currentlyRunningCommandIndex].Directive,
 				})
 
@@ -103,7 +108,7 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) int {
 				handler(CommandOutputShellEvent{
 					Timestamp:    int(time.Now().Unix()),
 					CommandIndex: s.currentlyRunningCommandIndex,
-					Output:       stdoutScanner.Text(),
+					Output:       stdoutScanner.Text() + "\n",
 				})
 			}
 		}
@@ -145,8 +150,9 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) int {
 		handler(CommandFinishedShellEvent{
 			Timestamp:    int(time.Now().Unix()),
 			CommandIndex: s.currentlyRunningCommandIndex,
-			ExitStatus:   exitCode,
-			Duration:     0,
+			ExitCode:     exitCode,
+			StartedAt:    lastCommandStartedAt,
+			FinishedAt:   int(time.Now().Unix()),
 			Directive:    jobRequest.Commands[s.currentlyRunningCommandIndex].Directive,
 		})
 	}

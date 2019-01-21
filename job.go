@@ -102,7 +102,7 @@ func (job *Job) Run() {
 		case CommandOutputShellEvent:
 			LogCmdOutput(logfile, e.Timestamp, e.Output)
 		case CommandFinishedShellEvent:
-			LogCmdFinished(logfile, e.Timestamp, e.Directive, e.ExitStatus)
+			LogCmdFinished(logfile, e.Timestamp, e.Directive, e.ExitCode, e.StartedAt, e.FinishedAt)
 		default:
 			panic("Unknown shell event")
 		}
@@ -172,13 +172,15 @@ func LogCmdOutput(logfile *os.File, timestamp int, output string) {
 	logfile.Write([]byte("\n"))
 }
 
-func LogCmdFinished(logfile *os.File, timestamp int, directive string, exitStatus int) {
+func LogCmdFinished(logfile *os.File, timestamp int, directive string, exitCode int, startedAt int, finishedAt int) {
 	m := make(map[string]interface{})
 
 	m["event"] = "cmd_finished"
 	m["timestamp"] = timestamp
 	m["directive"] = directive
-	m["exit_status"] = exitStatus
+	m["exit_code"] = exitCode
+	m["started_at"] = startedAt
+	m["finished_at"] = finishedAt
 
 	jsonString, _ := json.Marshal(m)
 
