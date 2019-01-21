@@ -12,6 +12,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
+const VERSION = "v0.0.4"
+
 type Server struct {
 	Host  string
 	Port  int
@@ -34,7 +36,14 @@ func (s *Server) Serve() {
 
 func (s *Server) Status(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(400)
-	fmt.Fprintf(w, `{"state": "%s", "uptime": "pretty long time"}`, s.State)
+	m := make(map[string]interface{})
+
+	m["state"] = s.State
+	m["version"] = VERSION
+
+	jsonString, _ := json.Marshal(m)
+
+	fmt.Fprintf(w, string(jsonString))
 }
 
 func (s *Server) Logs(w http.ResponseWriter, r *http.Request) {
@@ -106,6 +115,6 @@ func main() {
 		job.Run()
 
 	case "version":
-		fmt.Println("v0.0.3")
+		fmt.Println(VERSION)
 	}
 }
