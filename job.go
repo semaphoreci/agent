@@ -2,10 +2,13 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/ghodss/yaml"
 )
@@ -70,24 +73,105 @@ func NewJobFromYaml(path string) (*Job, error) {
 func (job *Job) Run() {
 	fmt.Printf("%+v\n", job.Request)
 
+	os.RemoveAll("/tmp/run/semaphore/logs")
+	os.MkdirAll("/tmp/run/semaphore/logs", os.ModePerm)
+
+	// TODO: find better place for this
+	logfile, err := os.Create("/tmp/job_log.json")
+	if err != nil {
+		panic(err)
+	}
+
+	defer logfile.Close()
+
 	job.SendStartedCallback()
+
+	LogJobStart(logfile)
 
 	shell := NewShell()
 
 	shell.Run(job.Request, func(event interface{}) {
 		switch e := event.(type) {
 		case CommandStartedShellEvent:
-			fmt.Printf("command %d | Running: %s\n", e.CommandIndex, e.Command)
+			LogCmdStarted(logfile, e.Timestamp, e.Directive)
 		case CommandOutputShellEvent:
-			fmt.Printf("command %d | %s\n", e.CommandIndex, e.Output)
+			LogCmdOutput(logfile, e.Timestamp, e.Output)
 		case CommandFinishedShellEvent:
-			fmt.Printf("command %d | exit status: %d\n", e.CommandIndex, e.ExitStatus)
+			LogCmdFinished(logfile, e.Timestamp, e.Directive, e.ExitStatus)
 		default:
 			panic("Unknown shell event")
 		}
 	})
 
+	logfile.Sync()
+
 	job.SendFinishedCallback("passed")
+
+	LogJobFinish(logfile, "passed")
+}
+
+func LogJobStart(logfile *os.File) {
+	m := make(map[string]interface{})
+
+	m["event"] = "job_started"
+	m["timestamp"] = int(time.Now().Unix())
+
+	jsonString, _ := json.Marshal(m)
+
+	logfile.Write([]byte(jsonString))
+	logfile.Write([]byte("\n"))
+}
+
+func LogJobFinish(logfile *os.File, result string) {
+	m := make(map[string]interface{})
+
+	m["event"] = "job_finished"
+	m["timestamp"] = int(time.Now().Unix())
+
+	jsonString, _ := json.Marshal(m)
+
+	logfile.Write([]byte(jsonString))
+	logfile.Write([]byte("\n"))
+}
+
+func LogCmdStarted(logfile *os.File, timestamp int, directive string) {
+	m := make(map[string]interface{})
+
+	m["event"] = "cmd_started"
+	m["timestamp"] = timestamp
+	m["directive"] = directive
+
+	jsonString, _ := json.Marshal(m)
+
+	logfile.Write([]byte(jsonString))
+	logfile.Write([]byte("\n"))
+}
+
+func LogCmdOutput(logfile *os.File, timestamp int, output string) {
+	m := make(map[string]interface{})
+
+	m["event"] = "cmd_output"
+	m["timestamp"] = timestamp
+	m["output"] = output
+
+	jsonString, _ := json.Marshal(m)
+
+	logfile.Write([]byte(jsonString))
+	logfile.Write([]byte("\n"))
+}
+
+func LogCmdFinished(logfile *os.File, timestamp int, directive string, exitStatus int) {
+	m := make(map[string]interface{})
+
+	m["event"] = "cmd_finished"
+	m["timestamp"] = timestamp
+	m["directive"] = directive
+	m["exit_status"] = exitStatus
+
+	jsonString, _ := json.Marshal(m)
+
+	logfile.Write([]byte(jsonString))
+	logfile.Write([]byte("\n"))
 }
 
 func (job *Job) SendStartedCallback() error {

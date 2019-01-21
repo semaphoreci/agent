@@ -16,5 +16,5 @@ epilogue_commands:
   - directive: "echo 'hello world'"
 
 callbacks:
-  started: "http://httpstat.us/200"
-  finished: "http://httpstat.us/200"
+  started: "https://httpbin.org/status/200"
+  finished: "https://httpbin.org/status/200"

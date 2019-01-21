@@ -28,7 +28,7 @@ type ShellStreamHandler func(interface{})
 type CommandStartedShellEvent struct {
 	Timestamp    int
 	CommandIndex int
-	Command      string
+	Directive    string
 }
 
 type CommandOutputShellEvent struct {
@@ -42,6 +42,7 @@ type CommandFinishedShellEvent struct {
 	CommandIndex int
 	ExitStatus   int
 	Duration     int
+	Directive    string
 }
 
 func NewShell() Shell {
@@ -74,7 +75,7 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) error {
 				handler(CommandStartedShellEvent{
 					Timestamp:    int(time.Now().Unix()),
 					CommandIndex: s.currentlyRunningCommandIndex,
-					Command:      jobRequest.Commands[s.currentlyRunningCommandIndex].Directive,
+					Directive:    jobRequest.Commands[s.currentlyRunningCommandIndex].Directive,
 				})
 			} else if match := s.commandEndRegex.FindStringSubmatch(text); len(match) == 2 {
 				// command finished
@@ -89,6 +90,7 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) error {
 					CommandIndex: s.currentlyRunningCommandIndex,
 					ExitStatus:   exitStatus,
 					Duration:     0,
+					Directive:    jobRequest.Commands[s.currentlyRunningCommandIndex].Directive,
 				})
 
 				s.currentlyRunningCommandIndex += 1
