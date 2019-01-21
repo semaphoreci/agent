@@ -138,6 +138,7 @@ func LogJobFinish(logfile *os.File, result string) {
 
 	m["event"] = "job_finished"
 	m["timestamp"] = int(time.Now().Unix())
+	m["result"] = result
 
 	jsonString, _ := json.Marshal(m)
 
