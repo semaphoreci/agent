@@ -12,7 +12,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-const VERSION = "v0.0.5"
+var VERSION = "dev"
 
 type Server struct {
 	Host  string
