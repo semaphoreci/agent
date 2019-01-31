@@ -3,13 +3,16 @@
 Base agent responsibilities:
 
 - [x] Run jobs
-- [ ] Provide output logs
-- [ ] Run a server
+- [x] Provide output logs
+- [x] Run a server
+- [ ] Inject env variables
+- [ ] Inject files
+- [ ] Run epilogue commands
 
 Compose style CI milestone:
 
-- [x] Run commands in docker container
-- [x] Start multiple docker containers, connect them via DNS
+- [ ] Run commands in docker container
+- [ ] Start multiple docker containers, connect them via DNS
 - [ ] Checkout source code, run tests
 - [ ] Inject files and environments variables
 - [ ] Pull private docker images
