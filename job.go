@@ -18,31 +18,31 @@ const JOB_PASSED = "passed"
 const JOB_FAILED = "failed"
 
 type Command struct {
-	Directive string `yaml:"directive"`
+	Directive string `json:"directive" yaml:"directive"`
 }
 
 type EnvVar struct {
-	Name  string `yaml:"name"`
-	Value string `yaml:"value"`
+	Name  string `json:"name" yaml:"name"`
+	Value string `json:"value" yaml:"value"`
 }
 
 type File struct {
-	Path    string `yaml:"name"`
-	Content string `yaml:"content"`
-	Mode    string `yaml:"mode"`
+	Path    string `json:"path" yaml:"path"`
+	Content string `json:"content" yaml:"content"`
+	Mode    string `json:"mode" yaml:"mode"`
 }
 
 type Callbacks struct {
-	Started          string `yaml:"started"`
-	Finished         string `yaml:"finished"`
-	TeardownFinished string `yaml:"teardown_finished"`
+	Started          string `json:"started" yaml:"started"`
+	Finished         string `json:"finished" yaml:"finished"`
+	TeardownFinished string `json:"teardown_finished" yaml:"teardown_finished"`
 }
 
 type JobRequest struct {
-	Commands  []Command `yaml:"commands"`
-	EnvVars   []EnvVar  `yaml:"env_vars"`
-	Files     []File    `yaml:"file"`
-	Callbacks Callbacks `yaml:"callbacks"`
+	Commands  []Command `json:"commands" yaml:"commands"`
+	EnvVars   []EnvVar  `json:"env_vars" yaml:"env_vars"`
+	Files     []File    `json:"files" yaml:"file"`
+	Callbacks Callbacks `json:"callbacks" yaml:"callbacks"`
 }
 
 type Job struct {
@@ -209,7 +209,7 @@ func (job *Job) SendTeardownFinishedCallback() error {
 }
 
 func (job *Job) SendCallback(url string, payload string) error {
-	log.Printf("Sending started callback: %s with %+v\n", url, payload)
+	log.Printf("Sending callback: %s with %+v\n", url, payload)
 
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer([]byte(payload)))
 
