@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -62,7 +63,7 @@ func NewJobFromYaml(path string) (*Job, error) {
 		return nil, err
 	}
 
-	fmt.Printf("%s\n", yamlFile)
+	log.Printf("%s\n", yamlFile)
 
 	var jobRequest JobRequest
 
@@ -77,7 +78,7 @@ func NewJobFromYaml(path string) (*Job, error) {
 func (job *Job) Run() {
 	result := JOB_FAILED
 
-	fmt.Printf("%+v\n", job.Request)
+	log.Printf("Job Request %+v\n", job.Request)
 
 	os.RemoveAll("/tmp/run/semaphore/logs")
 	os.MkdirAll("/tmp/run/semaphore/logs", os.ModePerm)
@@ -208,11 +209,11 @@ func (job *Job) SendTeardownFinishedCallback() error {
 }
 
 func (job *Job) SendCallback(url string, payload string) error {
-	fmt.Printf("Sending started callback: %s with %+v\n", url, payload)
+	log.Printf("Sending started callback: %s with %+v\n", url, payload)
 
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer([]byte(payload)))
 
-	fmt.Printf("%+v\n", resp)
+	log.Printf("%+v\n", resp)
 
 	return err
 }

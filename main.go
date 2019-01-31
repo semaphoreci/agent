@@ -27,11 +27,27 @@ func (s *Server) Serve() {
 	r.HandleFunc("/status", s.Status).Methods("GET")
 	r.HandleFunc("/jobs", s.Run).Methods("POST")
 	r.HandleFunc("/stop", s.Stop).Methods("POST")
-	r.HandleFunc("/jobs/{job_id}/log", s.Logs).Methods("GET")
+
+	// The path /jobs/{job_id}/log is here to support the legacy systems.
+	r.HandleFunc("/job_logs", s.JobLogs).Methods("GET")
+	r.HandleFunc("/jobs/{job_id}/log", s.JobLogs).Methods("GET")
+
+	// Agent Logs
+	r.HandleFunc("/agent_logs", s.AgentLogs).Methods("GET")
 
 	fmt.Printf("Agent %s listening on https://%s\n", VERSION, address)
 
-	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
+	f, err := os.OpenFile("/tmp/agent_log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer f.Close()
+
+	log.SetOutput(f)
+
+	loggedRouter := handlers.LoggingHandler(f, r)
 
 	log.Fatal(http.ListenAndServeTLS(address, "server.crt", "server.key", loggedRouter))
 }
@@ -48,13 +64,27 @@ func (s *Server) Status(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, string(jsonString))
 }
 
-func (s *Server) Logs(w http.ResponseWriter, r *http.Request) {
+func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain")
 
 	// not yet supported
 	// start_from = params[:start_from].to_i || 0
 
 	logfile, err := os.Open("/tmp/job_log.json")
+
+	if err != nil {
+		w.WriteHeader(404)
+		return
+	}
+	defer logfile.Close()
+
+	io.Copy(w, logfile)
+}
+
+func (s *Server) AgentLogs(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "text/plain")
+
+	logfile, err := os.Open("/tmp/agent_log")
 
 	if err != nil {
 		w.WriteHeader(404)
