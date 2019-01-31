@@ -32,8 +32,9 @@ type File struct {
 }
 
 type Callbacks struct {
-	Started  string `yaml:"mode"`
-	Finished string `yaml:"mode"`
+	Started          string `yaml:"started"`
+	Finished         string `yaml:"finished"`
+	TeardownFinished string `yaml:"teardown_finished"`
 }
 
 type JobRequest struct {
@@ -119,6 +120,8 @@ func (job *Job) Run() {
 	job.SendFinishedCallback(result)
 
 	LogJobFinish(logfile, result)
+
+	job.SendTeardownFinishedCallback()
 }
 
 func LogJobStart(logfile *os.File) {
@@ -198,6 +201,10 @@ func (job *Job) SendFinishedCallback(result string) error {
 	payload := fmt.Sprintf(`{"result": "%s"}`, result)
 
 	return job.SendCallback(job.Request.Callbacks.Finished, payload)
+}
+
+func (job *Job) SendTeardownFinishedCallback() error {
+	return job.SendCallback(job.Request.Callbacks.TeardownFinished, "{}")
 }
 
 func (job *Job) SendCallback(url string, payload string) error {
