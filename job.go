@@ -46,7 +46,8 @@ type JobRequest struct {
 }
 
 type Job struct {
-	Request JobRequest
+	Request        JobRequest
+	JobLogArchived bool
 }
 
 func check(e error) {
@@ -72,7 +73,8 @@ func NewJobFromYaml(path string) (*Job, error) {
 		return nil, err
 	}
 
-	return &Job{Request: jobRequest}, nil
+	// don't wait for log archivation
+	return &Job{Request: jobRequest, JobLogArchived: true}, nil
 }
 
 func (job *Job) Run() {
@@ -122,7 +124,14 @@ func (job *Job) Run() {
 
 	LogJobFinish(logfile, result)
 
-	job.SendTeardownFinishedCallback()
+	for {
+		if job.JobLogArchived {
+			job.SendTeardownFinishedCallback()
+			break
+		}
+
+		time.Sleep(1000 * time.Millisecond)
+	}
 }
 
 func LogJobStart(logfile *os.File) {

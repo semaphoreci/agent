@@ -15,10 +15,13 @@ import (
 var VERSION = "dev"
 
 type Server struct {
-	Host  string
-	Port  int
-	State string
+	Host      string
+	Port      int
+	State     string
+	ActiveJob *Job
 }
+
+const JobLogArchivationCompleted = false
 
 func (s *Server) Serve() {
 	r := mux.NewRouter().StrictSlash(true)
@@ -79,6 +82,10 @@ func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 	defer logfile.Close()
 
 	io.Copy(w, logfile)
+
+	if r.Header.Get("X-Client-Name") == "archivator" {
+		s.ActiveJob.JobLogArchived = true
+	}
 }
 
 func (s *Server) AgentLogs(w http.ResponseWriter, r *http.Request) {
@@ -113,11 +120,11 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	job := Job{Request: jobRequest}
+	s.ActiveJob = &Job{Request: jobRequest, JobLogArchived: false}
+
+	go s.ActiveJob.Run()
 
 	s.State = "job-started"
-
-	go job.Run()
 }
 
 func (s *Server) Stop(w http.ResponseWriter, r *http.Request) {
