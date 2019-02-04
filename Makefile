@@ -3,3 +3,6 @@ run:
 
 serve:
 	go run *.go serve
+
+test:
+	go test -v ./...
