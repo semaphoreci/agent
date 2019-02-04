@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -74,9 +75,13 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) int {
 		for stdoutScanner.Scan() {
 			text := stdoutScanner.Text()
 
+			log.Printf("[SHELL] %s", text)
+
 			if s.commandStartRegex.MatchString(text) {
 				lastExecutedCommandReturnedExitCode = false
 				lastCommandStartedAt = int(time.Now().Unix())
+
+				log.Printf("[SHELL] Command Started Event")
 
 				// command started
 				handler(CommandStartedShellEvent{
@@ -87,8 +92,11 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) int {
 			} else if match := s.commandEndRegex.FindStringSubmatch(text); len(match) == 2 {
 				// command finished
 
+				log.Printf("[SHELL] Command Finished Event")
+
 				exitStatus, err := strconv.Atoi(match[1])
 				if err != nil {
+					log.Printf("[SHELL] Panic while parsing exit status, err: %+v", err)
 					panic(err)
 				}
 
@@ -105,6 +113,8 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) int {
 			} else {
 				lastExecutedCommandReturnedExitCode = true
 
+				log.Printf("[SHELL] Command Output Event")
+
 				handler(CommandOutputShellEvent{
 					Timestamp:    int(time.Now().Unix()),
 					CommandIndex: s.currentlyRunningCommandIndex,
@@ -114,16 +124,17 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) int {
 		}
 	}()
 
+	log.Printf("[SHELL] Starting stateful shell")
 	f, err := pty.Start(cmd)
 	if err != nil {
-		// return exit code 1
+		log.Printf("[SHELL] Failed to start stateful shell")
 		return 1
 	}
-
 	io.Copy(writter, f)
 
 	exitCode := 1
 
+	log.Printf("[SHELL] Waiting for stateful shell to close")
 	if err := cmd.Wait(); err != nil {
 		if exiterr, ok := err.(*exec.ExitError); ok {
 			// The program has exited with an exit code != 0
@@ -145,6 +156,8 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) int {
 		// program exited with exit code 0
 		exitCode = 0
 	}
+
+	log.Printf("[SHELL] Final exit code is %d", exitCode)
 
 	if lastExecutedCommandReturnedExitCode == false {
 		handler(CommandFinishedShellEvent{
