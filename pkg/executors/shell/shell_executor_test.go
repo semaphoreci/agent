@@ -15,6 +15,14 @@ func TestHelloWorld(t *testing.T) {
 		fmt.Printf("%+v\n", event)
 	})
 
+	e.RunCommand("false", func(event interface{}) {
+		fmt.Printf("%+v\n", event)
+	})
+
+	e.RunCommand("echo $?", func(event interface{}) {
+		fmt.Printf("%+v\n", event)
+	})
+
 	e.Stop()
 	e.Cleanup()
 }

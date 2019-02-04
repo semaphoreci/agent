@@ -7,6 +7,8 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -97,66 +99,48 @@ func (e *ShellExecutor) InjectFile() {
 }
 
 func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandler) {
-	e.stdin.Write([]byte(command + "; echo 123" + "\n"))
+	startMark := "87d140552e404df69f6472729d2b2c1"
+	finishMark := "97d140552e404df69f6472729d2b2c2"
 
-	reader, writter := io.Pipe()
-	stdoutScanner := bufio.NewScanner(reader)
+	commandEndRegex := regexp.MustCompile(finishMark + " " + `(\d)`)
+	streamEvents := false
 
-	go func() {
-		io.Copy(writter, e.tty)
-	}()
+	e.stdin.Write([]byte("echo " + startMark + "; " + command + "; AGENT_CMD_RESULT=$?; echo \"" + finishMark + " $AGENT_CMD_RESULT\"; echo \"exit $AGENT_CMD_RESULT\"|sh\n"))
 
+	stdoutScanner := bufio.NewScanner(e.tty)
+
+	fmt.Println("[SHELL] Scan started")
 	for stdoutScanner.Scan() {
 		t := stdoutScanner.Text()
-		fmt.Printf("[SHELL] (stdout) %s\n", t)
+		fmt.Printf("[SHELL] (tty) %s\n", t)
 
-		if !strings.Contains(t, "123") {
+		if strings.Contains(t, startMark) {
+			streamEvents = true
+			continue
+		}
+
+		if strings.Contains(t, finishMark) {
+			streamEvents = false
+
+			if match := commandEndRegex.FindStringSubmatch(t); len(match) == 2 {
+				exitStatus, err := strconv.Atoi(match[1])
+				if err != nil {
+					log.Printf("[SHELL] Panic while parsing exit status, err: %+v", err)
+					panic(err)
+				}
+				callback(fmt.Sprintf("Exit Status: %d", exitStatus))
+			} else {
+				panic("AAA")
+			}
+
 			break
+		}
+
+		if streamEvents {
+			callback(t)
 		}
 	}
 }
-
-// func (s *Shell) compileCommands(jobRequest JobRequest) error {
-// 	os.RemoveAll("/tmp/run/semaphore")
-// 	os.MkdirAll("/tmp/run/semaphore/commands", os.ModePerm)
-// 	os.MkdirAll("/tmp/run/semaphore/files", os.ModePerm)
-
-// 	jobScript := `#!/bin/bash
-// set -euo pipefail
-// IFS=$'\n\t'
-// `
-
-// 	for _, e := range jobRequest.EnvVars {
-// 		value, _ := base64.StdEncoding.DecodeString(e.Value)
-
-// 		jobScript += fmt.Sprintf("export %s=%s\n", e.Name, value)
-// 	}
-
-// 	for i, f := range jobRequest.Files {
-// 		tmpPath := fmt.Sprintf("/tmp/run/semaphore/files/%06d", i)
-// 		content, _ := base64.StdEncoding.DecodeString(f.Content)
-
-// 		ioutil.WriteFile(tmpPath, []byte(content), 0644)
-
-// 		jobScript += fmt.Sprintf("mkdir -p %s\n", path.Dir(f.Path))
-// 		jobScript += fmt.Sprintf("cp %s %s\n", tmpPath, f.Path)
-// 	}
-
-// 	for i, c := range jobRequest.Commands {
-// 		path := fmt.Sprintf("/tmp/run/semaphore/commands/%06d", i)
-
-// 		err := ioutil.WriteFile(path, []byte(c.Directive), 0644)
-
-// 		jobScript += fmt.Sprintf(`echo "%s start"`+"\n", s.commandSeparator)
-// 		jobScript += fmt.Sprintf("source %s\n", path)
-// 		jobScript += fmt.Sprintf("code=$?" + "\n")
-// 		jobScript += fmt.Sprintf(`echo "%s end $code"`+"\n", s.commandSeparator)
-
-// 		check(err)
-// 	}
-
-// 	return ioutil.WriteFile("/tmp/run/semaphore/job.sh", []byte(jobScript), 0644)
-// }
 
 func (e *ShellExecutor) Stop() {
 
