@@ -10,7 +10,8 @@ files:
     content: "aGVsbG8K"
 
 commands:
-  - directive: "echo 'hello world'"
+  - directive: "rm -rf /tmp/a"
+  - directive: "git clone git@github.com:/renderedtext/apple-playground /tmp/a"
 
 epilogue_commands:
   - directive: "echo 'hello world'"
