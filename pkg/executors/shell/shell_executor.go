@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	pty "github.com/kr/pty"
@@ -26,15 +27,11 @@ func NewShellExecutor() *ShellExecutor {
 }
 
 func (e *ShellExecutor) Prepare() {
-
+	e.terminal = exec.Command("bash")
 }
 
 func (e *ShellExecutor) Start() error {
-	// e.stdoutScanner = bufio.NewScanner(reader)
-
 	log.Printf("[SHELL] Starting stateful shell")
-
-	e.terminal = exec.Command("bash")
 
 	tty, err := pty.Start(e.terminal)
 	if err != nil {
@@ -45,7 +42,50 @@ func (e *ShellExecutor) Start() error {
 	e.stdin = tty
 	e.tty = tty
 
+	time.Sleep(1000)
+
+	e.silencePromptAndDisablePS1()
+
 	return nil
+}
+
+func (e *ShellExecutor) silencePromptAndDisablePS1() {
+	everythingIsReadyMark := "87d140552e404df69f6472729d2b2c3"
+
+	e.stdin.Write([]byte("export PS1=''\n"))
+	e.stdin.Write([]byte("stty -echo\n"))
+	e.stdin.Write([]byte("echo '" + everythingIsReadyMark + "'\n"))
+
+	stdoutScanner := bufio.NewScanner(e.tty)
+
+	//
+	// At this point, the terminal is still echoing the output back to stdout
+	// we ignore the entered command, and look for the magic mark in the output
+	//
+	// Example content of output before ready mark:
+	//
+	//   export PS1=''
+	//   stty -echo
+	//   echo + '87d140552e404df69f6472729d2b2c3'
+	//   vagrant@boxbox:~/code/agent/pkg/executors/shell$ export PS1=''
+	//   stty -echo
+	//   echo '87d140552e404df69f6472729d2b2c3'
+	//
+
+	// We wait until marker is displayed in the output
+
+	fmt.Println("[SHELL] Waiting for initialization")
+
+	for stdoutScanner.Scan() {
+		text := stdoutScanner.Text()
+
+		fmt.Printf("[SHELL] (tty) %s\n", text)
+		if !strings.Contains(text, "echo") && strings.Contains(text, everythingIsReadyMark) {
+			break
+		}
+	}
+
+	fmt.Println("[SHELL] Initialization complete")
 }
 
 func (e *ShellExecutor) ExportEnvVar() {
@@ -57,7 +97,7 @@ func (e *ShellExecutor) InjectFile() {
 }
 
 func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandler) {
-	e.stdin.Write([]byte(command + "\n"))
+	e.stdin.Write([]byte(command + "; echo 123" + "\n"))
 
 	reader, writter := io.Pipe()
 	stdoutScanner := bufio.NewScanner(reader)
@@ -66,14 +106,14 @@ func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandl
 		io.Copy(writter, e.tty)
 	}()
 
-	go func() {
-		for stdoutScanner.Scan() {
-			fmt.Printf("[SHELL] %s\n", stdoutScanner.Text())
-			time.Sleep(1000)
-		}
-	}()
+	for stdoutScanner.Scan() {
+		t := stdoutScanner.Text()
+		fmt.Printf("[SHELL] (stdout) %s\n", t)
 
-	callback("a")
+		if !strings.Contains(t, "123") {
+			break
+		}
+	}
 }
 
 // func (s *Shell) compileCommands(jobRequest JobRequest) error {
