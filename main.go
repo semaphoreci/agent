@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -70,8 +72,10 @@ func (s *Server) Status(w http.ResponseWriter, r *http.Request) {
 func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain")
 
-	// not yet supported
-	// start_from = params[:start_from].to_i || 0
+	startFromLine, err := strconv.Atoi(r.URL.Query().Get("start_from"))
+	if err != nil {
+		startFromLine = 0
+	}
 
 	logfile, err := os.Open("/tmp/job_log.json")
 
@@ -81,7 +85,15 @@ func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	defer logfile.Close()
 
-	io.Copy(w, logfile)
+	logLine := 0
+	scanner := bufio.NewScanner(logfile)
+	for scanner.Scan() {
+		if logLine >= startFromLine {
+			fmt.Fprintln(w, scanner.Text())
+		}
+
+		logLine += 1
+	}
 
 	if r.Header.Get("X-Client-Name") == "archivator" {
 		s.ActiveJob.JobLogArchived = true
