@@ -15,15 +15,19 @@ blocks:
           - go build
 
       jobs:
-      - name: Hello world
+      - name: Tests
+        commands:
+          - make test
+
+      - name: Example Hello world
         commands:
           - make run JOB=examples/hello_world.yaml
 
-      - name: Linked DB service
+      - name: Example Linked DB service
         commands:
           - make run JOB=examples/db_usage.yaml
 
-      - name: Envoy
+      - name: Example Envoy
         commands:
           - make run JOB=examples/envoy.yaml
 
