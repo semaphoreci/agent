@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path"
 	"regexp"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -195,6 +196,13 @@ IFS=$'\n\t'
 
 		ioutil.WriteFile(tmpPath, []byte(content), 0644)
 
+		destPath := f.Path
+
+		// if the path is not-absolute, it will be relative to home path
+		if destPath[0] == '/' {
+			destPath = UserHomeDir() + "/" + destPath
+		}
+
 		jobScript += fmt.Sprintf("mkdir -p %s\n", path.Dir(f.Path))
 		jobScript += fmt.Sprintf("cp %s %s\n", tmpPath, f.Path)
 	}
@@ -213,4 +221,15 @@ IFS=$'\n\t'
 	}
 
 	return ioutil.WriteFile("/tmp/run/semaphore/job.sh", []byte(jobScript), 0644)
+}
+
+func UserHomeDir() string {
+	if runtime.GOOS == "windows" {
+		home := os.Getenv("HOMEDRIVE") + os.Getenv("HOMEPATH")
+		if home == "" {
+			home = os.Getenv("USERPROFILE")
+		}
+		return home
+	}
+	return os.Getenv("HOME")
 }
