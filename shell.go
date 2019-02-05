@@ -182,6 +182,8 @@ func (s *Shell) compileCommands(jobRequest JobRequest) error {
 	jobScript := `#!/bin/bash
 set -euo pipefail
 IFS=$'\n\t'
+
+cd ~
 `
 
 	for _, e := range jobRequest.EnvVars {
@@ -203,8 +205,8 @@ IFS=$'\n\t'
 			destPath = UserHomeDir() + "/" + destPath
 		}
 
-		jobScript += fmt.Sprintf("mkdir -p %s\n", path.Dir(f.Path))
-		jobScript += fmt.Sprintf("cp %s %s\n", tmpPath, f.Path)
+		jobScript += fmt.Sprintf("mkdir -p %s\n", path.Dir(destPath))
+		jobScript += fmt.Sprintf("cp %s %s\n", tmpPath, destPath)
 	}
 
 	for i, c := range jobRequest.Commands {
