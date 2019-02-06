@@ -31,7 +31,10 @@ func (s *Server) Serve() {
 
 	r.HandleFunc("/status", s.Status).Methods("GET")
 	r.HandleFunc("/jobs", s.Run).Methods("POST")
+
+	// The path /stop is the new standard, /jobs/terminate is here to support the legacy system.
 	r.HandleFunc("/stop", s.Stop).Methods("POST")
+	r.HandleFunc("/jobs/terminate", s.Stop).Methods("POST")
 
 	// The path /jobs/{job_id}/log is here to support the legacy systems.
 	r.HandleFunc("/job_logs", s.JobLogs).Methods("GET")
@@ -140,7 +143,9 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Stop(w http.ResponseWriter, r *http.Request) {
-	s.unsuported(w)
+	go s.ActiveJob.Stop()
+
+	w.WriteHeader(200)
 }
 
 func (s *Server) unsuported(w http.ResponseWriter) {
