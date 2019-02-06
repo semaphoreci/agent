@@ -184,18 +184,28 @@ func (s *Shell) compileCommands(jobRequest JobRequest) error {
 	os.MkdirAll("/tmp/run/semaphore/commands", os.ModePerm)
 	os.MkdirAll("/tmp/run/semaphore/files", os.ModePerm)
 
+	env := ""
+
+	for _, e := range jobRequest.EnvVars {
+		value, _ := base64.StdEncoding.DecodeString(e.Value)
+
+		env += fmt.Sprintf("export %s='%s'\n", e.Name, value)
+	}
+
+	ioutil.WriteFile("/tmp/run/semaphore/.env", []byte(env), 0644)
+
 	jobScript := `#!/bin/bash
 set -eo pipefail
 IFS=$'\n\t'
 
 cd ~
+
+# source env vars into current session
+source /tmp/run/semaphore/.env
+
+# make sure that env vars are also exported in new sessions (for example ssh sessions)
+echo 'source /tmp/run/semaphore/.env' >> ~/.bash_profile
 `
-
-	for _, e := range jobRequest.EnvVars {
-		value, _ := base64.StdEncoding.DecodeString(e.Value)
-
-		jobScript += fmt.Sprintf("export %s=\"%s\"\n", e.Name, value)
-	}
 
 	for i, f := range jobRequest.Files {
 		tmpPath := fmt.Sprintf("/tmp/run/semaphore/files/%06d", i)
