@@ -194,7 +194,7 @@ cd ~
 	for _, e := range jobRequest.EnvVars {
 		value, _ := base64.StdEncoding.DecodeString(e.Value)
 
-		jobScript += fmt.Sprintf("export %s=%s\n", e.Name, value)
+		jobScript += fmt.Sprintf("export %s=\"%s\"\n", e.Name, value)
 	}
 
 	for i, f := range jobRequest.Files {
