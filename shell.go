@@ -185,7 +185,7 @@ func (s *Shell) compileCommands(jobRequest JobRequest) error {
 	os.MkdirAll("/tmp/run/semaphore/files", os.ModePerm)
 
 	jobScript := `#!/bin/bash
-set -euo pipefail
+set -eo pipefail
 IFS=$'\n\t'
 
 cd ~
