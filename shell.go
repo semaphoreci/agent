@@ -24,6 +24,7 @@ type Shell struct {
 	commandSeparator             string
 	commandStartRegex            *regexp.Regexp
 	commandEndRegex              *regexp.Regexp
+	terminal                     *exec.Cmd
 }
 
 type ShellStreamHandler func(interface{})
@@ -67,7 +68,7 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) int {
 	lastExecutedCommandReturnedExitCode := false
 	lastCommandStartedAt := 0
 
-	cmd := exec.Command("bash", "/tmp/run/semaphore/job.sh")
+	s.terminal = exec.Command("bash", "/tmp/run/semaphore/job.sh")
 	reader, writter := io.Pipe()
 
 	stdoutScanner := bufio.NewScanner(reader)
@@ -126,7 +127,7 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) int {
 	}()
 
 	log.Printf("[SHELL] Starting stateful shell")
-	f, err := pty.Start(cmd)
+	f, err := pty.Start(s.terminal)
 	if err != nil {
 		log.Printf("[SHELL] Failed to start stateful shell")
 		return 1
@@ -136,7 +137,7 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) int {
 	exitCode := 1
 
 	log.Printf("[SHELL] Waiting for stateful shell to close")
-	if err := cmd.Wait(); err != nil {
+	if err := s.terminal.Wait(); err != nil {
 		if exiterr, ok := err.(*exec.ExitError); ok {
 			// The program has exited with an exit code != 0
 
@@ -172,6 +173,10 @@ func (s *Shell) Run(jobRequest JobRequest, handler ShellStreamHandler) int {
 	}
 
 	return exitCode
+}
+
+func (s *Shell) Stop() error {
+	return s.terminal.Process.Kill()
 }
 
 func (s *Shell) compileCommands(jobRequest JobRequest) error {

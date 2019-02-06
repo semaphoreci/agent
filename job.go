@@ -48,6 +48,7 @@ type JobRequest struct {
 type Job struct {
 	Request        JobRequest
 	JobLogArchived bool
+	shell          *Shell
 }
 
 func check(e error) {
@@ -98,8 +99,9 @@ func (job *Job) Run() {
 	LogJobStart(logfile)
 
 	shell := NewShell()
+	job.shell = &shell
 
-	exitStatus := shell.Run(job.Request, func(event interface{}) {
+	exitStatus := job.shell.Run(job.Request, func(event interface{}) {
 		switch e := event.(type) {
 		case CommandStartedShellEvent:
 			LogCmdStarted(logfile, e.Timestamp, e.Directive)
@@ -131,6 +133,15 @@ func (job *Job) Run() {
 		}
 
 		time.Sleep(1000 * time.Millisecond)
+	}
+}
+
+func (j *Job) Stop() {
+	log.Printf("Stopping job")
+	err := j.shell.Stop()
+
+	if err != nil {
+		log.Printf("Error while stopping job, err: %+v", err)
 	}
 }
 
