@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -76,43 +77,71 @@ func (e *ShellExecutor) silencePromptAndDisablePS1() {
 
 	// We wait until marker is displayed in the output
 
-	fmt.Println("[SHELL] Waiting for initialization")
+	log.Println("[SHELL] Waiting for initialization")
 
 	for stdoutScanner.Scan() {
 		text := stdoutScanner.Text()
 
-		fmt.Printf("[SHELL] (tty) %s\n", text)
+		log.Printf("[SHELL] (tty) %s\n", text)
 		if !strings.Contains(text, "echo") && strings.Contains(text, everythingIsReadyMark) {
 			break
 		}
 	}
 
-	fmt.Println("[SHELL] Initialization complete")
+	log.Println("[SHELL] Initialization complete")
 }
 
 func (e *ShellExecutor) ExportEnvVar() {
 
 }
 
-func (e *ShellExecutor) InjectFile() {
+func (e *ShellExecutor) InjectFile(path string, content string, mode string, callback executors.EventHandler) {
+	callback(fmt.Sprintf("Injecting File %s with file mode %s", path, mode))
 
+	ioutil.WriteFile(path, []byte(content), 0644)
+
+	callback(fmt.Sprintf("Exit Status: %d", 0))
 }
 
 func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandler) {
+	cmdFilePath := "/tmp/current-agent-cmd"
 	startMark := "87d140552e404df69f6472729d2b2c1"
 	finishMark := "97d140552e404df69f6472729d2b2c2"
 
 	commandEndRegex := regexp.MustCompile(finishMark + " " + `(\d)`)
 	streamEvents := false
 
-	e.stdin.Write([]byte("echo " + startMark + "; " + command + "; AGENT_CMD_RESULT=$?; echo \"" + finishMark + " $AGENT_CMD_RESULT\"; echo \"exit $AGENT_CMD_RESULT\"|sh\n"))
+	//
+	// Multiline commands don't work very well with the start/finish marker scheme.
+	// To circumvent this, we are storing the command in a file
+	//
+	ioutil.WriteFile(cmdFilePath, []byte(command), 0644)
+
+	// Constructing command with start and end markers:
+	//
+	// 1. display START marker
+	// 2. execute the command file by sourcing it
+	// 3. save the original exit status
+	// 4. display the END marker with the exit status
+	// 5. return the original exit status to the caller
+	//
+
+	commandWithStartAndEndMarkers := strings.Join([]string{
+		fmt.Sprintf("echo '%s'", startMark),
+		fmt.Sprintf("source %s", cmdFilePath),
+		"AGENT_CMD_RESULT=$?",
+		fmt.Sprintf(`echo "%s $AGENT_CMD_RESULT"`, finishMark),
+		"echo \"exit $AGENT_CMD_RESULT\"|sh\n",
+	}, ";")
+
+	e.stdin.Write([]byte(commandWithStartAndEndMarkers))
 
 	stdoutScanner := bufio.NewScanner(e.tty)
 
-	fmt.Println("[SHELL] Scan started")
+	log.Println("[SHELL] Scan started")
 	for stdoutScanner.Scan() {
 		t := stdoutScanner.Text()
-		fmt.Printf("[SHELL] (tty) %s\n", t)
+		log.Printf("[SHELL] (tty) %s\n", t)
 
 		if strings.Contains(t, startMark) {
 			streamEvents = true
