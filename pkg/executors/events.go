@@ -1,24 +1,47 @@
 package executors
 
+import "time"
+
 type EventHandler func(interface{})
 
-type CommandStartedShellEvent struct {
-	Timestamp    int
-	CommandIndex int
-	Directive    string
+type CommandStartedEvent struct {
+	Timestamp int
+	Directive string
 }
 
-type CommandOutputShellEvent struct {
-	Timestamp    int
-	CommandIndex int
-	Output       string
+type CommandOutputEvent struct {
+	Timestamp int
+	Output    string
 }
 
-type CommandFinishedShellEvent struct {
-	Timestamp    int
-	CommandIndex int
-	ExitCode     int
-	Directive    string
-	StartedAt    int
-	FinishedAt   int
+type CommandFinishedEvent struct {
+	Timestamp  int
+	ExitCode   int
+	Directive  string
+	StartedAt  int
+	FinishedAt int
+}
+
+func NewCommandStartedEvent(directive string) *CommandStartedEvent {
+	return &CommandStartedEvent{
+		Timestamp: int(time.Now().Unix()),
+		Directive: directive,
+	}
+}
+
+func NewCommandOutputEvent(output string) *CommandOutputEvent {
+	return &CommandOutputEvent{
+		Timestamp: int(time.Now().Unix()),
+		Output:    output,
+	}
+}
+
+func NewCommandFinishedEvent(directive string, exitCode int, startedAt int, finishedAt int) *CommandFinishedEvent {
+	return &CommandFinishedEvent{
+		Timestamp:  int(time.Now().Unix()),
+		Directive:  directive,
+		ExitCode:   exitCode,
+		StartedAt:  startedAt,
+		FinishedAt: finishedAt,
+	}
 }

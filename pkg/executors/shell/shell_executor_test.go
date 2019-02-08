@@ -1,8 +1,10 @@
 package shell
 
 import (
+	"fmt"
 	"testing"
 
+	executors "github.com/semaphoreci/agent/pkg/executors"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -10,7 +12,16 @@ func TestHelloWorld(t *testing.T) {
 	events := []string{}
 
 	eventHandler := func(event interface{}) {
-		events = append(events, event.(string))
+		switch e := event.(type) {
+		case executors.CommandStartedEvent:
+			events = append(events, e.Directive)
+		case executors.CommandOutputEvent:
+			events = append(events, e.Output)
+		case executors.CommandFinishedEvent:
+			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
+		default:
+			panic("Unknown shell event")
+		}
 	}
 
 	e := NewShellExecutor()

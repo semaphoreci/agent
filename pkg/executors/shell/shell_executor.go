@@ -96,7 +96,10 @@ func (e *ShellExecutor) ExportEnvVar() {
 }
 
 func (e *ShellExecutor) InjectFile(path string, content string, mode string, callback executors.EventHandler) {
-	callback(fmt.Sprintf("Injecting File %s with file mode %s", path, mode))
+	directive := fmt.Sprintf("Injecting File %s with file mode %s", path, mode)
+	event := executors.NewCommandStartedEvent(directive)
+
+	callback(
 
 	ioutil.WriteFile(path, []byte(content), 0644)
 
@@ -136,6 +139,8 @@ func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandl
 
 	e.stdin.Write([]byte(commandWithStartAndEndMarkers))
 
+	commandStartedAt := int(time.Now().Unix())
+
 	stdoutScanner := bufio.NewScanner(e.tty)
 
 	log.Println("[SHELL] Scan started")
@@ -145,6 +150,10 @@ func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandl
 
 		if strings.Contains(t, startMark) {
 			streamEvents = true
+
+			event := executors.NewCommandStartedEvent(command)
+			callback(event)
+
 			continue
 		}
 
@@ -157,7 +166,17 @@ func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandl
 					log.Printf("[SHELL] Panic while parsing exit status, err: %+v", err)
 					panic(err)
 				}
-				callback(fmt.Sprintf("Exit Status: %d", exitStatus))
+
+				commandFinishedAt := int(time.Now().Unix())
+
+				event := executors.NewCommandFinishedEvent(
+					command,
+					exitStatus,
+					commandStartedAt,
+					commandFinishedAt,
+				)
+
+				callback(event)
 			} else {
 				panic("AAA")
 			}
@@ -166,6 +185,9 @@ func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandl
 		}
 
 		if streamEvents {
+			event := executors.NewCommandOutputEvent(t)
+			callback(event)
+
 			callback(t)
 		}
 	}
