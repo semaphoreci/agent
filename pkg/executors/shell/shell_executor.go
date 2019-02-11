@@ -91,19 +91,63 @@ func (e *ShellExecutor) silencePromptAndDisablePS1() {
 	log.Println("[SHELL] Initialization complete")
 }
 
-func (e *ShellExecutor) ExportEnvVar() {
+func (e *ShellExecutor) ExportEnvVars(envVars []executors.EnvVar, callback executors.EventHandler) {
+	commandStartedAt := int(time.Now().Unix())
+	directive := fmt.Sprintf("Exporting environment variables")
 
+	callback(executors.NewCommandStartedEvent(directive))
+
+	envFile := ""
+
+	for _, e := range envVars {
+		callback(executors.NewCommandOutputEvent(fmt.Sprintf("Exporting %s", e.Name)))
+
+		envFile += fmt.Sprintf("export %s='%s'\n", e.Name, e.Value)
+	}
+
+	err := ioutil.WriteFile("/tmp/.env", []byte(envFile), 0644)
+
+	exitCode := 0
+	if err != nil {
+		exitCode = 1
+	}
+
+	e.RunCommand("source /tmp/.env", executors.DevNullEventHandler)
+
+	// TODO: Add source .env from bash profile for SSH sessions
+
+	commandFinishedAt := int(time.Now().Unix())
+	callback(executors.NewCommandFinishedEvent(
+		directive,
+		exitCode,
+		commandStartedAt,
+		commandFinishedAt,
+	))
 }
 
 func (e *ShellExecutor) InjectFile(path string, content string, mode string, callback executors.EventHandler) {
+	commandStartedAt := int(time.Now().Unix())
+
 	directive := fmt.Sprintf("Injecting File %s with file mode %s", path, mode)
-	event := executors.NewCommandStartedEvent(directive)
 
-	callback(
+	callback(executors.NewCommandStartedEvent(directive))
 
-	ioutil.WriteFile(path, []byte(content), 0644)
+	err := ioutil.WriteFile(path, []byte(content), 0644)
 
-	callback(fmt.Sprintf("Exit Status: %d", 0))
+	exitCode := 0
+
+	if err != nil {
+		exitCode = 1
+	}
+
+	commandFinishedAt := int(time.Now().Unix())
+
+	callback(executors.NewCommandFinishedEvent(
+		directive,
+		exitCode,
+		commandStartedAt,
+		commandFinishedAt,
+	))
 }
 
 func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandler) {
@@ -151,8 +195,7 @@ func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandl
 		if strings.Contains(t, startMark) {
 			streamEvents = true
 
-			event := executors.NewCommandStartedEvent(command)
-			callback(event)
+			callback(executors.NewCommandStartedEvent(command))
 
 			continue
 		}
@@ -169,14 +212,12 @@ func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandl
 
 				commandFinishedAt := int(time.Now().Unix())
 
-				event := executors.NewCommandFinishedEvent(
+				callback(executors.NewCommandFinishedEvent(
 					command,
 					exitStatus,
 					commandStartedAt,
 					commandFinishedAt,
-				)
-
-				callback(event)
+				))
 			} else {
 				panic("AAA")
 			}
@@ -185,10 +226,7 @@ func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandl
 		}
 
 		if streamEvents {
-			event := executors.NewCommandOutputEvent(t)
-			callback(event)
-
-			callback(t)
+			callback(executors.NewCommandOutputEvent(t))
 		}
 	}
 }

@@ -8,18 +8,19 @@ import (
 	assert "github.com/stretchr/testify/assert"
 )
 
-func TestHelloWorld(t *testing.T) {
+func Test__ShellExecutor(t *testing.T) {
 	events := []string{}
 
 	eventHandler := func(event interface{}) {
 		switch e := event.(type) {
-		case executors.CommandStartedEvent:
+		case *executors.CommandStartedEvent:
 			events = append(events, e.Directive)
-		case executors.CommandOutputEvent:
+		case *executors.CommandOutputEvent:
 			events = append(events, e.Output)
-		case executors.CommandFinishedEvent:
+		case *executors.CommandFinishedEvent:
 			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
 		default:
+			fmt.Printf("%+v", e)
 			panic("Unknown shell event")
 		}
 	}
@@ -38,8 +39,11 @@ func TestHelloWorld(t *testing.T) {
 	`
 	e.RunCommand(multilineCmd, eventHandler)
 
-	e.InjectFile("/tmp/random-file.txt", "aaabbb\n", "0600", eventHandler)
+	envVars := []executors.EnvVar{executors.EnvVar{Name: "A", Value: "foo"}}
+	e.ExportEnvVars(envVars, eventHandler)
+	e.RunCommand("echo $A", eventHandler)
 
+	e.InjectFile("/tmp/random-file.txt", "aaabbb\n", "0600", eventHandler)
 	e.RunCommand("cat /tmp/random-file.txt", eventHandler)
 
 	e.RunCommand("echo $?", eventHandler)
@@ -48,19 +52,31 @@ func TestHelloWorld(t *testing.T) {
 	e.Cleanup()
 
 	assert.Equal(t, events, []string{
+		"echo 'here'",
 		"here",
-		"Exit Status: 0",
+		"Exit Code: 0",
 
+		multilineCmd,
 		"etc exists, multiline huzzahh!",
-		"Exit Status: 0",
+		"Exit Code: 0",
+
+		"Exporting environment variables",
+		"Exporting A",
+		"Exit Code: 0",
+
+		"echo $A",
+		"foo",
+		"Exit Code: 0",
 
 		"Injecting File /tmp/random-file.txt with file mode 0600",
-		"Exit Status: 0",
+		"Exit Code: 0",
 
+		"cat /tmp/random-file.txt",
 		"aaabbb",
-		"Exit Status: 0",
+		"Exit Code: 0",
 
+		"echo $?",
 		"0",
-		"Exit Status: 0",
+		"Exit Code: 0",
 	})
 }

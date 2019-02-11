@@ -4,6 +4,9 @@ import "time"
 
 type EventHandler func(interface{})
 
+func DevNullEventHandler(interface{}) {
+}
+
 type CommandStartedEvent struct {
 	Timestamp int
 	Directive string
