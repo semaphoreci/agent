@@ -35,6 +35,9 @@ func NewJob(request *api.JobRequest) (*Job, error) {
 }
 
 func (job *Job) Run() {
+	var exitCode int
+	var err error
+
 	result := JOB_FAILED
 
 	log.Printf("Job Request %+v\n", job.Request)
@@ -65,55 +68,46 @@ func (job *Job) Run() {
 
 	LogJobStart(logfile)
 
-	var exitCode int
-
 	exitCode = job.Executor.Prepare()
 	if exitCode != 0 {
-		result = JOB_FAILED
-		return
+		goto EPILOGUE_COMMANDS
 	}
 
 	exitCode = job.Executor.Start()
 	if exitCode != 0 {
-		result = JOB_FAILED
-		return
+		goto EPILOGUE_COMMANDS
 	}
 
 	exitCode = job.Executor.ExportEnvVars(job.Request.EnvVars, eventHandler)
 	if exitCode != 0 {
-		result = JOB_FAILED
-		return
+		goto EPILOGUE_COMMANDS
 	}
 
 	exitCode = job.Executor.InjectFiles(job.Request.Files, eventHandler)
 	if exitCode != 0 {
-		result = JOB_FAILED
-		return
+		goto EPILOGUE_COMMANDS
 	}
 
 	for _, c := range job.Request.Commands {
 		exitCode = job.Executor.RunCommand(c.Directive, eventHandler)
 
 		if exitCode != 0 {
-			result = JOB_FAILED
 			break
 		}
 	}
 
+	result = JOB_PASSED
+
+EPILOGUE_COMMANDS:
 	log.Printf("[JOB] Epilogue Commands Started")
 
 	cmd := fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%s", result)
-	exitCode = job.Executor.RunCommand(cmd, eventHandler)
-	if exitCode != 0 {
-		return
-	}
+	job.Executor.RunCommand(cmd, eventHandler)
 
 	for _, c := range job.Request.EpilogueCommands {
 		// exit code is ignored in epilogue commands
 		job.Executor.RunCommand(c.Directive, eventHandler)
 	}
-
-	logfile.Sync()
 
 	job.SendFinishedCallback(result)
 
@@ -121,6 +115,7 @@ func (job *Job) Run() {
 
 	job.WaitForArchivator()
 
+	logfile.Sync()
 	logfile.Close()
 }
 
