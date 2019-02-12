@@ -220,6 +220,8 @@ func (e *ShellExecutor) InjectFiles(files []api.File, callback executors.EventHa
 func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandler) int {
 	var err error
 
+	log.Printf("[SHELL] Running command: %s", command)
+
 	cmdFilePath := "/tmp/current-agent-cmd"
 	startMark := "87d140552e404df69f6472729d2b2c1"
 	finishMark := "97d140552e404df69f6472729d2b2c2"

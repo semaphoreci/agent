@@ -48,18 +48,6 @@ func (job *Job) Run() {
 		panic(err)
 	}
 
-	defer func() {
-		logfile.Sync()
-
-		job.SendFinishedCallback(result)
-
-		LogJobFinish(logfile, result)
-
-		job.WaitForArchivator()
-
-		logfile.Close()
-	}()
-
 	eventHandler := func(event interface{}) {
 		switch e := event.(type) {
 		case *executors.CommandStartedEvent:
@@ -93,11 +81,13 @@ func (job *Job) Run() {
 
 	exitCode = job.Executor.ExportEnvVars(job.Request.EnvVars, eventHandler)
 	if exitCode != 0 {
+		result = JOB_FAILED
 		return
 	}
 
 	exitCode = job.Executor.InjectFiles(job.Request.Files, eventHandler)
 	if exitCode != 0 {
+		result = JOB_FAILED
 		return
 	}
 
@@ -110,6 +100,8 @@ func (job *Job) Run() {
 		}
 	}
 
+	log.Printf("[JOB] Epilogue Commands Started")
+
 	cmd := fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%s", result)
 	exitCode = job.Executor.RunCommand(cmd, eventHandler)
 	if exitCode != 0 {
@@ -120,6 +112,16 @@ func (job *Job) Run() {
 		// exit code is ignored in epilogue commands
 		job.Executor.RunCommand(c.Directive, eventHandler)
 	}
+
+	logfile.Sync()
+
+	job.SendFinishedCallback(result)
+
+	LogJobFinish(logfile, result)
+
+	job.WaitForArchivator()
+
+	logfile.Close()
 }
 
 func (job *Job) WaitForArchivator() {
@@ -226,7 +228,7 @@ func (job *Job) SendTeardownFinishedCallback() error {
 }
 
 func (job *Job) SendCallback(url string, payload string) error {
-	log.Printf("Sending callback: %s with %+v\n", url, payload)
+	log.Printf("[JOB] Sending callback: %s with %+v\n", url, payload)
 
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer([]byte(payload)))
 

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	api "github.com/semaphoreci/agent/pkg/api"
+	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	server "github.com/semaphoreci/agent/pkg/server"
 )
 
@@ -17,14 +19,20 @@ func main() {
 		server.NewServer("0.0.0.0", 8000, VERSION).Serve()
 
 	case "run":
-		// job, err := NewJobFromYaml(os.Args[2])
+		request, err := api.NewRequestFromYamlFile(os.Args[2])
 
-		// if err != nil {
-		// 	panic(err)
-		// }
+		if err != nil {
+			panic(err)
+		}
 
-		// job.Run()
+		job, err := jobs.NewJob(request)
+		if err != nil {
+			panic(err)
+		}
 
+		job.JobLogArchived = true
+
+		job.Run()
 	case "version":
 		fmt.Println(VERSION)
 	}
