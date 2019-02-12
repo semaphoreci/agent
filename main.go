@@ -12,6 +12,8 @@ import (
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+
+	jobs "github.com/semaphoreci/agent/pkg/jobs"
 )
 
 var VERSION = "dev"
@@ -20,7 +22,7 @@ type Server struct {
 	Host      string
 	Port      int
 	State     string
-	ActiveJob *Job
+	ActiveJob *jobs.Job
 }
 
 const JobLogArchivationCompleted = false
@@ -126,17 +128,21 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 
 	s.State = "received-job"
 
-	jobRequest := JobRequest{}
-
-	err := json.NewDecoder(r.Body).Decode(&jobRequest)
+	request, err := jobs.NewRequestFromJSON(r.Body)
 
 	if err != nil {
 		fmt.Fprintf(w, `{"message": "%s"}`, err)
 		return
 	}
 
-	s.ActiveJob = &Job{Request: jobRequest, JobLogArchived: false}
+	job, err := &jobs.NewJob(request)
 
+	if err != nil {
+		fmt.Fprintf(w, `{"message": "%s"}`, err)
+		return
+	}
+
+	s.ActiveJob = job
 	go s.ActiveJob.Run()
 
 	s.State = "job-started"

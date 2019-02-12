@@ -2,6 +2,7 @@ package shell
 
 import (
 	"bufio"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -15,9 +16,12 @@ import (
 
 	pty "github.com/kr/pty"
 	executors "github.com/semaphoreci/agent/pkg/executors"
+	requests "github.com/semaphoreci/agent/pkg/requests"
 )
 
 type ShellExecutor struct {
+	executors.Executor
+
 	eventHandler  *executors.EventHandler
 	terminal      *exec.Cmd
 	tty           *os.File
@@ -91,23 +95,41 @@ func (e *ShellExecutor) silencePromptAndDisablePS1() {
 	log.Println("[SHELL] Initialization complete")
 }
 
-func (e *ShellExecutor) ExportEnvVars(envVars []executors.EnvVar, callback executors.EventHandler) {
+func (e *ShellExecutor) ExportEnvVars(envVars []request.EnvVar, callback executors.EventHandler) {
 	commandStartedAt := int(time.Now().Unix())
 	directive := fmt.Sprintf("Exporting environment variables")
+	exitCode := 0
 
 	callback(executors.NewCommandStartedEvent(directive))
+
+	defer func() {
+		commandFinishedAt := int(time.Now().Unix())
+
+		callback(executors.NewCommandFinishedEvent(
+			directive,
+			exitCode,
+			commandStartedAt,
+			commandFinishedAt,
+		))
+	}()
 
 	envFile := ""
 
 	for _, e := range envVars {
 		callback(executors.NewCommandOutputEvent(fmt.Sprintf("Exporting %s", e.Name)))
 
+		value, err := base64.StdEncoding.DecodeString(e.Value)
+
+		if err != nil {
+			exitCode = 1
+			return
+		}
+
 		envFile += fmt.Sprintf("export %s='%s'\n", e.Name, e.Value)
 	}
 
 	err := ioutil.WriteFile("/tmp/.env", []byte(envFile), 0644)
 
-	exitCode := 0
 	if err != nil {
 		exitCode = 1
 	}
@@ -115,17 +137,9 @@ func (e *ShellExecutor) ExportEnvVars(envVars []executors.EnvVar, callback execu
 	e.RunCommand("source /tmp/.env", executors.DevNullEventHandler)
 
 	// TODO: Add source .env from bash profile for SSH sessions
-
-	commandFinishedAt := int(time.Now().Unix())
-	callback(executors.NewCommandFinishedEvent(
-		directive,
-		exitCode,
-		commandStartedAt,
-		commandFinishedAt,
-	))
 }
 
-func (e *ShellExecutor) InjectFile(path string, content string, mode string, callback executors.EventHandler) {
+func (e *ShellExecutor) InjectFiles(files []requests.File, callback executors.EventHandler) {
 	commandStartedAt := int(time.Now().Unix())
 
 	directive := fmt.Sprintf("Injecting File %s with file mode %s", path, mode)
