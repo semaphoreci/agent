@@ -9,14 +9,16 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
 	pty "github.com/kr/pty"
+	api "github.com/semaphoreci/agent/pkg/api"
 	executors "github.com/semaphoreci/agent/pkg/executors"
-	requests "github.com/semaphoreci/agent/pkg/requests"
 )
 
 type ShellExecutor struct {
@@ -33,17 +35,19 @@ func NewShellExecutor() *ShellExecutor {
 	return &ShellExecutor{}
 }
 
-func (e *ShellExecutor) Prepare() {
+func (e *ShellExecutor) Prepare() int {
 	e.terminal = exec.Command("bash")
+
+	return 0
 }
 
-func (e *ShellExecutor) Start() error {
+func (e *ShellExecutor) Start() int {
 	log.Printf("[SHELL] Starting stateful shell")
 
 	tty, err := pty.Start(e.terminal)
 	if err != nil {
 		log.Printf("[SHELL] Failed to start stateful shell")
-		return err
+		return 1
 	}
 
 	e.stdin = tty
@@ -53,7 +57,7 @@ func (e *ShellExecutor) Start() error {
 
 	e.silencePromptAndDisablePS1()
 
-	return nil
+	return 0
 }
 
 func (e *ShellExecutor) silencePromptAndDisablePS1() {
@@ -61,6 +65,7 @@ func (e *ShellExecutor) silencePromptAndDisablePS1() {
 
 	e.stdin.Write([]byte("export PS1=''\n"))
 	e.stdin.Write([]byte("stty -echo\n"))
+	e.stdin.Write([]byte("cd ~"))
 	e.stdin.Write([]byte("echo '" + everythingIsReadyMark + "'\n"))
 
 	stdoutScanner := bufio.NewScanner(e.tty)
@@ -95,7 +100,7 @@ func (e *ShellExecutor) silencePromptAndDisablePS1() {
 	log.Println("[SHELL] Initialization complete")
 }
 
-func (e *ShellExecutor) ExportEnvVars(envVars []request.EnvVar, callback executors.EventHandler) {
+func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, callback executors.EventHandler) int {
 	commandStartedAt := int(time.Now().Unix())
 	directive := fmt.Sprintf("Exporting environment variables")
 	exitCode := 0
@@ -122,52 +127,116 @@ func (e *ShellExecutor) ExportEnvVars(envVars []request.EnvVar, callback executo
 
 		if err != nil {
 			exitCode = 1
-			return
+			return exitCode
 		}
 
-		envFile += fmt.Sprintf("export %s='%s'\n", e.Name, e.Value)
+		envFile += fmt.Sprintf("export %s='%s'\n", e.Name, value)
 	}
 
 	err := ioutil.WriteFile("/tmp/.env", []byte(envFile), 0644)
 
 	if err != nil {
 		exitCode = 1
+		return exitCode
 	}
 
-	e.RunCommand("source /tmp/.env", executors.DevNullEventHandler)
+	exitCode = e.RunCommand("source /tmp/.env", executors.DevNullEventHandler)
+	if exitCode != 0 {
+		return exitCode
+	}
 
-	// TODO: Add source .env from bash profile for SSH sessions
+	exitCode = e.RunCommand("echo 'source /tmp/.env' >> ~/.bash_profile", executors.DevNullEventHandler)
+	if exitCode != 0 {
+		return exitCode
+	}
+
+	return exitCode
 }
 
-func (e *ShellExecutor) InjectFiles(files []requests.File, callback executors.EventHandler) {
+func (e *ShellExecutor) InjectFiles(files []api.File, callback executors.EventHandler) int {
+	directive := fmt.Sprintf("Injecting Files")
 	commandStartedAt := int(time.Now().Unix())
-
-	directive := fmt.Sprintf("Injecting File %s with file mode %s", path, mode)
+	exitCode := 0
 
 	callback(executors.NewCommandStartedEvent(directive))
 
-	err := ioutil.WriteFile(path, []byte(content), 0644)
+	defer func() {
+		commandFinishedAt := int(time.Now().Unix())
 
-	exitCode := 0
+		callback(executors.NewCommandFinishedEvent(
+			directive,
+			exitCode,
+			commandStartedAt,
+			commandFinishedAt,
+		))
+	}()
 
-	if err != nil {
-		exitCode = 1
+	for _, f := range files {
+		output := fmt.Sprintf("Injecting %s with file mode %s", f.Path, f.Mode)
+
+		callback(executors.NewCommandOutputEvent(output))
+
+		content, err := base64.StdEncoding.DecodeString(f.Content)
+
+		if err != nil {
+			callback("Failed to decode content of file.")
+			exitCode = 1
+			return exitCode
+		}
+
+		destPath := f.Path
+
+		// if the path is not-absolute, it will be relative to home path
+		if destPath[0] == '/' {
+			destPath = UserHomeDir() + "/" + destPath
+		}
+
+		err = os.MkdirAll(path.Dir(destPath), os.ModePerm)
+		if err != nil {
+			callback(executors.NewCommandOutputEvent(err.Error()))
+			exitCode = 1
+			return exitCode
+		}
+
+		err = ioutil.WriteFile(destPath, []byte(content), 0644)
+		if err != nil {
+			callback(executors.NewCommandOutputEvent(err.Error()))
+			exitCode = 1
+			return exitCode
+		}
+
+		cmd := fmt.Sprintf("chmod %s %s", f.Mode, destPath)
+		exitCode = e.RunCommand(cmd, executors.DevNullEventHandler)
+		if exitCode != 0 {
+			output := fmt.Sprintf("Failed to set file mode to %s", f.Mode)
+			callback(executors.NewCommandOutputEvent(output))
+			return exitCode
+		}
 	}
 
-	commandFinishedAt := int(time.Now().Unix())
-
-	callback(executors.NewCommandFinishedEvent(
-		directive,
-		exitCode,
-		commandStartedAt,
-		commandFinishedAt,
-	))
+	return exitCode
 }
 
-func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandler) {
+func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandler) int {
+	var err error
+
 	cmdFilePath := "/tmp/current-agent-cmd"
 	startMark := "87d140552e404df69f6472729d2b2c1"
 	finishMark := "97d140552e404df69f6472729d2b2c2"
+
+	commandStartedAt := int(time.Now().Unix())
+	exitCode := 0
+
+	defer func() {
+		commandFinishedAt := int(time.Now().Unix())
+
+		callback(executors.NewCommandFinishedEvent(
+			command,
+			exitCode,
+			commandStartedAt,
+			commandFinishedAt,
+		))
+	}()
 
 	commandEndRegex := regexp.MustCompile(finishMark + " " + `(\d)`)
 	streamEvents := false
@@ -197,8 +266,6 @@ func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandl
 
 	e.stdin.Write([]byte(commandWithStartAndEndMarkers))
 
-	commandStartedAt := int(time.Now().Unix())
-
 	stdoutScanner := bufio.NewScanner(e.tty)
 
 	log.Println("[SHELL] Scan started")
@@ -218,22 +285,17 @@ func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandl
 			streamEvents = false
 
 			if match := commandEndRegex.FindStringSubmatch(t); len(match) == 2 {
-				exitStatus, err := strconv.Atoi(match[1])
+				exitCode, err = strconv.Atoi(match[1])
+
 				if err != nil {
 					log.Printf("[SHELL] Panic while parsing exit status, err: %+v", err)
-					panic(err)
+
+					callback(executors.NewCommandOutputEvent("Failed to read command exit code"))
 				}
 
-				commandFinishedAt := int(time.Now().Unix())
-
-				callback(executors.NewCommandFinishedEvent(
-					command,
-					exitStatus,
-					commandStartedAt,
-					commandFinishedAt,
-				))
 			} else {
-				panic("AAA")
+				exitCode = 1
+				callback(executors.NewCommandOutputEvent("Failed to read command exit code"))
 			}
 
 			break
@@ -243,12 +305,25 @@ func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandl
 			callback(executors.NewCommandOutputEvent(t))
 		}
 	}
+
+	return exitCode
 }
 
-func (e *ShellExecutor) Stop() {
-
+func (e *ShellExecutor) Stop() int {
+	return 0
 }
 
-func (e *ShellExecutor) Cleanup() {
+func (e *ShellExecutor) Cleanup() int {
+	return 0
+}
 
+func UserHomeDir() string {
+	if runtime.GOOS == "windows" {
+		home := os.Getenv("HOMEDRIVE") + os.Getenv("HOMEPATH")
+		if home == "" {
+			home = os.Getenv("USERPROFILE")
+		}
+		return home
+	}
+	return os.Getenv("HOME")
 }

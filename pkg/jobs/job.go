@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	api "github.com/semaphoreci/agent/pkg/api"
 	executors "github.com/semaphoreci/agent/pkg/executors"
 	shellexecutor "github.com/semaphoreci/agent/pkg/executors/shell"
 )
@@ -17,19 +18,18 @@ const JOB_PASSED = "passed"
 const JOB_FAILED = "failed"
 
 type Job struct {
-	Request  Request
+	Request  api.JobRequest
 	Executor executors.Executor
 
 	JobLogArchived bool
 }
 
-func NewJob(request Request) (*Job, error) {
+func NewJob(request api.JobRequest) (*Job, error) {
 	executor := shellexecutor.NewShellExecutor()
 
 	return &Job{
 		Request:        request,
 		Executor:       executor,
-		EnvVars:        envVars,
 		JobLogArchived: false,
 	}, nil
 }
@@ -81,11 +81,13 @@ func (job *Job) Run() {
 
 	exitCode = job.Executor.Prepare()
 	if exitCode != 0 {
+		result = JOB_FAILED
 		return
 	}
 
 	exitCode = job.Executor.Start()
 	if exitCode != 0 {
+		result = JOB_FAILED
 		return
 	}
 
@@ -99,7 +101,7 @@ func (job *Job) Run() {
 		return
 	}
 
-	for _, c := job.Request.Commands {
+	for _, c := range job.Request.Commands {
 		exitCode = job.Executor.RunCommand(c.Directive, eventHandler)
 
 		if exitCode != 0 {
@@ -108,13 +110,13 @@ func (job *Job) Run() {
 		}
 	}
 
-	cmd := fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%", result)
+	cmd := fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%s", result)
 	exitCode = job.Executor.RunCommand(cmd, eventHandler)
 	if exitCode != 0 {
 		return
 	}
 
-	for _, c := job.Request.EpilogueCommands {
+	for _, c := range job.Request.EpilogueCommands {
 		// exit code is ignored in epilogue commands
 		job.Executor.RunCommand(c.Directive, eventHandler)
 	}

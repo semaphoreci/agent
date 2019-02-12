@@ -1,4 +1,4 @@
-package requests
+package api
 
 import (
 	"encoding/json"
@@ -29,7 +29,7 @@ type Callbacks struct {
 	TeardownFinished string `json:"teardown_finished" yaml:"teardown_finished"`
 }
 
-type Request struct {
+type JobRequest struct {
 	Commands         []Command `json:"commands" yaml:"commands"`
 	EpilogueCommands []Command `json:"epilogue_commands" yaml:"epilogue_commands"`
 	EnvVars          []EnvVar  `json:"env_vars" yaml:"env_vars"`
@@ -37,8 +37,8 @@ type Request struct {
 	Callbacks        Callbacks `json:"callbacks" yaml:"callbacks"`
 }
 
-func NewRequestFromJSON(content string) (*Request, error) {
-	jobRequest := &Request{}
+func NewRequestFromJSON(content string) (*JobRequest, error) {
+	jobRequest := &JobRequest{}
 
 	err := json.Unmarshal([]byte(content), jobRequest)
 
@@ -49,11 +49,11 @@ func NewRequestFromJSON(content string) (*Request, error) {
 	return jobRequest, nil
 }
 
-func NewRequestFromYamlFile(path string) (*Request, error) {
+func NewRequestFromYamlFile(path string) (*JobRequest, error) {
 	filename, _ := filepath.Abs(path)
 	yamlFile, err := ioutil.ReadFile(filename)
 
-	jobRequest := &Request{}
+	jobRequest := &JobRequest{}
 
 	if err != nil {
 		return nil, err

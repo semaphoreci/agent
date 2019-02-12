@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	api "github.com/semaphoreci/agent/pkg/api"
 	executors "github.com/semaphoreci/agent/pkg/executors"
 	assert "github.com/stretchr/testify/assert"
 )
@@ -39,11 +40,22 @@ func Test__ShellExecutor(t *testing.T) {
 	`
 	e.RunCommand(multilineCmd, eventHandler)
 
-	envVars := []executors.EnvVar{executors.EnvVar{Name: "A", Value: "foo"}}
+	envVars := []api.EnvVar{
+		api.EnvVar{Name: "A", Value: "foo"},
+	}
+
 	e.ExportEnvVars(envVars, eventHandler)
 	e.RunCommand("echo $A", eventHandler)
 
-	e.InjectFile("/tmp/random-file.txt", "aaabbb\n", "0600", eventHandler)
+	files := []api.File{
+		api.File{
+			Path:    "/tmp/random-file.txt",
+			Content: "aaabbb\n",
+			Mode:    "0600",
+		},
+	}
+
+	e.InjectFiles(files, eventHandler)
 	e.RunCommand("cat /tmp/random-file.txt", eventHandler)
 
 	e.RunCommand("echo $?", eventHandler)
