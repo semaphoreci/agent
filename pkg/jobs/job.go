@@ -22,28 +22,14 @@ type Job struct {
 	Executor executors.Executor
 
 	JobLogArchived bool
+
+	logfile *os.File // TODO: extract me
 }
 
 func NewJob(request *api.JobRequest) (*Job, error) {
 	executor := shellexecutor.NewShellExecutor()
 
-	return &Job{
-		Request:        request,
-		Executor:       executor,
-		JobLogArchived: false,
-	}, nil
-}
-
-func (job *Job) Run() {
-	var exitCode int
-	var err error
-
-	result := JOB_FAILED
-
-	log.Printf("Job Request %+v\n", job.Request)
-
-	os.RemoveAll("/tmp/run/semaphore/logs")
-	os.MkdirAll("/tmp/run/semaphore/logs", os.ModePerm)
+	log.Printf("Job Request %+v\n", request)
 
 	// TODO: find better place for this
 	logfile, err := os.Create("/tmp/job_log.json")
@@ -51,72 +37,86 @@ func (job *Job) Run() {
 		panic(err)
 	}
 
-	eventHandler := func(event interface{}) {
-		switch e := event.(type) {
-		case *executors.CommandStartedEvent:
-			LogCmdStarted(logfile, e.Timestamp, e.Directive)
-		case *executors.CommandOutputEvent:
-			LogCmdOutput(logfile, e.Timestamp, e.Output)
-		case *executors.CommandFinishedEvent:
-			LogCmdFinished(logfile, e.Timestamp, e.Directive, e.ExitCode, e.StartedAt, e.FinishedAt)
-		default:
-			log.Printf("(err) Unknown executor event event: %+v", e)
-		}
+	return &Job{
+		Request:        request,
+		Executor:       executor,
+		JobLogArchived: false,
+		logfile:        logfile,
+	}, nil
+}
+
+func (job *Job) EventHandler(event interface{}) {
+	switch e := event.(type) {
+	case *executors.CommandStartedEvent:
+		LogCmdStarted(job.logfile, e.Timestamp, e.Directive)
+	case *executors.CommandOutputEvent:
+		LogCmdOutput(job.logfile, e.Timestamp, e.Output)
+	case *executors.CommandFinishedEvent:
+		LogCmdFinished(job.logfile, e.Timestamp, e.Directive, e.ExitCode, e.StartedAt, e.FinishedAt)
+	default:
+		log.Printf("(err) Unknown executor event event: %+v", e)
 	}
+}
 
+func (job *Job) Run() {
 	job.SendStartedCallback()
+	LogJobStart(job.logfile)
 
-	LogJobStart(logfile)
+	result := job.RunRegularCommands()
 
-	exitCode = job.Executor.Prepare()
+	job.RunEpilogueCommands(result)
+
+	job.SendFinishedCallback(result)
+	LogJobFinish(job.logfile, result)
+
+	job.WaitForArchivator()
+
+	job.logfile.Sync()
+	job.logfile.Close()
+}
+
+func (job *Job) RunRegularCommands() string {
+	exitCode := job.Executor.Prepare()
 	if exitCode != 0 {
-		goto EPILOGUE_COMMANDS
+		return JOB_FAILED
 	}
 
 	exitCode = job.Executor.Start()
 	if exitCode != 0 {
-		goto EPILOGUE_COMMANDS
+		return JOB_FAILED
 	}
 
-	exitCode = job.Executor.ExportEnvVars(job.Request.EnvVars, eventHandler)
+	exitCode = job.Executor.ExportEnvVars(job.Request.EnvVars, job.EventHandler)
 	if exitCode != 0 {
-		goto EPILOGUE_COMMANDS
+		return JOB_FAILED
 	}
 
-	exitCode = job.Executor.InjectFiles(job.Request.Files, eventHandler)
+	exitCode = job.Executor.InjectFiles(job.Request.Files, job.EventHandler)
 	if exitCode != 0 {
-		goto EPILOGUE_COMMANDS
+		return JOB_FAILED
 	}
 
 	for _, c := range job.Request.Commands {
-		exitCode = job.Executor.RunCommand(c.Directive, eventHandler)
+		exitCode = job.Executor.RunCommand(c.Directive, job.EventHandler)
 
 		if exitCode != 0 {
-			break
+			return JOB_FAILED
 		}
 	}
 
-	result = JOB_PASSED
+	return JOB_PASSED
+}
 
-EPILOGUE_COMMANDS:
+func (job *Job) RunEpilogueCommands(result string) {
 	log.Printf("[JOB] Epilogue Commands Started")
 
 	cmd := fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%s", result)
-	job.Executor.RunCommand(cmd, eventHandler)
+	job.Executor.RunCommand(cmd, job.EventHandler)
 
 	for _, c := range job.Request.EpilogueCommands {
 		// exit code is ignored in epilogue commands
-		job.Executor.RunCommand(c.Directive, eventHandler)
+		job.Executor.RunCommand(c.Directive, job.EventHandler)
 	}
-
-	job.SendFinishedCallback(result)
-
-	LogJobFinish(logfile, result)
-
-	job.WaitForArchivator()
-
-	logfile.Sync()
-	logfile.Close()
 }
 
 func (job *Job) WaitForArchivator() {
