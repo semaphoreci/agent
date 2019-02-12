@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"log"
 	"testing"
 
 	api "github.com/semaphoreci/agent/pkg/api"
@@ -13,6 +14,8 @@ func Test__ShellExecutor(t *testing.T) {
 	events := []string{}
 
 	eventHandler := func(event interface{}) {
+		log.Printf("[TEST] %+v", event)
+
 		switch e := event.(type) {
 		case *executors.CommandStartedEvent:
 			events = append(events, e.Directive)
@@ -86,6 +89,7 @@ func Test__ShellExecutor(t *testing.T) {
 
 		"cat /tmp/random-file.txt",
 		"aaabbb",
+		"",
 		"Exit Code: 0",
 
 		"echo $?",

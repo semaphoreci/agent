@@ -160,17 +160,6 @@ func (e *ShellExecutor) InjectFiles(files []api.File, callback executors.EventHa
 
 	callback(executors.NewCommandStartedEvent(directive))
 
-	defer func() {
-		commandFinishedAt := int(time.Now().Unix())
-
-		callback(executors.NewCommandFinishedEvent(
-			directive,
-			exitCode,
-			commandStartedAt,
-			commandFinishedAt,
-		))
-	}()
-
 	for _, f := range files {
 		output := fmt.Sprintf("Injecting %s with file mode %s", f.Path, f.Mode)
 
@@ -184,25 +173,26 @@ func (e *ShellExecutor) InjectFiles(files []api.File, callback executors.EventHa
 			return exitCode
 		}
 
-		destPath := f.Path
+		destPath := ""
 
-		// if the path is not-absolute, it will be relative to home path
-		if destPath[0] == '/' {
-			destPath = UserHomeDir() + "/" + destPath
+		if f.Path[0] == '/' {
+			destPath = f.Path
+		} else {
+			destPath = UserHomeDir() + "/" + f.Path
 		}
 
 		err = os.MkdirAll(path.Dir(destPath), os.ModePerm)
 		if err != nil {
 			callback(executors.NewCommandOutputEvent(err.Error()))
 			exitCode = 1
-			return exitCode
+			break
 		}
 
 		err = ioutil.WriteFile(destPath, []byte(content), 0644)
 		if err != nil {
 			callback(executors.NewCommandOutputEvent(err.Error()))
 			exitCode = 1
-			return exitCode
+			break
 		}
 
 		cmd := fmt.Sprintf("chmod %s %s", f.Mode, destPath)
@@ -210,9 +200,18 @@ func (e *ShellExecutor) InjectFiles(files []api.File, callback executors.EventHa
 		if exitCode != 0 {
 			output := fmt.Sprintf("Failed to set file mode to %s", f.Mode)
 			callback(executors.NewCommandOutputEvent(output))
-			return exitCode
+			break
 		}
 	}
+
+	commandFinishedAt := int(time.Now().Unix())
+
+	callback(executors.NewCommandFinishedEvent(
+		directive,
+		exitCode,
+		commandStartedAt,
+		commandFinishedAt,
+	))
 
 	return exitCode
 }
