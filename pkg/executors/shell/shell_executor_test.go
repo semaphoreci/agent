@@ -21,7 +21,7 @@ func Test__ShellExecutor(t *testing.T) {
 		case *executors.CommandFinishedEvent:
 			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
 		default:
-			fmt.Printf("%+v", e)
+			fmt.Printf("Shell Event %+v\n", e)
 			panic("Unknown shell event")
 		}
 	}
@@ -41,7 +41,7 @@ func Test__ShellExecutor(t *testing.T) {
 	e.RunCommand(multilineCmd, eventHandler)
 
 	envVars := []api.EnvVar{
-		api.EnvVar{Name: "A", Value: "foo"},
+		api.EnvVar{Name: "A", Value: "Zm9vCg=="},
 	}
 
 	e.ExportEnvVars(envVars, eventHandler)
@@ -50,7 +50,7 @@ func Test__ShellExecutor(t *testing.T) {
 	files := []api.File{
 		api.File{
 			Path:    "/tmp/random-file.txt",
-			Content: "aaabbb\n",
+			Content: "YWFhYmJiCgo=",
 			Mode:    "0600",
 		},
 	}
@@ -80,7 +80,8 @@ func Test__ShellExecutor(t *testing.T) {
 		"foo",
 		"Exit Code: 0",
 
-		"Injecting File /tmp/random-file.txt with file mode 0600",
+		"Injecting Files",
+		"Injecting /tmp/random-file.txt with file mode 0600",
 		"Exit Code: 0",
 
 		"cat /tmp/random-file.txt",

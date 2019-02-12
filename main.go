@@ -14,7 +14,7 @@ func main() {
 
 	switch action {
 	case "serve":
-		server.Server("0.0.0.0", 8000).Serve()
+		server.NewServer("0.0.0.0", 8000, VERSION).Serve()
 
 	case "run":
 		// job, err := NewJobFromYaml(os.Args[2])

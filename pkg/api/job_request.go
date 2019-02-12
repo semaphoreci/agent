@@ -37,7 +37,7 @@ type JobRequest struct {
 	Callbacks        Callbacks `json:"callbacks" yaml:"callbacks"`
 }
 
-func NewRequestFromJSON(content string) (*JobRequest, error) {
+func NewRequestFromJSON(content []byte) (*JobRequest, error) {
 	jobRequest := &JobRequest{}
 
 	err := json.Unmarshal([]byte(content), jobRequest)

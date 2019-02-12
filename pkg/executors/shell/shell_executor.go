@@ -65,7 +65,7 @@ func (e *ShellExecutor) silencePromptAndDisablePS1() {
 
 	e.stdin.Write([]byte("export PS1=''\n"))
 	e.stdin.Write([]byte("stty -echo\n"))
-	e.stdin.Write([]byte("cd ~"))
+	e.stdin.Write([]byte("cd ~\n"))
 	e.stdin.Write([]byte("echo '" + everythingIsReadyMark + "'\n"))
 
 	stdoutScanner := bufio.NewScanner(e.tty)
@@ -179,7 +179,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File, callback executors.EventHa
 		content, err := base64.StdEncoding.DecodeString(f.Content)
 
 		if err != nil {
-			callback("Failed to decode content of file.")
+			callback(executors.NewCommandOutputEvent("Failed to decode content of file."))
 			exitCode = 1
 			return exitCode
 		}

@@ -5,46 +5,53 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 
+	handlers "github.com/gorilla/handlers"
+	mux "github.com/gorilla/mux"
+
+	api "github.com/semaphoreci/agent/pkg/api"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 )
 
 type Server struct {
-	Host      string
-	Port      int
-	State     string
-	ActiveJob *jobs.Job
+	Host    string
+	Port    int
+	State   string
+	Version string
 
-	router mux.Router
+	ActiveJob *jobs.Job
+	router    *mux.Router
 }
 
-func NewServer(host string, port int) *Server {
+func NewServer(host string, port int, version string) *Server {
 	router := mux.NewRouter().StrictSlash(true)
 
-	router.HandleFunc("/status", s.Status).Methods("GET")
-	router.HandleFunc("/jobs", s.Run).Methods("POST")
+	server := &Server{
+		Host:    host,
+		Port:    port,
+		State:   "waiting for job",
+		router:  router,
+		Version: version,
+	}
+
+	router.HandleFunc("/status", server.Status).Methods("GET")
+	router.HandleFunc("/jobs", server.Run).Methods("POST")
 
 	// The path /stop is the new standard, /jobs/terminate is here to support the legacy system.
-	router.HandleFunc("/stop", s.Stop).Methods("POST")
-	router.HandleFunc("/jobs/terminate", s.Stop).Methods("POST")
+	router.HandleFunc("/stop", server.Stop).Methods("POST")
+	router.HandleFunc("/jobs/terminate", server.Stop).Methods("POST")
 
 	// The path /jobs/{job_id}/log is here to support the legacy systems.
-	router.HandleFunc("/job_logs", s.JobLogs).Methods("GET")
-	router.HandleFunc("/jobs/{job_id}/log", s.JobLogs).Methods("GET")
+	router.HandleFunc("/job_logs", server.JobLogs).Methods("GET")
+	router.HandleFunc("/jobs/{job_id}/log", server.JobLogs).Methods("GET")
 
 	// Agent Logs
-	router.HandleFunc("/agent_logs", s.AgentLogs).Methods("GET")
-
-	server := &Server{
-		Host:   host,
-		Port:   port,
-		State:  "waiting for job",
-		router: router,
-	}
+	router.HandleFunc("/agent_logs", server.AgentLogs).Methods("GET")
 
 	return server
 }
@@ -52,7 +59,7 @@ func NewServer(host string, port int) *Server {
 func (s *Server) Serve() {
 	address := fmt.Sprintf("%s:%d", s.Host, s.Port)
 
-	fmt.Printf("Agent %s listening on https://%s\n", VERSION, address)
+	fmt.Printf("Agent %s listening on https://%s\n", s.Version, address)
 
 	f, err := os.OpenFile("/tmp/agent_log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 
@@ -64,7 +71,7 @@ func (s *Server) Serve() {
 
 	log.SetOutput(f)
 
-	loggedRouter := handlers.LoggingHandler(f, r)
+	loggedRouter := handlers.LoggingHandler(f, s.router)
 
 	log.Fatal(http.ListenAndServeTLS(address, "server.crt", "server.key", loggedRouter))
 }
@@ -74,7 +81,7 @@ func (s *Server) Status(w http.ResponseWriter, r *http.Request) {
 	m := make(map[string]interface{})
 
 	m["state"] = s.State
-	m["version"] = VERSION
+	m["version"] = s.Version
 
 	jsonString, _ := json.Marshal(m)
 
@@ -135,14 +142,21 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 
 	s.State = "received-job"
 
-	request, err := api.NewRequestFromJSON(r.Body)
+	body, err := ioutil.ReadAll(r.Body)
+	defer r.Body.Close()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	request, err := api.NewRequestFromJSON(body)
 
 	if err != nil {
 		fmt.Fprintf(w, `{"message": "%s"}`, err)
 		return
 	}
 
-	job, err := &jobs.NewJob(request)
+	job, err := jobs.NewJob(request)
 
 	if err != nil {
 		fmt.Fprintf(w, `{"message": "%s"}`, err)

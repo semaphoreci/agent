@@ -18,13 +18,13 @@ const JOB_PASSED = "passed"
 const JOB_FAILED = "failed"
 
 type Job struct {
-	Request  api.JobRequest
+	Request  *api.JobRequest
 	Executor executors.Executor
 
 	JobLogArchived bool
 }
 
-func NewJob(request api.JobRequest) (*Job, error) {
+func NewJob(request *api.JobRequest) (*Job, error) {
 	executor := shellexecutor.NewShellExecutor()
 
 	return &Job{
