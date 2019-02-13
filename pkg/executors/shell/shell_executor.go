@@ -226,7 +226,7 @@ func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandl
 	finishMark := "97d140552e404df69f6472729d2b2c2"
 
 	commandStartedAt := int(time.Now().Unix())
-	exitCode := 0
+	exitCode := 1
 
 	defer func() {
 		commandFinishedAt := int(time.Now().Unix())
@@ -311,6 +311,12 @@ func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandl
 }
 
 func (e *ShellExecutor) Stop() int {
+	err := e.terminal.Process.Kill()
+
+	if err != nil {
+		return 0
+	}
+
 	return 0
 }
 

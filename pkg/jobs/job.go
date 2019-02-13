@@ -22,6 +22,7 @@ type Job struct {
 	Executor executors.Executor
 
 	JobLogArchived bool
+	Stopped        bool
 
 	logfile *os.File // TODO: extract me
 }
@@ -41,6 +42,7 @@ func NewJob(request *api.JobRequest) (*Job, error) {
 		Request:        request,
 		Executor:       executor,
 		JobLogArchived: false,
+		Stopped:        false,
 		logfile:        logfile,
 	}, nil
 }
@@ -132,11 +134,10 @@ func (job *Job) WaitForArchivator() {
 
 func (j *Job) Stop() {
 	log.Printf("Stopping job")
+
 	j.Executor.Stop()
 
-	// if err != nil {
-	// 	log.Printf("Error while stopping job, err: %+v", err)
-	// }
+	j.Stopped = true
 }
 
 func LogJobStart(logfile *os.File) {

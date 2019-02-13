@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"testing"
+	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
 	executors "github.com/semaphoreci/agent/pkg/executors"
@@ -95,5 +96,51 @@ func Test__ShellExecutor(t *testing.T) {
 		"echo $?",
 		"0",
 		"Exit Code: 0",
+	})
+}
+
+func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
+	events := []string{}
+
+	eventHandler := func(event interface{}) {
+		log.Printf("[TEST] %+v", event)
+
+		switch e := event.(type) {
+		case *executors.CommandStartedEvent:
+			events = append(events, e.Directive)
+		case *executors.CommandOutputEvent:
+			events = append(events, e.Output)
+		case *executors.CommandFinishedEvent:
+			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
+		default:
+			fmt.Printf("Shell Event %+v\n", e)
+			panic("Unknown shell event")
+		}
+	}
+
+	e := NewShellExecutor()
+
+	e.Prepare()
+	e.Start()
+
+	go func() {
+		e.RunCommand("echo 'here'", eventHandler)
+		e.RunCommand("sleep 5", eventHandler)
+	}()
+
+	time.Sleep(1 * time.Second)
+
+	e.Stop()
+	e.Cleanup()
+
+	time.Sleep(1 * time.Second)
+
+	assert.Equal(t, events, []string{
+		"echo 'here'",
+		"here",
+		"Exit Code: 0",
+
+		"sleep 5",
+		"Exit Code: 1",
 	})
 }
