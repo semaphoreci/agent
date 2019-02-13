@@ -6,7 +6,7 @@ agent:
     os_image: ubuntu1804
 
 blocks:
-  - name: "Acceptance tests"
+  - name: "Unit tests"
     task:
       prologue:
         commands:
@@ -19,17 +19,19 @@ blocks:
         commands:
           - make test
 
-      - name: Example Hello world
+  - name: "E2e tests"
+    task:
+      prologue:
         commands:
-          - make run JOB=examples/hello_world.yaml
+          - sem-version go 1.11
+          - checkout
+          - go build
+          - sleep 5 # give some time for the agent to boot up
 
-      - name: Example Linked DB service
+      jobs:
+      - name: Hello World
         commands:
-          - make run JOB=examples/db_usage.yaml
-
-      - name: Example Envoy
-        commands:
-          - make run JOB=examples/envoy.yaml
+          - make e2e NAME=hello_world
 
 promotions:
   - name: Release

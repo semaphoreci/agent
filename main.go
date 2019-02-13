@@ -36,4 +36,6 @@ func main() {
 	case "version":
 		fmt.Println(VERSION)
 	}
+
+	fmt.Printf("AAAAAAAAAAAAAAAA")
 }

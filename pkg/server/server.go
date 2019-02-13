@@ -69,7 +69,7 @@ func (s *Server) Serve() {
 
 	defer f.Close()
 
-	log.SetOutput(f)
+	// log.SetOutput(f)
 
 	loggedRouter := handlers.LoggingHandler(f, s.router)
 
