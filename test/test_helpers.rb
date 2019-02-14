@@ -18,6 +18,15 @@ def start_job(request)
   abort "Failed to send: #{output}" if $?.exitstatus != 0
 end
 
+def stop_job
+  puts "============================"
+  puts "Stopping job..."
+
+  output = `curl -s --fail -X POST -k "https://0.0.0.0:8000/jobs/terminate"`
+
+  abort "Failed to stob job: #{output}" if $?.exitstatus != 0
+end
+
 def wait_for_job_to_finish
   puts "========================="
   puts "Waiting for job to finish"

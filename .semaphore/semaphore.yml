@@ -40,6 +40,10 @@ blocks:
           commands:
             - make e2e NAME=failed_job
 
+        - name: Job Stopping
+          commands:
+            - make e2e NAME=job_stopping
+
 promotions:
   - name: Release
     pipeline_file: "release.yml"

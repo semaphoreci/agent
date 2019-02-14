@@ -112,10 +112,20 @@ func (job *Job) RunRegularCommands() string {
 func (job *Job) RunEpilogueCommands(result string) {
 	log.Printf("[JOB] Epilogue Commands Started")
 
-	cmd := fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%s", result)
-	job.Executor.RunCommand(cmd, job.EventHandler)
+	cmds := []api.Command{}
 
-	for _, c := range job.Request.EpilogueCommands {
+	export_result_cmd := api.Command{
+		Directive: fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%s", result),
+	}
+
+	cmds = append(cmds, export_result_cmd)
+	cmds = append(cmds, job.Request.EpilogueCommands...)
+
+	for _, c := range cmds {
+		if job.Stopped {
+			return
+		}
+
 		// exit code is ignored in epilogue commands
 		job.Executor.RunCommand(c.Directive, job.EventHandler)
 	}
@@ -135,9 +145,9 @@ func (job *Job) WaitForArchivator() {
 func (j *Job) Stop() {
 	log.Printf("Stopping job")
 
-	j.Executor.Stop()
-
 	j.Stopped = true
+
+	j.Executor.Stop()
 }
 
 func LogJobStart(logfile *os.File) {
