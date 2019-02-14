@@ -6,7 +6,7 @@ agent:
     os_image: ubuntu1804
 
 blocks:
-  - name: "Acceptance tests"
+  - name: "Unit tests"
     task:
       prologue:
         commands:
@@ -15,17 +15,42 @@ blocks:
           - go build
 
       jobs:
-      - name: Hello world
-        commands:
-          - make run JOB=examples/hello_world.yaml
+        - name: Tests
+          commands:
+            - make test
 
-      - name: Linked DB service
+  - name: "E2E tests"
+    task:
+      prologue:
         commands:
-          - make run JOB=examples/db_usage.yaml
+          - sem-version go 1.11
+          - checkout
+          - go build
 
-      - name: Envoy
-        commands:
-          - make run JOB=examples/envoy.yaml
+      jobs:
+        - name: Hello World
+          commands:
+            - make e2e TEST=hello_world
+
+        - name: Env Vars
+          commands:
+            - make e2e TEST=env_vars
+
+        - name: Failed Job
+          commands:
+            - make e2e TEST=failed_job
+
+        - name: Job Stopping
+          commands:
+            - make e2e TEST=job_stopping
+
+        - name: File Injection
+          commands:
+            - make e2e TEST=file_injection
+
+        - name: File Injection Broken File Mode
+          commands:
+            - make e2e TEST=file_injection_broken_file_mode
 
 promotions:
   - name: Release

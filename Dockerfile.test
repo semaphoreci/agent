@@ -1,0 +1,9 @@
+FROM ubuntu
+
+ADD build/agent /app/agent
+ADD server.key /app/server.key
+ADD server.crt /app/server.crt
+
+WORKDIR /app
+
+CMD ./agent serve
