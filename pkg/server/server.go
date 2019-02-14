@@ -24,19 +24,27 @@ type Server struct {
 	State   string
 	Version string
 
+	TLSKeyPath  string
+	TLSCertPath string
+
+	Logfile io.Writer
+
 	ActiveJob *jobs.Job
 	router    *mux.Router
 }
 
-func NewServer(host string, port int, version string) *Server {
+func NewServer(host string, port int, version string, logfile io.Writer) *Server {
 	router := mux.NewRouter().StrictSlash(true)
 
 	server := &Server{
-		Host:    host,
-		Port:    port,
-		State:   "waiting for job",
-		router:  router,
-		Version: version,
+		Host:        host,
+		Port:        port,
+		State:       "waiting for job",
+		TLSKeyPath:  "server.key",
+		TLSCertPath: "server.crt",
+		Logfile:     logfile,
+		router:      router,
+		Version:     version,
 	}
 
 	router.HandleFunc("/status", server.Status).Methods("GET")
@@ -61,19 +69,14 @@ func (s *Server) Serve() {
 
 	fmt.Printf("Agent %s listening on https://%s\n", s.Version, address)
 
-	f, err := os.OpenFile("/tmp/agent_log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	loggedRouter := handlers.LoggingHandler(s.Logfile, s.router)
 
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer f.Close()
-
-	// log.SetOutput(f)
-
-	loggedRouter := handlers.LoggingHandler(f, s.router)
-
-	log.Fatal(http.ListenAndServeTLS(address, "server.crt", "server.key", loggedRouter))
+	log.Fatal(http.ListenAndServeTLS(
+		address,
+		s.TLSCertPath,
+		s.TLSKeyPath,
+		loggedRouter,
+	))
 }
 
 func (s *Server) Status(w http.ResponseWriter, r *http.Request) {

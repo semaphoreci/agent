@@ -19,14 +19,13 @@ blocks:
         commands:
           - make test
 
-  - name: "E2e tests"
+  - name: "E2E tests"
     task:
       prologue:
         commands:
           - sem-version go 1.11
           - checkout
           - go build
-          - sleep 5 # give some time for the agent to boot up
 
       jobs:
       - name: Hello World

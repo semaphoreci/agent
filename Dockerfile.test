@@ -4,4 +4,6 @@ ADD build/agent /app/agent
 ADD server.key /app/server.key
 ADD server.crt /app/server.crt
 
-CMD /app/agent serve
+WORKDIR /app
+
+CMD ./agent serve
