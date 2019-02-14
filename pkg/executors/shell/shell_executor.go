@@ -130,7 +130,7 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, callback executors.E
 			return exitCode
 		}
 
-		envFile += fmt.Sprintf("export %s='%s'\n", e.Name, value)
+		envFile += fmt.Sprintf("export %s=%s\n", e.Name, ShellQuote(string(value)))
 	}
 
 	err := ioutil.WriteFile("/tmp/.env", []byte(envFile), 0644)
@@ -333,4 +333,17 @@ func UserHomeDir() string {
 		return home
 	}
 	return os.Getenv("HOME")
+}
+
+func ShellQuote(s string) string {
+	pattern := regexp.MustCompile(`[^\w@%+=:,./-]`)
+
+	if len(s) == 0 {
+		return "''"
+	}
+	if pattern.MatchString(s) {
+		return "'" + strings.Replace(s, "'", "'\"'\"'", -1) + "'"
+	}
+
+	return s
 }

@@ -33,8 +33,8 @@ def assert_job_log(expected_log)
 
   abort "Failed to fetch logs: #{actual_log}" if $?.exitstatus != 0
 
-  actual_log   = actual_log.split("\n").map(&:strip)
-  expected_log = expected_log.split("\n").map(&:strip)
+  actual_log   = actual_log.split("\n").map(&:strip).reject(&:empty?)
+  expected_log = expected_log.split("\n").map(&:strip).reject(&:empty?)
 
   expected_log.zip(actual_log).each.with_index do |pair, index|
     begin

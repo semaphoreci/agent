@@ -15,9 +15,9 @@ blocks:
           - go build
 
       jobs:
-      - name: Tests
-        commands:
-          - make test
+        - name: Tests
+          commands:
+            - make test
 
   - name: "E2E tests"
     task:
@@ -28,9 +28,13 @@ blocks:
           - go build
 
       jobs:
-      - name: Hello World
-        commands:
-          - make e2e NAME=hello_world
+        - name: Hello World
+          commands:
+            - make e2e NAME=hello_world
+
+        - name: Env Vars
+          commands:
+            - make e2e NAME=env_vars
 
 promotions:
   - name: Release

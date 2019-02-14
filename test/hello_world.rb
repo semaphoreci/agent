@@ -1,4 +1,5 @@
 #!/bin/ruby
+# rubocop:disable all
 
 require_relative 'test_helpers.rb'
 
