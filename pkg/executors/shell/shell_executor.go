@@ -121,7 +121,7 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, callback executors.E
 	envFile := ""
 
 	for _, e := range envVars {
-		callback(executors.NewCommandOutputEvent(fmt.Sprintf("Exporting %s", e.Name)))
+		callback(executors.NewCommandOutputEvent(fmt.Sprintf("Exporting %s\n", e.Name)))
 
 		value, err := base64.StdEncoding.DecodeString(e.Value)
 
@@ -161,14 +161,14 @@ func (e *ShellExecutor) InjectFiles(files []api.File, callback executors.EventHa
 	callback(executors.NewCommandStartedEvent(directive))
 
 	for _, f := range files {
-		output := fmt.Sprintf("Injecting %s with file mode %s", f.Path, f.Mode)
+		output := fmt.Sprintf("Injecting %s with file mode %s\n", f.Path, f.Mode)
 
 		callback(executors.NewCommandOutputEvent(output))
 
 		content, err := base64.StdEncoding.DecodeString(f.Content)
 
 		if err != nil {
-			callback(executors.NewCommandOutputEvent("Failed to decode content of file."))
+			callback(executors.NewCommandOutputEvent("Failed to decode content of file.\n"))
 			exitCode = 1
 			return exitCode
 		}
@@ -183,14 +183,14 @@ func (e *ShellExecutor) InjectFiles(files []api.File, callback executors.EventHa
 
 		err = os.MkdirAll(path.Dir(destPath), os.ModePerm)
 		if err != nil {
-			callback(executors.NewCommandOutputEvent(err.Error()))
+			callback(executors.NewCommandOutputEvent(err.Error() + "\n"))
 			exitCode = 1
 			break
 		}
 
 		err = ioutil.WriteFile(destPath, []byte(content), 0644)
 		if err != nil {
-			callback(executors.NewCommandOutputEvent(err.Error()))
+			callback(executors.NewCommandOutputEvent(err.Error() + "\n"))
 			exitCode = 1
 			break
 		}
@@ -199,7 +199,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File, callback executors.EventHa
 		exitCode = e.RunCommand(cmd, executors.DevNullEventHandler)
 		if exitCode != 0 {
 			output := fmt.Sprintf("Failed to set file mode to %s", f.Mode)
-			callback(executors.NewCommandOutputEvent(output))
+			callback(executors.NewCommandOutputEvent(output + "\n"))
 			break
 		}
 	}
@@ -291,19 +291,19 @@ func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandl
 				if err != nil {
 					log.Printf("[SHELL] Panic while parsing exit status, err: %+v", err)
 
-					callback(executors.NewCommandOutputEvent("Failed to read command exit code"))
+					callback(executors.NewCommandOutputEvent("Failed to read command exit code\n"))
 				}
 
 			} else {
 				exitCode = 1
-				callback(executors.NewCommandOutputEvent("Failed to read command exit code"))
+				callback(executors.NewCommandOutputEvent("Failed to read command exit code\n"))
 			}
 
 			break
 		}
 
 		if streamEvents {
-			callback(executors.NewCommandOutputEvent(t))
+			callback(executors.NewCommandOutputEvent(t + "\n"))
 		}
 	}
 

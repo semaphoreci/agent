@@ -69,32 +69,32 @@ func Test__ShellExecutor(t *testing.T) {
 
 	assert.Equal(t, events, []string{
 		"echo 'here'",
-		"here",
+		"here\n",
 		"Exit Code: 0",
 
 		multilineCmd,
-		"etc exists, multiline huzzahh!",
+		"etc exists, multiline huzzahh!\n",
 		"Exit Code: 0",
 
 		"Exporting environment variables",
-		"Exporting A",
+		"Exporting A\n",
 		"Exit Code: 0",
 
 		"echo $A",
-		"foo",
+		"foo\n",
 		"Exit Code: 0",
 
 		"Injecting Files",
-		"Injecting /tmp/random-file.txt with file mode 0600",
+		"Injecting /tmp/random-file.txt with file mode 0600\n",
 		"Exit Code: 0",
 
 		"cat /tmp/random-file.txt",
-		"aaabbb",
-		"",
+		"aaabbb\n",
+		"\n",
 		"Exit Code: 0",
 
 		"echo $?",
-		"0",
+		"0\n",
 		"Exit Code: 0",
 	})
 }
@@ -137,7 +137,7 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 
 	assert.Equal(t, events, []string{
 		"echo 'here'",
-		"here",
+		"here\n",
 		"Exit Code: 0",
 
 		"sleep 5",
