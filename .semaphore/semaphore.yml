@@ -44,6 +44,10 @@ blocks:
           commands:
             - make e2e TEST=job_stopping
 
+        - name: File Injection
+          commands:
+            - make e2e TEST=file_injection
+
 promotions:
   - name: Release
     pipeline_file: "release.yml"
