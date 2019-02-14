@@ -5,9 +5,9 @@ Base agent responsibilities:
 - [x] Run jobs
 - [x] Provide output logs
 - [x] Run a server
-- [ ] Inject env variables
-- [ ] Inject files
-- [ ] Run epilogue commands
+- [x] Inject env variables
+- [x] Inject files
+- [x] Run epilogue commands
 
 Compose style CI milestone:
 
