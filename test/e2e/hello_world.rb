@@ -34,7 +34,7 @@ assert_job_log <<-LOG
   {"event":"cmd_started",  "timestamp":"*", "directive":"Injecting Files"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"Injecting Files","exit_code":0,"finished_at":"*","started_at":"*"}
   {"event":"cmd_started",  "timestamp":"*", "directive":"echo Hello World"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"Hello World"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"Hello World\\n"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"echo Hello World","exit_code":0,"finished_at":"*","started_at":"*"}
   {"event":"cmd_started",  "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=passed"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=passed","exit_code":0,"finished_at":"*","started_at":"*"}

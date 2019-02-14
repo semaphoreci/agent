@@ -40,21 +40,21 @@ assert_job_log <<-LOG
   {"event":"cmd_finished", "timestamp":"*", "directive":"Exporting environment variables","exit_code":0,"finished_at":"*","started_at":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"Injecting Files"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"Injecting test.txt with file mode 0644"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"Injecting /a/b/c with file mode 0644"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"Injecting /tmp/a with file mode +x"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"Injecting test.txt with file mode 0644\\n"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"Injecting /a/b/c with file mode 0644\\n"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"Injecting /tmp/a with file mode +x\\n"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"Injecting Files","exit_code":0,"finished_at":"*","started_at":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"cat test.txt"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"hello"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"hello\\n"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"cat test.txt","exit_code":0,"finished_at":"*","started_at":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"cat /a/b/c"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"hello"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"hello\\n"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"cat /a/b/c","exit_code":0,"finished_at":"*","started_at":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"stat -c '%a' /tmp/a"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"755"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"755\\n"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"stat -c '%a' /tmp/a","exit_code":0,"finished_at":"*","started_at":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=passed"}
