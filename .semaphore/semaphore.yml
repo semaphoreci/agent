@@ -36,6 +36,10 @@ blocks:
           commands:
             - make e2e NAME=env_vars
 
+        - name: Failed Job
+          commands:
+            - make e2e NAME=failed_job
+
 promotions:
   - name: Release
     pipeline_file: "release.yml"
