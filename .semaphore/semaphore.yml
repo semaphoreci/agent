@@ -30,19 +30,19 @@ blocks:
       jobs:
         - name: Hello World
           commands:
-            - make e2e NAME=hello_world
+            - make e2e TEST=hello_world
 
         - name: Env Vars
           commands:
-            - make e2e NAME=env_vars
+            - make e2e TEST=env_vars
 
         - name: Failed Job
           commands:
-            - make e2e NAME=failed_job
+            - make e2e TEST=failed_job
 
         - name: Job Stopping
           commands:
-            - make e2e NAME=job_stopping
+            - make e2e TEST=job_stopping
 
 promotions:
   - name: Release

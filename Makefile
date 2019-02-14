@@ -29,5 +29,5 @@ docker.run: docker.build
 .PHONY: docker.run
 
 e2e: docker.run
-	ruby test/$(NAME).rb
+	ruby test/e2e/$(TEST).rb
 .PHONY: e2e

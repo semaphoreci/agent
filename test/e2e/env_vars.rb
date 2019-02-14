@@ -1,7 +1,7 @@
 #!/bin/ruby
 # rubocop:disable all
 
-require_relative 'test_helpers.rb'
+require_relative '../e2e'
 
 start_job <<-JSON
   {
