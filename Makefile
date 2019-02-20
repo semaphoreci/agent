@@ -24,7 +24,7 @@ docker.build: build
 
 docker.run: docker.build
 	-docker stop agent
-	docker run --net=host --name agent -tdi agent --auth-token-secret 'TzRVcspTmxhM9fUkdi1T/0kVXNETCi8UdZ8dLM8va4E'
+	docker run --net=host --name agent -tdi agent bash -c "./agent serve --auth-token-secret 'TzRVcspTmxhM9fUkdi1T/0kVXNETCi8UdZ8dLM8va4E'"
 	sleep 2
 .PHONY: docker.run
 
