@@ -30,7 +30,7 @@ func main() {
 
 	switch action {
 	case "serve":
-		server.NewServer("0.0.0.0", 8000, VERSION, mwriter).Serve()
+		server.NewServer("0.0.0.0", 8000, VERSION, mwriter, []byte("secret")).Serve()
 
 	case "run":
 		request, err := api.NewRequestFromYamlFile(os.Args[2])

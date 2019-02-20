@@ -27,13 +27,15 @@ type Server struct {
 	TLSKeyPath  string
 	TLSCertPath string
 
+	JwtSecret []byte
+
 	Logfile io.Writer
 
 	ActiveJob *jobs.Job
 	router    *mux.Router
 }
 
-func NewServer(host string, port int, version string, logfile io.Writer) *Server {
+func NewServer(host string, port int, version string, logfile io.Writer, jwtSecret []byte) *Server {
 	router := mux.NewRouter().StrictSlash(true)
 
 	server := &Server{
@@ -42,24 +44,27 @@ func NewServer(host string, port int, version string, logfile io.Writer) *Server
 		State:       "waiting for job",
 		TLSKeyPath:  "server.key",
 		TLSCertPath: "server.crt",
+		JwtSecret:   jwtSecret,
 		Logfile:     logfile,
 		router:      router,
 		Version:     version,
 	}
 
-	router.HandleFunc("/status", server.Status).Methods("GET")
-	router.HandleFunc("/jobs", server.Run).Methods("POST")
+	jwtMiddleware := CreateJwtMiddleware(jwtSecret)
+
+	router.HandleFunc("/status", jwtMiddleware(server.Status)).Methods("GET")
+	router.HandleFunc("/jobs", jwtMiddleware(server.Run)).Methods("POST")
 
 	// The path /stop is the new standard, /jobs/terminate is here to support the legacy system.
-	router.HandleFunc("/stop", server.Stop).Methods("POST")
-	router.HandleFunc("/jobs/terminate", server.Stop).Methods("POST")
+	router.HandleFunc("/stop", jwtMiddleware(server.Stop)).Methods("POST")
+	router.HandleFunc("/jobs/terminate", jwtMiddleware(server.Stop)).Methods("POST")
 
 	// The path /jobs/{job_id}/log is here to support the legacy systems.
-	router.HandleFunc("/job_logs", server.JobLogs).Methods("GET")
-	router.HandleFunc("/jobs/{job_id}/log", server.JobLogs).Methods("GET")
+	router.HandleFunc("/job_logs", jwtMiddleware(server.JobLogs)).Methods("GET")
+	router.HandleFunc("/jobs/{job_id}/log", jwtMiddleware(server.JobLogs)).Methods("GET")
 
 	// Agent Logs
-	router.HandleFunc("/agent_logs", server.AgentLogs).Methods("GET")
+	router.HandleFunc("/agent_logs", jwtMiddleware(server.AgentLogs)).Methods("GET")
 
 	return server
 }
