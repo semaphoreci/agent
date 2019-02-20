@@ -12,9 +12,9 @@ import (
 func CreateJwtMiddleware(jwtSecret []byte) func(http.HandlerFunc) http.HandlerFunc {
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			authorizationHeader := req.Header.Get("authorization")
+			authorizationHeader := req.Header.Get("Authorization")
 
-			if authorizationHeader != "" {
+			if authorizationHeader == "" {
 				w.WriteHeader(401)
 				json.NewEncoder(w).Encode("An authorization header is required")
 				return
@@ -22,7 +22,7 @@ func CreateJwtMiddleware(jwtSecret []byte) func(http.HandlerFunc) http.HandlerFu
 
 			bearerToken := strings.Split(authorizationHeader, " ")
 
-			if len(bearerToken) == 2 {
+			if len(bearerToken) != 2 {
 				w.WriteHeader(401)
 				json.NewEncoder(w).Encode("Invalid authorization token")
 				return
