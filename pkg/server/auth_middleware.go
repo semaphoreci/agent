@@ -9,6 +9,14 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 )
 
+//
+// To generate a token from secret:
+//
+//   token := jwt.New(jwt.SigningMethodHS256)
+//   tokenString, _ := token.SignedString(jwtSecret)
+//   fmt.Printf(tokenString)
+//
+
 func CreateJwtMiddleware(jwtSecret []byte) func(http.HandlerFunc) http.HandlerFunc {
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

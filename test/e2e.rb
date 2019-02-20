@@ -5,6 +5,9 @@ require 'json'
 
 $JOB_ID = `uuidgen`.strip
 
+# based on secret passed to the running server
+$TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.LwimMJA3puF3ioGeS-tfczR3370GXBZMIL-bdpu4hOU"
+
 def start_job(request)
   r = Tempfile.new
   r.write(request)
@@ -13,7 +16,7 @@ def start_job(request)
   puts "============================"
   puts "Sending job request to Agent"
 
-  output = `curl -s --fail -X POST -k "https://0.0.0.0:8000/jobs" --data @#{r.path}`
+  output = `curl -H "Authorization: Bearer #{$TOKEN}" -s --fail -X POST -k "https://0.0.0.0:8000/jobs" --data @#{r.path}`
 
   abort "Failed to send: #{output}" if $?.exitstatus != 0
 end
@@ -22,7 +25,7 @@ def stop_job
   puts "============================"
   puts "Stopping job..."
 
-  output = `curl -s --fail -X POST -k "https://0.0.0.0:8000/jobs/terminate"`
+  output = `curl -H "Authorization: Bearer #{$TOKEN}" -s --fail -X POST -k "https://0.0.0.0:8000/jobs/terminate"`
 
   abort "Failed to stob job: #{output}" if $?.exitstatus != 0
 end
@@ -38,7 +41,7 @@ def assert_job_log(expected_log)
   puts "========================="
   puts "Asserting Job Logs"
 
-  actual_log = `curl -sk "https://0.0.0.0:8000/jobs/#{$JOB_ID}/log"`
+  actual_log = `curl -H "Authorization: Bearer #{$TOKEN}" -sk "https://0.0.0.0:8000/jobs/#{$JOB_ID}/log"`
 
   abort "Failed to fetch logs: #{actual_log}" if $?.exitstatus != 0
 
