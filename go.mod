@@ -1,6 +1,7 @@
 module github.com/semaphoreci/agent
 
 require (
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/ghodss/yaml v1.0.0
 	github.com/gorilla/handlers v1.4.0
 	github.com/gorilla/mux v1.6.2

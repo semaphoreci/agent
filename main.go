@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -16,40 +17,58 @@ var VERSION = "dev"
 func main() {
 	action := os.Args[1]
 
+	logfile := OpenLogfile()
+	log.SetOutput(logfile)
+
+	switch action {
+	case "serve":
+		RunServer(logfile)
+	case "run":
+		RunSingleJob()
+	case "version":
+		fmt.Println(VERSION)
+	}
+}
+
+func OpenLogfile() io.Writer {
 	f, err := os.OpenFile("/tmp/agent_log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	defer f.Close()
+	return io.MultiWriter(f, os.Stdout)
+}
 
-	mwriter := io.MultiWriter(f, os.Stdout)
+func RunServer(logfile io.Writer) {
+	authTokenSecret := flag.String("auth-token-secret", "", "Auth token for accessing the server")
+	port := flag.Int("port", 8000, "Port of the server")
+	host := flag.String("host", "0.0.0.0", "Host of the server")
 
-	log.SetOutput(mwriter)
+	flag.Parse()
 
-	switch action {
-	case "serve":
-		server.NewServer("0.0.0.0", 8000, VERSION, mwriter).Serve()
+	server.NewServer(
+		*host,
+		*port,
+		VERSION,
+		logfile,
+		[]byte(*authTokenSecret),
+	).Serve()
+}
 
-	case "run":
-		request, err := api.NewRequestFromYamlFile(os.Args[2])
+func RunSingleJob() {
+	request, err := api.NewRequestFromYamlFile(os.Args[2])
 
-		if err != nil {
-			panic(err)
-		}
-
-		job, err := jobs.NewJob(request)
-		if err != nil {
-			panic(err)
-		}
-
-		job.JobLogArchived = true
-
-		job.Run()
-	case "version":
-		fmt.Println(VERSION)
+	if err != nil {
+		panic(err)
 	}
 
-	fmt.Printf("AAAAAAAAAAAAAAAA")
+	job, err := jobs.NewJob(request)
+	if err != nil {
+		panic(err)
+	}
+
+	job.JobLogArchived = true
+
+	job.Run()
 }
