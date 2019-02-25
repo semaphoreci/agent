@@ -6,7 +6,7 @@ require 'json'
 $JOB_ID = `uuidgen`.strip
 
 # based on secret passed to the running server
-$TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.LwimMJA3puF3ioGeS-tfczR3370GXBZMIL-bdpu4hOU"
+$TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.gLEycyHdyRRzUpauBxdDFmxT5KoOApFO5MHuvWPgFtY"
 
 def start_job(request)
   r = Tempfile.new
