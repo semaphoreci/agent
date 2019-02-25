@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -10,6 +9,7 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	server "github.com/semaphoreci/agent/pkg/server"
+	pflag "github.com/spf13/pflag"
 )
 
 var VERSION = "dev"
@@ -41,11 +41,15 @@ func OpenLogfile() io.Writer {
 }
 
 func RunServer(logfile io.Writer) {
-	authTokenSecret := flag.String("auth-token-secret", "", "Auth token for accessing the server")
-	port := flag.Int("port", 8000, "Port of the server")
-	host := flag.String("host", "0.0.0.0", "Host of the server")
+	authTokenSecret := pflag.String("auth-token-secret", "", "Auth token for accessing the server")
+	port := pflag.Int("port", 8000, "Port of the server")
+	host := pflag.String("host", "0.0.0.0", "Host of the server")
 
-	flag.Parse()
+	pflag.Parse()
+
+	if *authTokenSecret == "" {
+		log.Fatal("Auth token is empty")
+	}
 
 	server.NewServer(
 		*host,
