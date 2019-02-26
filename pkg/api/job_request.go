@@ -8,6 +8,19 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
+type Container struct {
+	Name    string   `json:"name" yaml:"name"`
+	Image   string   `json:"image" yaml:"image"`
+	Command string   `json:"command" yaml:"command"`
+	EnvVars []EnvVar `json:"env_vars" yaml:"env_vars"`
+	Files   []File   `json:"files" yaml:"file"`
+}
+
+type Compose struct {
+	Creadentilals File        `json:"credentials" yaml:"credentials"`
+	Containers    []Container `json:"containers" yaml:"containers"`
+}
+
 type Command struct {
 	Directive string `json:"directive" yaml:"directive"`
 }
@@ -30,6 +43,7 @@ type Callbacks struct {
 }
 
 type JobRequest struct {
+	Compose          Compose   `json:"compose" yaml:"compose"`
 	Commands         []Command `json:"commands" yaml:"commands"`
 	EpilogueCommands []Command `json:"epilogue_commands" yaml:"epilogue_commands"`
 	EnvVars          []EnvVar  `json:"env_vars" yaml:"env_vars"`
