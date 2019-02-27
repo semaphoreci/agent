@@ -44,6 +44,8 @@ func RunServer(logfile io.Writer) {
 	authTokenSecret := pflag.String("auth-token-secret", "", "Auth token for accessing the server")
 	port := pflag.Int("port", 8000, "Port of the server")
 	host := pflag.String("host", "0.0.0.0", "Host of the server")
+	tlsCertPath := pflag.String("tls-cert-path", "server.crt", "TLS Certificate path")
+	tlsKeyPath := pflag.String("tls-key-path", "server.key", "TLS Private key path")
 
 	pflag.Parse()
 
@@ -54,6 +56,8 @@ func RunServer(logfile io.Writer) {
 	server.NewServer(
 		*host,
 		*port,
+		*tlsCertPath,
+		*tlsKeyPath,
 		VERSION,
 		logfile,
 		[]byte(*authTokenSecret),
