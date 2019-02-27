@@ -7,6 +7,8 @@ start_job <<-JSON
   {
     "id": "#{$JOB_ID}",
 
+    "executor": "shell",
+
     "env_vars": [],
 
     "files": [

@@ -1,5 +1,12 @@
 id: "d3d5f394-5fa8-4d61-bf70-aa565825ad50"
 
+executor: "dockercompose"
+
+compose:
+  containers:
+    - name: main
+      image: ruby:2.6
+
 env_vars:
   - name: "A"
     value: "aGVsbG8K"
@@ -10,8 +17,8 @@ files:
     content: "aGVsbG8K"
 
 commands:
-  - directive: "rm -rf /tmp/a"
-  - directive: "git clone git@github.com:/renderedtext/apple-playground /tmp/a"
+  - directive: "echo 'hello world'"
+  - directive: "ruby -v"
 
 epilogue_commands:
   - directive: "echo 'hello world'"

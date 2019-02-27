@@ -1,4 +1,4 @@
-package shell
+package executors
 
 import (
 	"fmt"
@@ -7,7 +7,6 @@ import (
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
-	executors "github.com/semaphoreci/agent/pkg/executors"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -18,11 +17,11 @@ func Test__ShellExecutor(t *testing.T) {
 		log.Printf("[TEST] %+v", event)
 
 		switch e := event.(type) {
-		case *executors.CommandStartedEvent:
+		case *CommandStartedEvent:
 			events = append(events, e.Directive)
-		case *executors.CommandOutputEvent:
+		case *CommandOutputEvent:
 			events = append(events, e.Output)
-		case *executors.CommandFinishedEvent:
+		case *CommandFinishedEvent:
 			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
 		default:
 			fmt.Printf("Shell Event %+v\n", e)
@@ -106,11 +105,11 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 		log.Printf("[TEST] %+v", event)
 
 		switch e := event.(type) {
-		case *executors.CommandStartedEvent:
+		case *CommandStartedEvent:
 			events = append(events, e.Directive)
-		case *executors.CommandOutputEvent:
+		case *CommandOutputEvent:
 			events = append(events, e.Output)
-		case *executors.CommandFinishedEvent:
+		case *CommandFinishedEvent:
 			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
 		default:
 			fmt.Printf("Shell Event %+v\n", e)
@@ -152,11 +151,11 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 		log.Printf("[TEST] %+v", event)
 
 		switch e := event.(type) {
-		case *executors.CommandStartedEvent:
+		case *CommandStartedEvent:
 			events = append(events, e.Directive)
-		case *executors.CommandOutputEvent:
+		case *CommandOutputEvent:
 			events = append(events, e.Output)
-		case *executors.CommandFinishedEvent:
+		case *CommandFinishedEvent:
 			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
 		default:
 			fmt.Printf("Shell Event %+v\n", e)

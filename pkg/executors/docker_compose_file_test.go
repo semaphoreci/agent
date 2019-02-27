@@ -1,4 +1,4 @@
-package dockercompose
+package executors
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	assert "github.com/stretchr/testify/assert"
 )
 
-func Test__ComposeFileConstruction(t *testing.T) {
+func Test__DockerComposeFileConstruction(t *testing.T) {
 	conf := api.Compose{
 		Containers: []api.Container{
 			api.Container{
@@ -49,6 +49,6 @@ services:
 
 `
 
-	compose := ConstructComposeFile(conf)
+	compose := ConstructDockerComposeFile(conf)
 	assert.Equal(t, expected, compose)
 }

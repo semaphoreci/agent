@@ -1,4 +1,4 @@
-package dockercompose
+package executors
 
 import (
 	"fmt"
@@ -6,16 +6,16 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 )
 
-type ComposeFile struct {
+type DockerComposeFile struct {
 	configuration api.Compose
 }
 
-func ConstructComposeFile(conf api.Compose) string {
-	f := ComposeFile{configuration: conf}
+func ConstructDockerComposeFile(conf api.Compose) string {
+	f := DockerComposeFile{configuration: conf}
 	return f.Construct()
 }
 
-func (f *ComposeFile) Construct() string {
+func (f *DockerComposeFile) Construct() string {
 	dockerCompose := ""
 	dockerCompose += "version: \"2.0\"\n"
 	dockerCompose += "\n"
@@ -35,7 +35,7 @@ func (f *ComposeFile) Construct() string {
 	return dockerCompose
 }
 
-func (f *ComposeFile) Service(container api.Container) string {
+func (f *DockerComposeFile) Service(container api.Container) string {
 	result := ""
 	result += fmt.Sprintf("  %s:\n", container.Name)
 	result += fmt.Sprintf("    image: %s\n", container.Image)
@@ -55,13 +55,15 @@ func (f *ComposeFile) Service(container api.Container) string {
 	return result
 }
 
-func (f *ComposeFile) ServiceWithLinks(c api.Container, links []api.Container) string {
+func (f *DockerComposeFile) ServiceWithLinks(c api.Container, links []api.Container) string {
 	result := f.Service(c)
 
-	result += "    links:\n"
+	if len(links) > 0 {
+		result += "    links:\n"
 
-	for _, link := range links {
-		result += fmt.Sprintf("      - %s\n", link.Name)
+		for _, link := range links {
+			result += fmt.Sprintf("      - %s\n", link.Name)
+		}
 	}
 
 	return result
