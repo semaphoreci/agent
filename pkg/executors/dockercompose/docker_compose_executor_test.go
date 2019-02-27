@@ -1,159 +1,194 @@
 package dockercompose
 
-// import (
-// 	"fmt"
-// 	"log"
-// 	"testing"
-// 	"time"
+import (
+	"fmt"
+	"log"
+	"testing"
+	"time"
 
-// 	api "github.com/semaphoreci/agent/pkg/api"
-// 	executors "github.com/semaphoreci/agent/pkg/executors"
-// 	assert "github.com/stretchr/testify/assert"
-// )
+	api "github.com/semaphoreci/agent/pkg/api"
+	executors "github.com/semaphoreci/agent/pkg/executors"
+	assert "github.com/stretchr/testify/assert"
+)
 
-// func Test__DockerComposeExecutor(t *testing.T) {
-// 	events := []string{}
+func Test__DockerComposeExecutor(t *testing.T) {
+	events := []string{}
 
-// 	eventHandler := func(event interface{}) {
-// 		log.Printf("[TEST] %+v", event)
+	eventHandler := func(event interface{}) {
+		log.Printf("[TEST] %+v", event)
 
-// 		switch e := event.(type) {
-// 		case *executors.CommandStartedEvent:
-// 			events = append(events, e.Directive)
-// 		case *executors.CommandOutputEvent:
-// 			events = append(events, e.Output)
-// 		case *executors.CommandFinishedEvent:
-// 			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
-// 		default:
-// 			fmt.Printf("Shell Event %+v\n", e)
-// 			panic("Unknown shell event")
-// 		}
-// 	}
+		switch e := event.(type) {
+		case *executors.CommandStartedEvent:
+			events = append(events, e.Directive)
+		case *executors.CommandOutputEvent:
+			events = append(events, e.Output)
+		case *executors.CommandFinishedEvent:
+			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
+		default:
+			fmt.Printf("Shell Event %+v\n", e)
+			panic("Unknown shell event")
+		}
+	}
 
-// 	e := NewDockerComposeExecutor()
+	conf := api.Compose{
+		Containers: []api.Container{
+			api.Container{
+				Name:  "main",
+				Image: "ruby:2.6",
+			},
+			api.Container{
+				Name:    "db",
+				Image:   "postgres:9.6",
+				Command: "postgres start",
+				EnvVars: []api.EnvVar{
+					api.EnvVar{
+						Name:  "FOO",
+						Value: "BAR",
+					},
+					api.EnvVar{
+						Name:  "FAZ",
+						Value: "ZEZ",
+					},
+				},
+			},
+		},
+	}
 
-// 	e.Prepare()
-// 	e.Start()
+	e := NewDockerComposeExecutor(conf)
 
-// 	e.RunCommand("echo 'here'", eventHandler)
+	e.Prepare()
+	e.Start()
 
-// 	multilineCmd := `
-// 	  if [ -d /etc ]; then
-// 	    echo 'etc exists, multiline huzzahh!'
-// 	  fi
-// 	`
-// 	e.RunCommand(multilineCmd, eventHandler)
+	e.RunCommand("echo 'here'", eventHandler)
 
-// 	envVars := []api.EnvVar{
-// 		api.EnvVar{Name: "A", Value: "Zm9vCg=="},
-// 	}
+	multilineCmd := `
+	  if [ -d /etc ]; then
+	    echo 'etc exists, multiline huzzahh!'
+	  fi
+	`
+	e.RunCommand(multilineCmd, eventHandler)
 
-// 	e.ExportEnvVars(envVars, eventHandler)
-// 	e.RunCommand("echo $A", eventHandler)
+	envVars := []api.EnvVar{
+		api.EnvVar{Name: "A", Value: "Zm9vCg=="},
+	}
 
-// 	files := []api.File{
-// 		api.File{
-// 			Path:    "/tmp/random-file.txt",
-// 			Content: "YWFhYmJiCgo=",
-// 			Mode:    "0600",
-// 		},
-// 	}
+	e.ExportEnvVars(envVars, eventHandler)
+	e.RunCommand("echo $A", eventHandler)
 
-// 	e.InjectFiles(files, eventHandler)
-// 	e.RunCommand("cat /tmp/random-file.txt", eventHandler)
+	files := []api.File{
+		api.File{
+			Path:    "/tmp/random-file.txt",
+			Content: "YWFhYmJiCgo=",
+			Mode:    "0600",
+		},
+	}
 
-// 	e.RunCommand("echo $?", eventHandler)
+	e.InjectFiles(files, eventHandler)
+	e.RunCommand("cat /tmp/random-file.txt", eventHandler)
 
-// 	e.Stop()
-// 	e.Cleanup()
+	e.RunCommand("echo $?", eventHandler)
 
-// 	assert.Equal(t, events, []string{
-// 		"echo 'here'",
-// 		"here\n",
-// 		"Exit Code: 0",
+	e.Stop()
+	e.Cleanup()
 
-// 		multilineCmd,
-// 		"etc exists, multiline huzzahh!\n",
-// 		"Exit Code: 0",
+	assert.Equal(t, events, []string{
+		"echo 'here'",
+		"here\n",
+		"Exit Code: 0",
 
-// 		"Exporting environment variables",
-// 		"Exporting A\n",
-// 		"Exit Code: 0",
+		multilineCmd,
+		"etc exists, multiline huzzahh!\n",
+		"Exit Code: 0",
 
-// 		"echo $A",
-// 		"foo\n",
-// 		"Exit Code: 0",
+		"Exporting environment variables",
+		"Exporting A\n",
+		"Exit Code: 0",
 
-// 		"Injecting Files",
-// 		"Injecting /tmp/random-file.txt with file mode 0600\n",
-// 		"Exit Code: 0",
+		"echo $A",
+		"foo\n",
+		"Exit Code: 0",
 
-// 		"cat /tmp/random-file.txt",
-// 		"aaabbb\n",
-// 		"\n",
-// 		"Exit Code: 0",
+		"Injecting Files",
+		"Injecting /tmp/random-file.txt with file mode 0600\n",
+		"Exit Code: 0",
 
-// 		"echo $?",
-// 		"0\n",
-// 		"Exit Code: 0",
-// 	})
-// }
+		"cat /tmp/random-file.txt",
+		"aaabbb\n",
+		"\n",
+		"Exit Code: 0",
 
-// func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
-// 	events := []string{}
+		"echo $?",
+		"0\n",
+		"Exit Code: 0",
+	})
+}
 
-// 	eventHandler := func(event interface{}) {
-// 		log.Printf("[TEST] %+v", event)
+func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
+	events := []string{}
 
-// 		switch e := event.(type) {
-// 		case *executors.CommandStartedEvent:
-// 			events = append(events, e.Directive)
-// 		case *executors.CommandOutputEvent:
-// 			events = append(events, e.Output)
-// 		case *executors.CommandFinishedEvent:
-// 			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
-// 		default:
-// 			fmt.Printf("Shell Event %+v\n", e)
-// 			panic("Unknown shell event")
-// 		}
-// 	}
+	eventHandler := func(event interface{}) {
+		log.Printf("[TEST] %+v", event)
 
-// 	docker := api.Docker{
-// 		Services: []api.Service{
-// 			api.Service{
-// 				Name:  "main",
-// 				Image: "ubuntu:18.04",
-// 			},
-// 			api.Service{
-// 				Name:  "db",
-// 				Image: "postgres:9.6",
-// 			},
-// 		},
-// 	}
+		switch e := event.(type) {
+		case *executors.CommandStartedEvent:
+			events = append(events, e.Directive)
+		case *executors.CommandOutputEvent:
+			events = append(events, e.Output)
+		case *executors.CommandFinishedEvent:
+			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
+		default:
+			fmt.Printf("Shell Event %+v\n", e)
+			panic("Unknown shell event")
+		}
+	}
 
-// 	e := NewDockerComposeExecutor(docker)
+	conf := api.Compose{
+		Containers: []api.Container{
+			api.Container{
+				Name:  "main",
+				Image: "ruby:2.6",
+			},
+			api.Container{
+				Name:    "db",
+				Image:   "postgres:9.6",
+				Command: "postgres start",
+				EnvVars: []api.EnvVar{
+					api.EnvVar{
+						Name:  "FOO",
+						Value: "BAR",
+					},
+					api.EnvVar{
+						Name:  "FAZ",
+						Value: "ZEZ",
+					},
+				},
+			},
+		},
+	}
 
-// 	e.Prepare()
-// 	e.Start()
+	e := NewDockerComposeExecutor(conf)
 
-// 	go func() {
-// 		e.RunCommand("echo 'here'", eventHandler)
-// 		e.RunCommand("sleep 5", eventHandler)
-// 	}()
+	e.Prepare()
+	e.Start()
 
-// 	time.Sleep(1 * time.Second)
+	go func() {
+		e.RunCommand("echo 'here'", eventHandler)
+		e.RunCommand("sleep 5", eventHandler)
+	}()
 
-// 	e.Stop()
-// 	e.Cleanup()
+	time.Sleep(1 * time.Second)
 
-// 	time.Sleep(1 * time.Second)
+	e.Stop()
+	e.Cleanup()
 
-// 	assert.Equal(t, events, []string{
-// 		"echo 'here'",
-// 		"here\n",
-// 		"Exit Code: 0",
+	time.Sleep(1 * time.Second)
 
-// 		"sleep 5",
-// 		"Exit Code: 1",
-// 	})
-// }
+	assert.Equal(t, events, []string{
+		"echo 'here'",
+		"here\n",
+		"Exit Code: 0",
+
+		"sleep 5",
+		"Exit Code: 1",
+	})
+}
