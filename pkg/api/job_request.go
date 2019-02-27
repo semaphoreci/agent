@@ -13,7 +13,6 @@ type Container struct {
 	Image   string   `json:"image" yaml:"image"`
 	Command string   `json:"command" yaml:"command"`
 	EnvVars []EnvVar `json:"env_vars" yaml:"env_vars"`
-	Files   []File   `json:"files" yaml:"file"`
 }
 
 type Compose struct {
