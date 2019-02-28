@@ -30,17 +30,21 @@ Compose style CI milestone:
 ```agent [command] [flag]```
 
 Commands:
-  version             Print Agent version
-  server              Start server
-  run                 Runs a single job
-
+```
+  version   Print Agent version
+  server    Start server
+  run       Runs a single job
+```
 Flags:
+```
  --auth-token-secret  Auth token for accessing the server (required)
  --port               Set a custom port (default 8000)
  --host               Set the bind address to a specific IP (default 0.0.0.0)
  --tls-cert-path      Path to TLS Certificate (default `pwd/server.crt`)
  --tls-key-path"      PAth to TLS Private key (default `pwd/server.key`)
-
+```
 
 Start with defaults:
-```agent serve --auth-token-secret 'myJwtToken'```
+```
+agent serve --auth-token-secret 'myJwtToken'
+```
