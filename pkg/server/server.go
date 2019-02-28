@@ -35,7 +35,7 @@ type Server struct {
 	router    *mux.Router
 }
 
-func NewServer(host string, port int, tlsCertPath tlsKeyPath version string, logfile io.Writer, jwtSecret []byte) *Server {
+func NewServer(host string, port int, tlsCertPath, tlsKeyPath, version string, logfile io.Writer, jwtSecret []byte) *Server {
 	router := mux.NewRouter().StrictSlash(true)
 
 	server := &Server{
