@@ -21,3 +21,30 @@ Compose style CI milestone:
 - [ ] Upload docker images from docker
 - [ ] Run code on host, expose docker containers
 - [ ] Use Kubernetes as backend
+
+
+## Agent
+
+### Usage:
+
+```agent [command] [flag]```
+
+Commands:
+```
+  version   Print Agent version
+  serve     Start server
+  run       Runs a single job
+```
+Flags:
+```
+ --auth-token-secret  Auth token for accessing the server (required)
+ --port               Set a custom port (default 8000)
+ --host               Set the bind address to a specific IP (default 0.0.0.0)
+ --tls-cert-path      Path to TLS Certificate (default `pwd/server.crt`)
+ --tls-key-path       Path to TLS Private key (default `pwd/server.key`)
+```
+
+Start with defaults:
+```
+agent serve --auth-token-secret 'myJwtToken'
+```
