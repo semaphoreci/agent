@@ -32,7 +32,7 @@ Compose style CI milestone:
 Commands:
 ```
   version   Print Agent version
-  server    Start server
+  serve     Start server
   run       Runs a single job
 ```
 Flags:
@@ -41,7 +41,7 @@ Flags:
  --port               Set a custom port (default 8000)
  --host               Set the bind address to a specific IP (default 0.0.0.0)
  --tls-cert-path      Path to TLS Certificate (default `pwd/server.crt`)
- --tls-key-path"      PAth to TLS Private key (default `pwd/server.key`)
+ --tls-key-path       Path to TLS Private key (default `pwd/server.key`)
 ```
 
 Start with defaults:
