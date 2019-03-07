@@ -28,6 +28,8 @@ type Job struct {
 }
 
 func NewJob(request *api.JobRequest) (*Job, error) {
+	log.Printf("[job.NewJob] Constructing an executor for the job")
+
 	executor := shellexecutor.NewShellExecutor()
 
 	log.Printf("Job Request %+v\n", request)
@@ -37,6 +39,8 @@ func NewJob(request *api.JobRequest) (*Job, error) {
 	if err != nil {
 		panic(err)
 	}
+
+	log.Printf("[job.NewJob] Constructed job")
 
 	return &Job{
 		Request:        request,
