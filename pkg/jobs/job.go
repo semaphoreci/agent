@@ -65,45 +65,68 @@ func (job *Job) EventHandler(event interface{}) {
 }
 
 func (job *Job) Run() {
+	log.Printf("[JOB] Job Started")
+
 	job.SendStartedCallback()
 	LogJobStart(job.logfile)
 
 	result := job.RunRegularCommands()
 
+	log.Printf("[JOB] Regular Commands Finished. Result: %s", result)
+
+	log.Printf("[JOB] Starting Epilogue Commands.")
+
 	job.RunEpilogueCommands(result)
 
+	log.Printf("[JOB] Sending finished callback.")
+
 	job.SendFinishedCallback(result)
+
 	LogJobFinish(job.logfile, result)
+
+	log.Printf("[JOB] Waiting for archivator")
 
 	job.WaitForArchivator()
 
+	log.Printf("[JOB] Archivator finished")
+
 	job.logfile.Sync()
 	job.logfile.Close()
+
+	log.Printf("[JOB] Job Teardown Finished")
 }
 
 func (job *Job) RunRegularCommands() string {
 	exitCode := job.Executor.Prepare()
 	if exitCode != 0 {
+		log.Printf("[JOB] Failed to prepare executor")
 		return JOB_FAILED
 	}
 
 	exitCode = job.Executor.Start()
 	if exitCode != 0 {
+		log.Printf("[JOB] Failed to start executor")
 		return JOB_FAILED
 	}
 
 	exitCode = job.Executor.ExportEnvVars(job.Request.EnvVars, job.EventHandler)
 	if exitCode != 0 {
+		log.Printf("[JOB] Failed to export env vars")
+
 		return JOB_FAILED
 	}
 
 	exitCode = job.Executor.InjectFiles(job.Request.Files, job.EventHandler)
 	if exitCode != 0 {
+		log.Printf("[JOB] Failed to inject files")
+
 		return JOB_FAILED
 	}
 
 	for _, c := range job.Request.Commands {
 		exitCode = job.Executor.RunCommand(c.Directive, job.EventHandler)
+
+		log.Printf("[JOB] Command Finished. Exit Code: %d", exitCode)
 
 		if exitCode != 0 {
 			return JOB_FAILED
@@ -155,6 +178,8 @@ func (j *Job) Stop() {
 }
 
 func LogJobStart(logfile *os.File) {
+	log.Printf("[JOB] Logging job start")
+
 	m := make(map[string]interface{})
 
 	m["event"] = "job_started"
@@ -164,9 +189,13 @@ func LogJobStart(logfile *os.File) {
 
 	logfile.Write([]byte(jsonString))
 	logfile.Write([]byte("\n"))
+
+	log.Printf("[JOB] %s", jsonString)
 }
 
 func LogJobFinish(logfile *os.File, result string) {
+	log.Printf("[JOB] Logging job finish")
+
 	m := make(map[string]interface{})
 
 	m["event"] = "job_finished"
@@ -177,9 +206,13 @@ func LogJobFinish(logfile *os.File, result string) {
 
 	logfile.Write([]byte(jsonString))
 	logfile.Write([]byte("\n"))
+
+	log.Printf("[JOB] %s", jsonString)
 }
 
 func LogCmdStarted(logfile *os.File, timestamp int, directive string) {
+	log.Printf("[JOB] Logging command started")
+
 	m := make(map[string]interface{})
 
 	m["event"] = "cmd_started"
@@ -190,6 +223,8 @@ func LogCmdStarted(logfile *os.File, timestamp int, directive string) {
 
 	logfile.Write([]byte(jsonString))
 	logfile.Write([]byte("\n"))
+
+	log.Printf("[JOB] %s", jsonString)
 }
 
 func LogCmdOutput(logfile *os.File, timestamp int, output string) {
@@ -206,6 +241,8 @@ func LogCmdOutput(logfile *os.File, timestamp int, output string) {
 }
 
 func LogCmdFinished(logfile *os.File, timestamp int, directive string, exitCode int, startedAt int, finishedAt int) {
+	log.Printf("[JOB] Logging command finished")
+
 	m := make(map[string]interface{})
 
 	m["event"] = "cmd_finished"
@@ -219,6 +256,8 @@ func LogCmdFinished(logfile *os.File, timestamp int, directive string, exitCode 
 
 	logfile.Write([]byte(jsonString))
 	logfile.Write([]byte("\n"))
+
+	log.Printf("[JOB] %s", jsonString)
 }
 
 func (job *Job) SendStartedCallback() error {
