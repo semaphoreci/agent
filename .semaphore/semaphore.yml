@@ -16,6 +16,8 @@ blocks:
         commands:
           - checkout
           - make go.install
+          - echo $PATH
+          - "export PATH=$PATH:/usr/local/bin/go"
           - go version
           - go get
           - go build
