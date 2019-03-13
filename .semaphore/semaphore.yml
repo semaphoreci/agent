@@ -16,6 +16,7 @@ blocks:
         commands:
           - checkout
           - make go.install
+          - go version
           - go get
           - go build
 
