@@ -8,10 +8,14 @@ agent:
 blocks:
   - name: "Unit tests"
     task:
+      env_vars:
+        - name: GO111MODULE
+          value: "on"
+
       prologue:
         commands:
-          - sem-version go 1.11
           - checkout
+          - make go.install
           - go build
 
       jobs:
@@ -21,10 +25,14 @@ blocks:
 
   - name: "E2E tests"
     task:
+      env_vars:
+        - name: GO111MODULE
+          value: "on"
+
       prologue:
         commands:
-          - sem-version go 1.11
           - checkout
+          - make go.install
           - go build
 
       jobs:
