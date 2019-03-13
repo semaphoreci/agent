@@ -6,7 +6,7 @@ agent:
     os_image: ubuntu1804
 
 blocks:
-  - name: "Unit tests"
+  - name: "Tests"
     task:
       env_vars:
         - name: GO111MODULE
@@ -16,10 +16,11 @@ blocks:
         commands:
           - checkout
           - make go.install
+          - go get
           - go build
 
       jobs:
-        - name: Tests
+        - name: Unit Tests
           commands:
             - make test
 
@@ -33,6 +34,7 @@ blocks:
         commands:
           - checkout
           - make go.install
+          - go get
           - go build
 
       jobs:
