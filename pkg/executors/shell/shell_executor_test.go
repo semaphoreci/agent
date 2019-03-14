@@ -144,3 +144,49 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 		"Exit Code: 1",
 	})
 }
+
+func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
+	events := []string{}
+
+	eventHandler := func(event interface{}) {
+		log.Printf("[TEST] %+v", event)
+
+		switch e := event.(type) {
+		case *executors.CommandStartedEvent:
+			events = append(events, e.Directive)
+		case *executors.CommandOutputEvent:
+			events = append(events, e.Output)
+		case *executors.CommandFinishedEvent:
+			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
+		default:
+			fmt.Printf("Shell Event %+v\n", e)
+			panic("Unknown shell event")
+		}
+	}
+
+	e := NewShellExecutor()
+
+	e.Prepare()
+	e.Start()
+
+	go func() {
+		e.RunCommand("for i in {1..100}; { printf 'hello'; }", eventHandler)
+		e.RunCommand("sleep 5", eventHandler)
+	}()
+
+	time.Sleep(3 * time.Second)
+
+	e.Stop()
+	e.Cleanup()
+
+	time.Sleep(1 * time.Second)
+
+	assert.Equal(t, events, []string{
+		"for i in {1..100}; { printf 'hello'; }",
+		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello\n",
+		"Exit Code: 0",
+
+		"sleep 5",
+		"Exit Code: 1",
+	})
+}
