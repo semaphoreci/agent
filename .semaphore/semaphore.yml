@@ -14,6 +14,9 @@ blocks:
 
       prologue:
         commands:
+          - pwd
+          - env
+          - whoami
           - sem-version go 1.11
           - checkout
           - go version
