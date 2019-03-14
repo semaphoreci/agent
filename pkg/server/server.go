@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +14,7 @@ import (
 	mux "github.com/gorilla/mux"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	executors "github.com/semaphoreci/agent/pkg/executors"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 )
 
@@ -113,14 +113,15 @@ func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 	defer logfile.Close()
 
 	logLine := 0
-	scanner := bufio.NewScanner(logfile)
-	for scanner.Scan() {
+	executors.ScanLines(logfile, func(line string) bool {
 		if logLine >= startFromLine {
-			fmt.Fprintln(w, scanner.Text())
+			fmt.Fprintln(w, line)
 		}
 
 		logLine += 1
-	}
+
+		return true // always continue reading
+	})
 
 	if r.Header.Get("X-Client-Name") == "archivator" {
 		s.ActiveJob.JobLogArchived = true
