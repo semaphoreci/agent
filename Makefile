@@ -1,3 +1,5 @@
+AGENT_PORT_IN_TESTS=30000
+
 go.install:
 	cd /tmp
 	sudo curl -O https://dl.google.com/go/go1.11.linux-amd64.tar.gz
@@ -31,7 +33,7 @@ docker.build: build
 
 docker.run: docker.build
 	-docker stop agent
-	docker run --net=host --name agent -tdi agent bash -c "./agent serve --auth-token-secret 'TzRVcspTmxhM9fUkdi1T/0kVXNETCi8UdZ8dLM8va4E'"
+	docker run -p $(AGENT_PORT_IN_TESTS):8000 --name agent -tdi agent bash -c "./agent serve --auth-token-secret 'TzRVcspTmxhM9fUkdi1T/0kVXNETCi8UdZ8dLM8va4E'"
 	sleep 2
 .PHONY: docker.run
 
