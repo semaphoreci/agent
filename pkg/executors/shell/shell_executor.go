@@ -267,25 +267,36 @@ func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandl
 
 	e.stdin.Write([]byte(commandWithStartAndEndMarkers))
 
-	stdoutScanner := bufio.NewScanner(e.tty)
-
 	log.Println("[SHELL] Scan started")
-	for stdoutScanner.Scan() {
-		t := stdoutScanner.Text()
-		log.Printf("[SHELL] (tty) %s\n", t)
 
-		if strings.Contains(t, startMark) {
+	err = executors.ScanLines(e.tty, func(line string) bool {
+		log.Printf("[SHELL] (tty) %s\n", line)
+
+		if strings.Contains(line, startMark) {
+			log.Printf("[SHELL] Detected command start")
 			streamEvents = true
 
 			callback(executors.NewCommandStartedEvent(command))
 
-			continue
+			return true
 		}
 
-		if strings.Contains(t, finishMark) {
+		if strings.Contains(line, finishMark) {
+			log.Printf("[SHELL] Detected command end")
+
+			finalOutputPart := strings.Split(line, finishMark)
+
+			// if there is anything else other than the command end marker
+			// print it to the user
+			if finalOutputPart[0] != "" {
+				callback(executors.NewCommandOutputEvent(finalOutputPart[0] + "\n"))
+			}
+
 			streamEvents = false
 
-			if match := commandEndRegex.FindStringSubmatch(t); len(match) == 2 {
+			if match := commandEndRegex.FindStringSubmatch(line); len(match) == 2 {
+				log.Printf("[SHELL] Parsing exit status succedded")
+
 				exitCode, err = strconv.Atoi(match[1])
 
 				if err != nil {
@@ -294,18 +305,24 @@ func (e *ShellExecutor) RunCommand(command string, callback executors.EventHandl
 					callback(executors.NewCommandOutputEvent("Failed to read command exit code\n"))
 				}
 
+				log.Printf("[SHELL] Setting exit code to %d", exitCode)
 			} else {
+				log.Printf("[SHELL] Failed to parse exit status")
+
 				exitCode = 1
 				callback(executors.NewCommandOutputEvent("Failed to read command exit code\n"))
 			}
 
-			break
+			log.Printf("[SHELL] Stopping scanner")
+			return false
 		}
 
 		if streamEvents {
-			callback(executors.NewCommandOutputEvent(t + "\n"))
+			callback(executors.NewCommandOutputEvent(line + "\n"))
 		}
-	}
+
+		return true
+	})
 
 	return exitCode
 }
