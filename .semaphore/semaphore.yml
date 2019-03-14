@@ -14,10 +14,8 @@ blocks:
 
       prologue:
         commands:
+          - sem-version go 1.11
           - checkout
-          - make go.install
-          - echo $PATH
-          - "export PATH=/usr/local/go/bin:$PATH"
           - go version
           - go get
           - go build
