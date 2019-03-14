@@ -36,7 +36,7 @@ func NewShellExecutor() *ShellExecutor {
 }
 
 func (e *ShellExecutor) Prepare() int {
-	e.terminal = exec.Command("bash")
+	e.terminal = exec.Command("bash", "--login")
 
 	return 0
 }
