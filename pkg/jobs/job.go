@@ -29,6 +29,10 @@ type Job struct {
 func NewJob(request *api.JobRequest) (*Job, error) {
 	log.Printf("[job.NewJob] Constructing an executor for the job")
 
+	if request.Executor == "" {
+		request.Executor = executors.ExecutorTypeShell
+	}
+
 	executor, err := executors.CreateExecutor(request)
 
 	if err != nil {

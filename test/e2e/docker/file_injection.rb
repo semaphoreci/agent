@@ -1,13 +1,22 @@
 #!/bin/ruby
 # rubocop:disable all
 
-require_relative '../e2e'
+require_relative '../../e2e'
 
 start_job <<-JSON
   {
     "id": "#{$JOB_ID}",
 
-    "executor": "shell",
+    "executor": "dockercompose",
+
+    "compose": {
+      "containers": [
+        {
+          "name": "main",
+          "image": "ruby:2.6"
+        }
+      ]
+    },
 
     "env_vars": [],
 

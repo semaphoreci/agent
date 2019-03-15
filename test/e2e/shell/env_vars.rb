@@ -1,13 +1,11 @@
 #!/bin/ruby
 # rubocop:disable all
 
-require_relative '../e2e'
+require_relative '../../e2e'
 
 start_job <<-JSON
   {
     "id": "#{$JOB_ID}",
-
-    "executor": "shell",
 
     "env_vars": [
       { "name": "A", "value": "#{`echo "hello" | base64`}" },
