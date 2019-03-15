@@ -85,7 +85,7 @@ func (s *Server) Serve() {
 }
 
 func (s *Server) Status(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(400)
+	w.WriteHeader(200)
 	m := make(map[string]interface{})
 
 	m["state"] = s.State
@@ -171,6 +171,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		log.Printf("[server.Run] Failed to parse job request, returning 422")
+		log.Printf("[server.Run] %+v", err)
 
 		http.Error(w, err.Error(), 422)
 		fmt.Fprintf(w, `{"message": "%s"}`, err)

@@ -7,6 +7,7 @@ agent:
 
 blocks:
   - name: "Tests"
+    dependencies: []
     task:
       env_vars:
         - name: GO111MODULE
@@ -25,7 +26,9 @@ blocks:
           commands:
             - make test
 
-  - name: "E2E tests"
+  - name: "Shell Executor E2E tests"
+    dependencies:
+      - "Tests"
     task:
       env_vars:
         - name: GO111MODULE
@@ -42,27 +45,68 @@ blocks:
       jobs:
         - name: Hello World
           commands:
-            - make e2e TEST=hello_world
+            - make e2e TEST=shell/hello_world
 
         - name: Env Vars
           commands:
-            - make e2e TEST=env_vars
+            - make e2e TEST=shell/env_vars
 
         - name: Failed Job
           commands:
-            - make e2e TEST=failed_job
+            - make e2e TEST=shell/failed_job
 
         - name: Job Stopping
           commands:
-            - make e2e TEST=job_stopping
+            - make e2e TEST=shell/job_stopping
 
         - name: File Injection
           commands:
-            - make e2e TEST=file_injection
+            - make e2e TEST=shell/file_injection
 
         - name: File Injection Broken File Mode
           commands:
-            - make e2e TEST=file_injection_broken_file_mode
+            - make e2e TEST=shell/file_injection_broken_file_mode
+
+  - name: "Docker Executor E2E tests"
+    dependencies:
+      - "Tests"
+    task:
+      env_vars:
+        - name: GO111MODULE
+          value: "on"
+
+      prologue:
+        commands:
+          - sem-version go 1.11
+          - checkout
+          - go version
+          - go get
+          - go build
+
+      jobs:
+        - name: Hello World
+          commands:
+            - make e2e TEST=docker/hello_world
+
+        - name: Env Vars
+          commands:
+            - make e2e TEST=docker/env_vars
+
+        - name: Failed Job
+          commands:
+            - make e2e TEST=docker/failed_job
+
+        - name: Job Stopping
+          commands:
+            - make e2e TEST=docker/job_stopping
+
+        - name: File Injection
+          commands:
+            - make e2e TEST=docker/file_injection
+
+        - name: File Injection Broken File Mode
+          commands:
+            - make e2e TEST=docker/file_injection_broken_file_mode
 
 promotions:
   - name: Release

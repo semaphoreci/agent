@@ -1,8 +1,14 @@
 FROM ubuntu
 
-ADD build/agent /app/agent
+RUN apt-get update && \
+  apt-get install -y python python-dev python-distribute python-pip && \
+  apt-get install curl -y && \
+  curl -sSL https://get.docker.com/ | sh && \
+  pip install docker-compose
+
 ADD server.key /app/server.key
 ADD server.crt /app/server.crt
+ADD build/agent /app/agent
 
 WORKDIR /app
 

@@ -11,7 +11,6 @@ import (
 
 	api "github.com/semaphoreci/agent/pkg/api"
 	executors "github.com/semaphoreci/agent/pkg/executors"
-	shellexecutor "github.com/semaphoreci/agent/pkg/executors/shell"
 )
 
 const JOB_PASSED = "passed"
@@ -30,7 +29,15 @@ type Job struct {
 func NewJob(request *api.JobRequest) (*Job, error) {
 	log.Printf("[job.NewJob] Constructing an executor for the job")
 
-	executor := shellexecutor.NewShellExecutor()
+	if request.Executor == "" {
+		request.Executor = executors.ExecutorTypeShell
+	}
+
+	executor, err := executors.CreateExecutor(request)
+
+	if err != nil {
+		return nil, err
+	}
 
 	log.Printf("Job Request %+v\n", request)
 

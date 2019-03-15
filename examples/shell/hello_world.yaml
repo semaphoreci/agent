@@ -1,0 +1,24 @@
+id: "d3d5f394-5fa8-4d61-bf70-aa565825ad50"
+
+executor: "shell"
+
+env_vars:
+  - name: "A"
+    value: "aGVsbG8K"
+
+files:
+  - path: "/tmp/test.txt"
+    mode: "0644"
+    content: "aGVsbG8K"
+
+commands:
+  - directive: "rm -rf /tmp/a"
+  - directive: "git clone git@github.com:/renderedtext/apple-playground /tmp/a"
+
+epilogue_commands:
+  - directive: "echo 'hello world'"
+
+callbacks:
+  started: "https://httpbin.org/status/200"
+  finished: "https://httpbin.org/status/200"
+  teardown_finished: "https://httpbin.org/status/200"
