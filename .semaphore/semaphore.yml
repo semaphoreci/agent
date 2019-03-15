@@ -25,7 +25,9 @@ blocks:
           commands:
             - make test
 
-  - name: "E2E tests"
+  - name: "Shell Executor E2E tests"
+    dependencies:
+      - "Tests"
     task:
       env_vars:
         - name: GO111MODULE
@@ -64,9 +66,46 @@ blocks:
           commands:
             - make e2e TEST=file_injection_broken_file_mode
 
-        - name: Docker Hello World
+  - name: "Docker Executor E2E tests"
+    dependencies:
+      - "Tests"
+    task:
+      env_vars:
+        - name: GO111MODULE
+          value: "on"
+
+      prologue:
+        commands:
+          - sem-version go 1.11
+          - checkout
+          - go version
+          - go get
+          - go build
+
+      jobs:
+        - name: Hello World
           commands:
             - make e2e TEST=docker_hello_world
+
+        - name: Env Vars
+          commands:
+            - make e2e TEST=docker_env_vars
+
+        - name: Failed Job
+          commands:
+            - make e2e TEST=docker_failed_job
+
+        - name: Job Stopping
+          commands:
+            - make e2e TEST=docker_job_stopping
+
+        - name: File Injection
+          commands:
+            - make e2e TEST=docker_file_injection
+
+        - name: File Injection Broken File Mode
+          commands:
+            - make e2e TEST=docker_file_injection_broken_file_mode
 
 promotions:
   - name: Release
