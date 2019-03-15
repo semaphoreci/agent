@@ -36,7 +36,7 @@ func NewDockerComposeExecutor(dockerConfiguration api.Compose) *DockerComposeExe
 	return &DockerComposeExecutor{
 		dockerConfiguration:       dockerConfiguration,
 		dockerComposeManifestPath: "/tmp/docker-compose.yml",
-		tmpDirectory:              "/tmp/111", // make a better random name
+		tmpDirectory:              "/tmp/agent-temp-directory", // make a better random name
 	}
 }
 
@@ -300,6 +300,8 @@ func (e *DockerComposeExecutor) RunCommand(command string, callback EventHandler
 	// 4. display the END marker with the exit status
 	// 5. return the original exit status to the caller
 	//
+
+	log.Printf("AAAAA %s", cmdFilePath)
 
 	commandWithStartAndEndMarkers := strings.Join([]string{
 		fmt.Sprintf("echo '%s'", startMark),

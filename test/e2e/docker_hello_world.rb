@@ -23,8 +23,7 @@ start_job <<-JSON
     "files": [],
 
     "commands": [
-      { "directive": "echo Hello World" },
-      { "directive": "ruby --version" }
+      { "directive": "echo Hello World" }
     ],
 
     "epilogue_commands": [],

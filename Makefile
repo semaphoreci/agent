@@ -33,7 +33,7 @@ docker.build: build
 
 docker.run: docker.build
 	-docker stop agent
-	docker run -v /var/run/docker.sock:/var/run/docker.sock -p $(AGENT_PORT_IN_TESTS):8000 --name agent -tdi agent bash -c "./agent serve --auth-token-secret 'TzRVcspTmxhM9fUkdi1T/0kVXNETCi8UdZ8dLM8va4E'"
+	docker run -v /tmp/agent-temp-directory/:/tmp/agent-temp-directory -v /var/run/docker.sock:/var/run/docker.sock -p $(AGENT_PORT_IN_TESTS):8000 --name agent -tdi agent bash -c "./agent serve --auth-token-secret 'TzRVcspTmxhM9fUkdi1T/0kVXNETCi8UdZ8dLM8va4E'"
 	sleep 2
 .PHONY: docker.run
 
