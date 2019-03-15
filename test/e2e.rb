@@ -56,9 +56,9 @@ def assert_job_log(expected_log)
 
   actual_log = `curl -H "Authorization: Bearer #{$TOKEN}" -k "https://0.0.0.0:30000/jobs/#{$JOB_ID}/log"`
 
-  puts "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  puts "-----------------------------------"
   puts actual_log
-  puts "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  puts "-----------------------------------"
 
   abort "Failed to fetch logs: #{actual_log}" if $?.exitstatus != 0
 
