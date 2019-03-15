@@ -64,6 +64,10 @@ blocks:
           commands:
             - make e2e TEST=file_injection_broken_file_mode
 
+        - name: Docker Hello World
+          commands:
+            - make e2e TEST=docker_hello_world
+
 promotions:
   - name: Release
     pipeline_file: "release.yml"
