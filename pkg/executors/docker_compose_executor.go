@@ -41,6 +41,12 @@ func NewDockerComposeExecutor(dockerConfiguration api.Compose) *DockerComposeExe
 }
 
 func (e *DockerComposeExecutor) Prepare() int {
+	err := os.MkdirAll(e.tmpDirectory, os.ModePerm)
+
+	if err != nil {
+		return 1
+	}
+
 	compose := ConstructDockerComposeFile(e.dockerConfiguration)
 	ioutil.WriteFile(e.dockerComposeManifestPath, []byte(compose), 0644)
 
