@@ -33,6 +33,23 @@ def stop_job
   abort "Failed to stob job: #{output}" if $?.exitstatus != 0
 end
 
+def wait_for_command_to_start(cmd)
+  puts "========================="
+  puts "Waiting for command to start '#{cmd}'"
+
+  Timeout.timeout(60 * 2) do
+    loop do
+      `curl -H "Authorization: Bearer #{$TOKEN}" --fail -k "https://0.0.0.0:30000/job_logs" | grep "#{cmd}"`
+
+      if $?.exitstatus == 0
+        break
+      else
+        sleep 1
+      end
+    end
+  end
+end
+
 def wait_for_job_to_finish
   puts "========================="
   puts "Waiting for job to finish"
