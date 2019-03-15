@@ -13,7 +13,7 @@ start_job <<-JSON
       "containers": [
         {
           "name": "main",
-          "image" "ruby:2.6"
+          "image": "ruby:2.6"
         }
       ]
     },

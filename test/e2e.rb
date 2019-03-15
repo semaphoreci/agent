@@ -2,6 +2,7 @@
 
 require 'tempfile'
 require 'json'
+require 'timeout'
 
 $JOB_ID = `uuidgen`.strip
 
@@ -36,7 +37,17 @@ def wait_for_job_to_finish
   puts "========================="
   puts "Waiting for job to finish"
 
-  sleep 2
+  Timeout.timeout(60 * 2) do
+    loop do
+      `curl -H "Authorization: Bearer #{$TOKEN}" --fail -k "https://0.0.0.0:30000/job_logs" | grep "job_finished"`
+
+      if $?.exitstatus == 0
+        break
+      else
+        sleep 1
+      end
+    end
+  end
 end
 
 def assert_job_log(expected_log)
@@ -44,6 +55,10 @@ def assert_job_log(expected_log)
   puts "Asserting Job Logs"
 
   actual_log = `curl -H "Authorization: Bearer #{$TOKEN}" -k "https://0.0.0.0:30000/jobs/#{$JOB_ID}/log"`
+
+  puts "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  puts actual_log
+  puts "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
   abort "Failed to fetch logs: #{actual_log}" if $?.exitstatus != 0
 
