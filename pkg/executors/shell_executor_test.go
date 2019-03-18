@@ -32,7 +32,7 @@ func Test__ShellExecutor(t *testing.T) {
 	e := NewShellExecutor()
 
 	e.Prepare()
-	e.Start()
+	e.Start(eventHandler)
 
 	e.RunCommand("echo 'here'", eventHandler)
 
@@ -120,7 +120,7 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 	e := NewShellExecutor()
 
 	e.Prepare()
-	e.Start()
+	e.Start(eventHandler)
 
 	go func() {
 		e.RunCommand("echo 'here'", eventHandler)
@@ -166,7 +166,7 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 	e := NewShellExecutor()
 
 	e.Prepare()
-	e.Start()
+	e.Start(eventHandler)
 
 	go func() {
 		e.RunCommand("for i in {1..100}; { printf 'hello'; }", eventHandler)

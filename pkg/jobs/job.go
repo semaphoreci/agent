@@ -110,7 +110,7 @@ func (job *Job) RunRegularCommands() string {
 		return JOB_FAILED
 	}
 
-	exitCode = job.Executor.Start()
+	exitCode = job.Executor.Start(job.EventHandler)
 	if exitCode != 0 {
 		log.Printf("[JOB] Failed to start executor")
 		return JOB_FAILED

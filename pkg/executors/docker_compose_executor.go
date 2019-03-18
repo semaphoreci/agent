@@ -50,6 +50,19 @@ func (e *DockerComposeExecutor) Prepare() int {
 	compose := ConstructDockerComposeFile(e.dockerConfiguration)
 	ioutil.WriteFile(e.dockerComposeManifestPath, []byte(compose), 0644)
 
+	return 0
+}
+
+func (e *DockerComposeExecutor) Start(callback EventHandler) int {
+	exitCode := e.pullDockerImages(callback)
+
+	if exitCode != 0 {
+		log.Printf("[SHELL] Failed to pull images")
+		return exitCode
+	}
+
+	log.Printf("[SHELL] Starting stateful shell")
+
 	e.terminal = exec.Command(
 		"docker-compose",
 		"-f",
@@ -60,12 +73,6 @@ func (e *DockerComposeExecutor) Prepare() int {
 		"main",
 		"bash",
 	)
-
-	return 0
-}
-
-func (e *DockerComposeExecutor) Start() int {
-	log.Printf("[SHELL] Starting stateful shell")
 
 	tty, err := pty.Start(e.terminal)
 	if err != nil {
@@ -79,6 +86,45 @@ func (e *DockerComposeExecutor) Start() int {
 	time.Sleep(1000)
 
 	e.silencePromptAndDisablePS1()
+
+	return 0
+}
+
+func (e *DockerComposeExecutor) pullDockerImages(callback EventHandler) int {
+	log.Printf("[SHELL] Pulling docker images")
+	directive := "Pulling docker images..."
+	commandStartedAt := int(time.Now().Unix())
+
+	callback(NewCommandStartedEvent(directive))
+
+	cmd := exec.Command(
+		"docker-compose",
+		"-f",
+		e.dockerComposeManifestPath,
+		"pull")
+
+	tty, err := pty.Start(cmd)
+	if err != nil {
+		log.Printf("[SHELL] Failed to initialize docker pull, err: %+v", err)
+		return 1
+	}
+
+	ScanLines(tty, func(line string) bool {
+		log.Printf("[SHELL] (tty) %s\n", line)
+
+		callback(NewCommandOutputEvent(line))
+
+		return true
+	})
+
+	commandFinishedAt := int(time.Now().Unix())
+
+	callback(NewCommandFinishedEvent(
+		directive,
+		0,
+		commandStartedAt,
+		commandFinishedAt,
+	))
 
 	return 0
 }
