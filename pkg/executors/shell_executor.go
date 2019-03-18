@@ -39,7 +39,7 @@ func (e *ShellExecutor) Prepare() int {
 	return 0
 }
 
-func (e *ShellExecutor) Start() int {
+func (e *ShellExecutor) Start(EventHandler) int {
 	log.Printf("[SHELL] Starting stateful shell")
 
 	tty, err := pty.Start(e.terminal)

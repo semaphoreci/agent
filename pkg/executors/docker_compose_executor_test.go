@@ -56,7 +56,7 @@ func Test__DockerComposeExecutor(t *testing.T) {
 	e := NewDockerComposeExecutor(conf)
 
 	e.Prepare()
-	e.Start()
+	e.Start(eventHandler)
 
 	e.RunCommand("echo 'here'", eventHandler)
 
@@ -168,7 +168,7 @@ func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
 	e := NewDockerComposeExecutor(conf)
 
 	e.Prepare()
-	e.Start()
+	e.Start(eventHandler)
 
 	go func() {
 		e.RunCommand("echo 'here'", eventHandler)
