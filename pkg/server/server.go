@@ -35,13 +35,16 @@ type Server struct {
 	router    *mux.Router
 }
 
+const ServerStateWaitingForJob = "waiting-for-job"
+const ServerStateJobReceived = "job-received"
+
 func NewServer(host string, port int, tlsCertPath, tlsKeyPath, version string, logfile io.Writer, jwtSecret []byte) *Server {
 	router := mux.NewRouter().StrictSlash(true)
 
 	server := &Server{
 		Host:        host,
 		Port:        port,
-		State:       "waiting for job",
+		State:       ServerStateWaitingForJob,
 		TLSKeyPath:  tlsKeyPath,
 		TLSCertPath: tlsCertPath,
 		JwtSecret:   jwtSecret,
@@ -145,17 +148,6 @@ func (s *Server) AgentLogs(w http.ResponseWriter, r *http.Request) {
 func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[server.Run] New job arrived")
 
-	if s.State != "waiting for job" {
-		log.Printf("[server.Run] A job is already running, returning 422")
-
-		w.WriteHeader(422)
-		fmt.Fprintf(w, `{"message": "a job is already running"}`)
-		return
-	}
-
-	log.Printf("[server.Run] Changing state to received job")
-	s.State = "received-job"
-
 	log.Printf("[server.Run] Reading content of the request")
 	body, err := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
@@ -178,6 +170,20 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.State != ServerStateWaitingForJob {
+		if s.ActiveJob != nil && s.ActiveJob.Request.ID == request.ID {
+			// idempotent call
+			fmt.Fprint(w, `{"message": "ok"}`)
+			return
+		} else {
+			log.Printf("[server.Run] A job is already running, returning 422")
+
+			w.WriteHeader(422)
+			fmt.Fprintf(w, `{"message": "a job is already running"}`)
+			return
+		}
+	}
+
 	log.Printf("[server.Run] Creating new job")
 	job, err := jobs.NewJob(request)
 
@@ -190,14 +196,13 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("[server.Run] Setting up Active Job context")
-
 	s.ActiveJob = job
 
 	log.Printf("[server.Run] Starting job execution")
 	go s.ActiveJob.Run()
 
-	log.Printf("[server.Run] Setting state to 'job-started'")
-	s.State = "job-started"
+	log.Printf("[server.Run] Setting state to '%s'", ServerStateJobReceived)
+	s.State = ServerStateJobReceived
 
 	log.Printf("[server.Run] Respongind with OK")
 	fmt.Fprint(w, `{"message": "ok"}`)
