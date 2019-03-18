@@ -42,6 +42,7 @@ type Callbacks struct {
 }
 
 type JobRequest struct {
+	ID               string    `json:"id" yaml:"id"`
 	Executor         string    `json:"executor" yaml:"executor"`
 	Compose          Compose   `json:"compose" yaml:"compose"`
 	Commands         []Command `json:"commands" yaml:"commands"`
