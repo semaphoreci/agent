@@ -259,7 +259,7 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File, callback EventHand
 		if f.Path[0] == '/' || f.Path[0] == '~' {
 			destPath = f.Path
 		} else {
-			destPath = UserHomeDir() + "/" + f.Path
+			destPath = "~/" + f.Path
 		}
 
 		cmd := fmt.Sprintf("mkdir -p %s", path.Dir(destPath))
