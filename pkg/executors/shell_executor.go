@@ -27,10 +27,13 @@ type ShellExecutor struct {
 	tty           *os.File
 	stdin         io.Writer
 	stdoutScanner *bufio.Scanner
+	tmpDirectory  string
 }
 
 func NewShellExecutor() *ShellExecutor {
-	return &ShellExecutor{}
+	return &ShellExecutor{
+		tmpDirectory: "/tmp",
+	}
 }
 
 func (e *ShellExecutor) Prepare() int {
@@ -171,6 +174,15 @@ func (e *ShellExecutor) InjectFiles(files []api.File, callback EventHandler) int
 			return exitCode
 		}
 
+		tmpPath := fmt.Sprintf("%s/file", e.tmpDirectory)
+
+		err = ioutil.WriteFile(tmpPath, []byte(content), 0644)
+		if err != nil {
+			callback(NewCommandOutputEvent(err.Error() + "\n"))
+			exitCode = 255
+			break
+		}
+
 		destPath := ""
 
 		if f.Path[0] == '/' || f.Path[0] == '~' {
@@ -179,21 +191,23 @@ func (e *ShellExecutor) InjectFiles(files []api.File, callback EventHandler) int
 			destPath = "~/" + f.Path
 		}
 
-		err = os.MkdirAll(path.Dir(destPath), os.ModePerm)
-		if err != nil {
-			callback(NewCommandOutputEvent(err.Error() + "\n"))
-			exitCode = 1
+		cmd := fmt.Sprintf("mkdir -p %s", path.Dir(destPath))
+		exitCode = e.RunCommand(cmd, DevNullEventHandler)
+		if exitCode != 0 {
+			output := fmt.Sprintf("Failed to create destination path %s", destPath)
+			callback(NewCommandOutputEvent(output + "\n"))
 			break
 		}
 
-		err = ioutil.WriteFile(destPath, []byte(content), 0644)
-		if err != nil {
-			callback(NewCommandOutputEvent(err.Error() + "\n"))
-			exitCode = 1
+		cmd = fmt.Sprintf("cp %s %s", tmpPath, destPath)
+		exitCode = e.RunCommand(cmd, DevNullEventHandler)
+		if exitCode != 0 {
+			output := fmt.Sprintf("Failed to move to destination path %s %s", tmpPath, destPath)
+			callback(NewCommandOutputEvent(output + "\n"))
 			break
 		}
 
-		cmd := fmt.Sprintf("chmod %s %s", f.Mode, destPath)
+		cmd = fmt.Sprintf("chmod %s %s", f.Mode, destPath)
 		exitCode = e.RunCommand(cmd, DevNullEventHandler)
 		if exitCode != 0 {
 			output := fmt.Sprintf("Failed to set file mode to %s", f.Mode)
