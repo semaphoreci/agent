@@ -256,7 +256,7 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File, callback EventHand
 
 		destPath := ""
 
-		if f.Path[0] == '/' {
+		if f.Path[0] == '/' || f.Path[0] == '~' {
 			destPath = f.Path
 		} else {
 			destPath = UserHomeDir() + "/" + f.Path
