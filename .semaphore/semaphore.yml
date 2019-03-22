@@ -67,6 +67,10 @@ blocks:
           commands:
             - make e2e TEST=shell/file_injection_broken_file_mode
 
+        - name: Stty Restoration
+          commands:
+            - make e2e TEST=shell/stty_restoration
+
   - name: "Docker Executor E2E tests"
     dependencies:
       - "Tests"
@@ -107,6 +111,10 @@ blocks:
         - name: File Injection Broken File Mode
           commands:
             - make e2e TEST=docker/file_injection_broken_file_mode
+
+        - name: Stty Restoration
+          commands:
+            - make e2e TEST=docker/stty_restoration
 
 promotions:
   - name: Release

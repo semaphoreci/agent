@@ -27,7 +27,6 @@ build:
 docker.build: build
 	-docker stop agent
 	-docker rm agent
-	-docker rmi agent
 	docker build -t agent -f Dockerfile.test .
 .PHONY: docker.build
 
