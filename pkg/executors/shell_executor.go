@@ -66,6 +66,7 @@ func (e *ShellExecutor) silencePromptAndDisablePS1() {
 
 	e.stdin.Write([]byte("export PS1=''\n"))
 	e.stdin.Write([]byte("stty -echo\n"))
+	e.stdin.Write([]byte("echo stty `stty -g` > /tmp/restore-tty\n"))
 	e.stdin.Write([]byte("cd ~\n"))
 	e.stdin.Write([]byte("echo '" + everythingIsReadyMark + "'\n"))
 
@@ -234,6 +235,7 @@ func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
 	log.Printf("[SHELL] Running command: %s", command)
 
 	cmdFilePath := "/tmp/current-agent-cmd"
+	restoreTtyMark := "97d140552e404df69f6472729d2b2c1"
 	startMark := "87d140552e404df69f6472729d2b2c1"
 	finishMark := "97d140552e404df69f6472729d2b2c2"
 
@@ -254,11 +256,34 @@ func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
 	commandEndRegex := regexp.MustCompile(finishMark + " " + `(\d)`)
 	streamEvents := false
 
+	restoreTtyCmd := "source /tmp/restore-tty; echo " + restoreTtyMark + "\n"
+
+	// restore a sane STTY interface
+	ioutil.WriteFile(cmdFilePath, []byte(restoreTtyCmd), 0644)
+	e.stdin.Write([]byte("source " + cmdFilePath + "\n"))
+
+	ScanLines(e.tty, func(line string) bool {
+		log.Printf("[SHELL] (tty-restore) %s\n", line)
+
+		if strings.Contains(line, restoreTtyMark) {
+			return false
+		}
+
+		return true
+	})
+
 	//
 	// Multiline commands don't work very well with the start/finish marker scheme.
 	// To circumvent this, we are storing the command in a file
 	//
-	ioutil.WriteFile(cmdFilePath, []byte(command), 0644)
+	err = ioutil.WriteFile(cmdFilePath, []byte(command), 0644)
+
+	if err != nil {
+		callback(NewCommandStartedEvent(command))
+		callback(NewCommandOutputEvent(fmt.Sprintf("Failed to run command: %+v\n", err)))
+
+		return 1
+	}
 
 	// Constructing command with start and end markers:
 	//

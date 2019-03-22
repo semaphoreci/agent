@@ -134,6 +134,7 @@ func (e *DockerComposeExecutor) silencePromptAndDisablePS1() {
 
 	e.stdin.Write([]byte("export PS1=''\n"))
 	e.stdin.Write([]byte("stty -echo\n"))
+	e.stdin.Write([]byte("echo stty `stty -g` > /tmp/restore-tty\n"))
 	e.stdin.Write([]byte("cd ~\n"))
 	e.stdin.Write([]byte("echo '" + everythingIsReadyMark + "'\n"))
 
@@ -305,6 +306,7 @@ func (e *DockerComposeExecutor) RunCommand(command string, callback EventHandler
 	log.Printf("[SHELL] Running command: %s", command)
 
 	cmdFilePath := fmt.Sprintf("%s/current-agent-cmd", e.tmpDirectory)
+	restoreTtyMark := "97d140552e404df69f6472729d2b2c1"
 	startMark := "87d140552e404df69f6472729d2b2c1"
 	finishMark := "97d140552e404df69f6472729d2b2c2"
 
@@ -325,6 +327,22 @@ func (e *DockerComposeExecutor) RunCommand(command string, callback EventHandler
 	commandEndRegex := regexp.MustCompile(finishMark + " " + `(\d)`)
 	streamEvents := false
 
+	restoreTtyCmd := "source /tmp/restore-tty; echo " + restoreTtyMark + "\n"
+
+	// restore a sane STTY interface
+	ioutil.WriteFile(cmdFilePath, []byte(restoreTtyCmd), 0644)
+	e.stdin.Write([]byte("source " + cmdFilePath + "\n"))
+
+	ScanLines(e.tty, func(line string) bool {
+		log.Printf("[SHELL] (tty-restore) %s\n", line)
+
+		if strings.Contains(line, restoreTtyMark) {
+			return false
+		}
+
+		return true
+	})
+
 	//
 	// Multiline commands don't work very well with the start/finish marker scheme.
 	// To circumvent this, we are storing the command in a file
@@ -340,6 +358,7 @@ func (e *DockerComposeExecutor) RunCommand(command string, callback EventHandler
 
 	// Constructing command with start and end markers:
 	//
+	// 0. Restore stty options to sanity
 	// 1. display START marker
 	// 2. execute the command file by sourcing it
 	// 3. save the original exit status
@@ -347,9 +366,8 @@ func (e *DockerComposeExecutor) RunCommand(command string, callback EventHandler
 	// 5. return the original exit status to the caller
 	//
 
-	log.Printf("AAAAA %s", cmdFilePath)
-
 	commandWithStartAndEndMarkers := strings.Join([]string{
+		"/tmp/restore-tty",
 		fmt.Sprintf("echo '%s'", startMark),
 		fmt.Sprintf("source %s", cmdFilePath),
 		"AGENT_CMD_RESULT=$?",
