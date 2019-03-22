@@ -81,9 +81,24 @@ func (job *Job) Run() {
 
 	log.Printf("[JOB] Regular Commands Finished. Result: %s", result)
 
-	log.Printf("[JOB] Starting Epilogue Commands.")
+	log.Printf("[JOB] Exporting job result")
 
-	job.RunEpilogueCommands(result)
+	job.RunCommandsUntilFirstFailure([]api.Command{
+		api.Command{
+			Directive: fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%s", result),
+		},
+	})
+
+	log.Printf("[JOB] Starting Epilogue Commands.")
+	job.RunCommandsUntilFirstFailure(job.Request.EpilogueCommands)
+
+	if result == JOB_PASSED {
+		log.Printf("[JOB] Starting Epilogue On Pass Commands.")
+		job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnPassCommands)
+	} else {
+		log.Printf("[JOB] Starting Epilogue On Fail Commands.")
+		job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnFailCommands)
+	}
 
 	log.Printf("[JOB] Sending finished callback.")
 
@@ -130,39 +145,32 @@ func (job *Job) RunRegularCommands() string {
 		return JOB_FAILED
 	}
 
-	for _, c := range job.Request.Commands {
-		exitCode = job.Executor.RunCommand(c.Directive, job.EventHandler)
+	exitCode = job.RunCommandsUntilFirstFailure(job.Request.Commands)
 
-		log.Printf("[JOB] Command Finished. Exit Code: %d", exitCode)
-
-		if exitCode != 0 {
-			return JOB_FAILED
-		}
+	if exitCode == 0 {
+		return JOB_PASSED
+	} else {
+		return JOB_FAILED
 	}
-
-	return JOB_PASSED
 }
 
-func (job *Job) RunEpilogueCommands(result string) {
-	log.Printf("[JOB] Epilogue Commands Started")
+// returns exit code of last executed command
+func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command) int {
+	lastExitCode := 1
 
-	cmds := []api.Command{}
-
-	export_result_cmd := api.Command{
-		Directive: fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%s", result),
-	}
-
-	cmds = append(cmds, export_result_cmd)
-	cmds = append(cmds, job.Request.EpilogueCommands...)
-
-	for _, c := range cmds {
+	for _, c := range commands {
 		if job.Stopped {
-			return
+			return 1
 		}
 
-		// exit code is ignored in epilogue commands
-		job.Executor.RunCommand(c.Directive, job.EventHandler)
+		lastExitCode = job.Executor.RunCommand(c.Directive, job.EventHandler)
+
+		if lastExitCode != 0 {
+			break
+		}
 	}
+
+	return lastExitCode
 }
 
 func (job *Job) WaitForArchivator() {
