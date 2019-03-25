@@ -42,14 +42,18 @@ type Callbacks struct {
 }
 
 type JobRequest struct {
-	ID               string    `json:"id" yaml:"id"`
-	Executor         string    `json:"executor" yaml:"executor"`
-	Compose          Compose   `json:"compose" yaml:"compose"`
-	Commands         []Command `json:"commands" yaml:"commands"`
-	EpilogueCommands []Command `json:"epilogue_commands" yaml:"epilogue_commands"`
-	EnvVars          []EnvVar  `json:"env_vars" yaml:"env_vars"`
-	Files            []File    `json:"files" yaml:"file"`
-	Callbacks        Callbacks `json:"callbacks" yaml:"callbacks"`
+	ID       string    `json:"id" yaml:"id"`
+	Executor string    `json:"executor" yaml:"executor"`
+	Compose  Compose   `json:"compose" yaml:"compose"`
+	Commands []Command `json:"commands" yaml:"commands"`
+
+	EpilogueCommands       []Command `json:"epilogue_commands" yaml:"epilogue_commands"`
+	EpilogueOnPassCommands []Command `json:"epilogue_on_pass_commands" yaml:"epilogue_on_pass_commands"`
+	EpilogueOnFailCommands []Command `json:"epilogue_on_fail_commands" yaml:"epilogue_on_fail_commands"`
+
+	EnvVars   []EnvVar  `json:"env_vars" yaml:"env_vars"`
+	Files     []File    `json:"files" yaml:"file"`
+	Callbacks Callbacks `json:"callbacks" yaml:"callbacks"`
 }
 
 func NewRequestFromJSON(content []byte) (*JobRequest, error) {
