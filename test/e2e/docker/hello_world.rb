@@ -26,7 +26,7 @@ start_job <<-JSON
       { "directive": "echo Hello World" }
     ],
 
-    "epilogue_commands": [],
+    "epilogue_always_commands": [],
 
     "callbacks": {
       "started": "https://httpbin.org/status/200",

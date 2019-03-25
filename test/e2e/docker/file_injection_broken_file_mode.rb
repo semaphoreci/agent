@@ -30,7 +30,7 @@ start_job <<-JSON
       { "directive": "stat -c '%a' /tmp/a" }
     ],
 
-    "epilogue_commands": [],
+    "epilogue_always_commands": [],
 
     "callbacks": {
       "started": "https://httpbin.org/status/200",

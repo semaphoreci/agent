@@ -89,8 +89,8 @@ func (job *Job) Run() {
 		},
 	})
 
-	log.Printf("[JOB] Starting Epilogue Commands.")
-	job.RunCommandsUntilFirstFailure(job.Request.EpilogueCommands)
+	log.Printf("[JOB] Starting Epilogue Always Commands.")
+	job.RunCommandsUntilFirstFailure(job.Request.EpilogueAlwaysCommands)
 
 	if result == JOB_PASSED {
 		log.Printf("[JOB] Starting Epilogue On Pass Commands.")

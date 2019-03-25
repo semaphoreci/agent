@@ -47,7 +47,7 @@ type JobRequest struct {
 	Compose  Compose   `json:"compose" yaml:"compose"`
 	Commands []Command `json:"commands" yaml:"commands"`
 
-	EpilogueCommands       []Command `json:"epilogue_commands" yaml:"epilogue_commands"`
+	EpilogueAlwaysCommands []Command `json:"epilogue_always_commands" yaml:"epilogue_always_commands"`
 	EpilogueOnPassCommands []Command `json:"epilogue_on_pass_commands" yaml:"epilogue_on_pass_commands"`
 	EpilogueOnFailCommands []Command `json:"epilogue_on_fail_commands" yaml:"epilogue_on_fail_commands"`
 
