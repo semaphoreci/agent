@@ -15,9 +15,13 @@ type Container struct {
 	EnvVars []EnvVar `json:"env_vars" yaml:"env_vars"`
 }
 
+type ImagePullCredentials struct {
+	EnvVars []EnvVar `json:"env_vars" yaml:"env_vars"`
+}
+
 type Compose struct {
-	Creadentilals File        `json:"credentials" yaml:"credentials"`
-	Containers    []Container `json:"containers" yaml:"containers"`
+	ImagePullCredentials []ImagePullCredentials `json:"image_pull_credentials" yaml:"image_pull_credentials"`
+	Containers           []Container            `json:"containers" yaml:"containers"`
 }
 
 type Command struct {
