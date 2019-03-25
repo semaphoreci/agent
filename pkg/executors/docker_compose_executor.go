@@ -2,7 +2,6 @@ package executors
 
 import (
 	"bufio"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -57,7 +56,13 @@ func (e *DockerComposeExecutor) Prepare() int {
 }
 
 func (e *DockerComposeExecutor) Start(callback EventHandler) int {
-	exitCode := e.pullDockerImages(callback)
+	exitCode := e.injectImagePullSecrets(callback)
+	if exitCode != 0 {
+		log.Printf("[SHELL] Failed to set up image pull secrets")
+		return exitCode
+	}
+
+	exitCode = e.pullDockerImages(callback)
 
 	if exitCode != 0 {
 		log.Printf("Failed to pull images")
@@ -91,6 +96,77 @@ func (e *DockerComposeExecutor) Start(callback EventHandler) int {
 	time.Sleep(1000)
 
 	e.silencePromptAndDisablePS1()
+
+	return 0
+}
+
+func (e *DockerComposeExecutor) injectImagePullSecrets(callback EventHandler) int {
+	directive := "Setting up image pull credentials"
+	commandStartedAt := int(time.Now().Unix())
+	exitCode := 0
+	callback(NewCommandStartedEvent(directive))
+
+	for _, c := range e.dockerConfiguration.ImagePullCredentials {
+		s, err := c.Strategy()
+
+		if err != nil {
+			exitCode = 1
+			break
+		}
+
+		switch s {
+		case api.ImagePullCredentialsStrategyDockerHub:
+			exitCode = e.injectImagePullSecretsForDockerHub(callback, c.EnvVars)
+		default:
+			callback(NewCommandOutputEvent(fmt.Sprintf("Unknown Credential Type %s", s)))
+			exitCode = 1
+		}
+
+		if err != nil {
+			exitCode = 1
+			break
+		}
+	}
+
+	commandFinishedAt := int(time.Now().Unix())
+	callback(NewCommandFinishedEvent(
+		directive,
+		exitCode,
+		commandStartedAt,
+		commandFinishedAt,
+	))
+
+	return exitCode
+}
+
+func (e *DockerComposeExecutor) injectImagePullSecretsForDockerHub(callback EventHandler, envVars []api.EnvVar) int {
+	callback(NewCommandOutputEvent("Setting up credentials for DockerHub"))
+
+	env := []string{}
+
+	for _, e := range envVars {
+		name := e.Name
+		value, err := e.Decode()
+
+		if err != nil {
+			callback(NewCommandOutputEvent(fmt.Sprintf("Failed to decode %s", name)))
+			return 1
+		}
+
+		env = append(env, fmt.Sprintf("%s=%s", name, ShellQuote(string(value))))
+	}
+
+	logicCmd := "docker login --username $DOCKERHUB_USERNAME --password --$DOCKERHUB_PASSWORD"
+
+	callback(NewCommandOutputEvent(logicCmd))
+
+	cmd := exec.Command("bash", "-c", logicCmd)
+	cmd.Env = env
+
+	if err := cmd.Run(); err != nil {
+		callback(NewCommandOutputEvent("Setting up credentials for DockerHub"))
+		return 1
+	}
 
 	return 0
 }
@@ -198,7 +274,7 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, callback Eve
 	for _, e := range envVars {
 		callback(NewCommandOutputEvent(fmt.Sprintf("Exporting %s\n", e.Name)))
 
-		value, err := base64.StdEncoding.DecodeString(e.Value)
+		value, err := e.Decode()
 
 		if err != nil {
 			exitCode = 1
@@ -243,7 +319,7 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File, callback EventHand
 
 		callback(NewCommandOutputEvent(output))
 
-		content, err := base64.StdEncoding.DecodeString(f.Content)
+		content, err := f.Decode()
 
 		if err != nil {
 			callback(NewCommandOutputEvent("Failed to decode content of file.\n"))

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"io/ioutil"
 	"path/filepath"
@@ -88,4 +89,20 @@ func NewRequestFromYamlFile(path string) (*JobRequest, error) {
 	}
 
 	return jobRequest, nil
+}
+
+func (e *EnvVar) Decode() ([]byte, error) {
+	return base64.StdEncoding.DecodeString(e.Value)
+}
+
+func (f *File) Decode() ([]byte, error) {
+	return base64.StdEncoding.DecodeString(f.Content)
+}
+
+const ImagePullCredentialsStrategyDockerHub = "DockerHub"
+const ImagePullCredentialsStrategyECR = "ECR"
+const ImagePullCredentialsStrategyGCR = "GCR"
+
+func (c *ImagePullCredentials) Strategy() (string, error) {
+	return "DockerHub", nil
 }
