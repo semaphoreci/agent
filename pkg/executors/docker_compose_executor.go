@@ -69,6 +69,8 @@ func (e *DockerComposeExecutor) Start(callback EventHandler) int {
 		e.dockerComposeManifestPath,
 		"run",
 		"-v",
+		"/var/run/docker.sock:/var/run/docker.sock",
+		"-v",
 		fmt.Sprintf("%s:%s:ro", e.tmpDirectory, e.tmpDirectory),
 		"main",
 		"bash",
