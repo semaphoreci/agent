@@ -132,6 +132,10 @@ blocks:
           commands:
             - make e2e TEST=docker/epilogue_on_fail
 
+        - name: Docker In Docker
+          commands:
+            - make e2e TEST=docker/docker_in_docker
+
 promotions:
   - name: Release
     pipeline_file: "release.yml"
