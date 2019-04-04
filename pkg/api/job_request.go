@@ -18,6 +18,7 @@ type Container struct {
 
 type ImagePullCredentials struct {
 	EnvVars []EnvVar `json:"env_vars" yaml:"env_vars"`
+	Files   []File   `json:"files" yaml:"files"`
 }
 
 type Compose struct {
