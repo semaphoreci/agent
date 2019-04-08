@@ -48,6 +48,9 @@ func (e *DockerComposeExecutor) Prepare() int {
 	}
 
 	compose := ConstructDockerComposeFile(e.dockerConfiguration)
+	log.Println("Compose File:")
+	log.Println(compose)
+
 	ioutil.WriteFile(e.dockerComposeManifestPath, []byte(compose), 0644)
 
 	return 0
