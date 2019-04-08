@@ -136,6 +136,10 @@ blocks:
           commands:
             - make e2e TEST=docker/docker_in_docker
 
+        - name: Container Env Vars
+          commands:
+            - make e2e TEST=docker/container_env_vars
+
 promotions:
   - name: Release
     pipeline_file: "release.yml"

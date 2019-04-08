@@ -1,6 +1,7 @@
 package executors
 
 import (
+	"encoding/base64"
 	"fmt"
 
 	api "github.com/semaphoreci/agent/pkg/api"
@@ -48,7 +49,9 @@ func (f *DockerComposeFile) Service(container api.Container) string {
 		result += "    environment:\n"
 
 		for _, e := range container.EnvVars {
-			result += fmt.Sprintf("      - %s=%s\n", e.Name, e.Value)
+			value, _ := base64.StdEncoding.DecodeString(e.Value)
+
+			result += fmt.Sprintf("      - %s=%s\n", e.Name, value)
 		}
 	}
 
