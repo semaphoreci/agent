@@ -19,6 +19,7 @@ func main() {
 
 	logfile := OpenLogfile()
 	log.SetOutput(logfile)
+	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
 
 	switch action {
 	case "serve":
