@@ -43,11 +43,11 @@ func (e *ShellExecutor) Prepare() int {
 }
 
 func (e *ShellExecutor) Start(EventHandler) int {
-	log.Printf("[SHELL] Starting stateful shell")
+	log.Printf("Starting stateful shell")
 
 	tty, err := pty.Start(e.terminal)
 	if err != nil {
-		log.Printf("[SHELL] Failed to start stateful shell")
+		log.Printf("Failed to start stateful shell")
 		return 1
 	}
 
@@ -88,18 +88,18 @@ func (e *ShellExecutor) silencePromptAndDisablePS1() {
 
 	// We wait until marker is displayed in the output
 
-	log.Println("[SHELL] Waiting for initialization")
+	log.Println("Waiting for initialization")
 
 	for stdoutScanner.Scan() {
 		text := stdoutScanner.Text()
 
-		log.Printf("[SHELL] (tty) %s\n", text)
+		log.Printf("(tty) %s\n", text)
 		if !strings.Contains(text, "echo") && strings.Contains(text, everythingIsReadyMark) {
 			break
 		}
 	}
 
-	log.Println("[SHELL] Initialization complete")
+	log.Println("Initialization complete")
 }
 
 func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, callback EventHandler) int {
@@ -232,7 +232,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File, callback EventHandler) int
 func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
 	var err error
 
-	log.Printf("[SHELL] Running command: %s", command)
+	log.Printf("Running command: %s", command)
 
 	cmdFilePath := "/tmp/current-agent-cmd"
 	restoreTtyMark := "97d140552e404df69f6472729d2b2c1"
@@ -263,7 +263,7 @@ func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
 	e.stdin.Write([]byte("source " + cmdFilePath + "\n"))
 
 	ScanLines(e.tty, func(line string) bool {
-		log.Printf("[SHELL] (tty-restore) %s\n", line)
+		log.Printf("(tty-restore) %s\n", line)
 
 		if strings.Contains(line, restoreTtyMark) {
 			return false
@@ -304,13 +304,13 @@ func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
 
 	e.stdin.Write([]byte(commandWithStartAndEndMarkers))
 
-	log.Println("[SHELL] Scan started")
+	log.Println("Scan started")
 
 	err = ScanLines(e.tty, func(line string) bool {
-		log.Printf("[SHELL] (tty) %s\n", line)
+		log.Printf("(tty) %s\n", line)
 
 		if strings.Contains(line, startMark) {
-			log.Printf("[SHELL] Detected command start")
+			log.Printf("Detected command start")
 			streamEvents = true
 
 			callback(NewCommandStartedEvent(command))
@@ -319,7 +319,7 @@ func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
 		}
 
 		if strings.Contains(line, finishMark) {
-			log.Printf("[SHELL] Detected command end")
+			log.Printf("Detected command end")
 
 			finalOutputPart := strings.Split(line, finishMark)
 
@@ -332,25 +332,25 @@ func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
 			streamEvents = false
 
 			if match := commandEndRegex.FindStringSubmatch(line); len(match) == 2 {
-				log.Printf("[SHELL] Parsing exit status succedded")
+				log.Printf("Parsing exit status succedded")
 
 				exitCode, err = strconv.Atoi(match[1])
 
 				if err != nil {
-					log.Printf("[SHELL] Panic while parsing exit status, err: %+v", err)
+					log.Printf("Panic while parsing exit status, err: %+v", err)
 
 					callback(NewCommandOutputEvent("Failed to read command exit code\n"))
 				}
 
-				log.Printf("[SHELL] Setting exit code to %d", exitCode)
+				log.Printf("Setting exit code to %d", exitCode)
 			} else {
-				log.Printf("[SHELL] Failed to parse exit status")
+				log.Printf("Failed to parse exit status")
 
 				exitCode = 1
 				callback(NewCommandOutputEvent("Failed to read command exit code\n"))
 			}
 
-			log.Printf("[SHELL] Stopping scanner")
+			log.Printf("Stopping scanner")
 			return false
 		}
 
@@ -365,11 +365,16 @@ func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
 }
 
 func (e *ShellExecutor) Stop() int {
+	log.Println("Starting the process killing procedure")
+
 	err := e.terminal.Process.Kill()
 
 	if err != nil {
+		log.Printf("Process killing procedure returned an erorr %+v\n", err)
 		return 0
 	}
+
+	log.Printf("Process killing finished without errors")
 
 	return 0
 }

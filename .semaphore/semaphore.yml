@@ -42,6 +42,10 @@ blocks:
           - go get
           - go build
 
+      epilogue:
+        commands:
+          - docker exec -ti agent cat /tmp/agent_log
+
       jobs:
         - name: Hello World
           commands:
@@ -94,6 +98,10 @@ blocks:
           - go version
           - go get
           - go build
+
+      epilogue:
+        commands:
+          - docker exec -ti agent cat /tmp/agent_log
 
       jobs:
         - name: Hello World

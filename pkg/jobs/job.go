@@ -27,7 +27,7 @@ type Job struct {
 }
 
 func NewJob(request *api.JobRequest) (*Job, error) {
-	log.Printf("[job.NewJob] Constructing an executor for the job")
+	log.Printf("Constructing an executor for the job")
 
 	if request.Executor == "" {
 		request.Executor = executors.ExecutorTypeShell
@@ -47,7 +47,7 @@ func NewJob(request *api.JobRequest) (*Job, error) {
 		panic(err)
 	}
 
-	log.Printf("[job.NewJob] Constructed job")
+	log.Printf("Constructed job")
 
 	return &Job{
 		Request:        request,
@@ -72,16 +72,16 @@ func (job *Job) EventHandler(event interface{}) {
 }
 
 func (job *Job) Run() {
-	log.Printf("[JOB] Job Started")
+	log.Printf("Job Started")
 
 	job.SendStartedCallback()
 	LogJobStart(job.logfile)
 
 	result := job.RunRegularCommands()
 
-	log.Printf("[JOB] Regular Commands Finished. Result: %s", result)
+	log.Printf("Regular Commands Finished. Result: %s", result)
 
-	log.Printf("[JOB] Exporting job result")
+	log.Printf("Exporting job result")
 
 	job.RunCommandsUntilFirstFailure([]api.Command{
 		api.Command{
@@ -89,58 +89,58 @@ func (job *Job) Run() {
 		},
 	})
 
-	log.Printf("[JOB] Starting Epilogue Always Commands.")
+	log.Printf("Starting Epilogue Always Commands.")
 	job.RunCommandsUntilFirstFailure(job.Request.EpilogueAlwaysCommands)
 
 	if result == JOB_PASSED {
-		log.Printf("[JOB] Starting Epilogue On Pass Commands.")
+		log.Printf("Starting Epilogue On Pass Commands.")
 		job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnPassCommands)
 	} else {
-		log.Printf("[JOB] Starting Epilogue On Fail Commands.")
+		log.Printf("Starting Epilogue On Fail Commands.")
 		job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnFailCommands)
 	}
 
-	log.Printf("[JOB] Sending finished callback.")
+	log.Printf("Sending finished callback.")
 
 	job.SendFinishedCallback(result)
 
 	LogJobFinish(job.logfile, result)
 
-	log.Printf("[JOB] Waiting for archivator")
+	log.Printf("Waiting for archivator")
 
 	job.WaitForArchivator()
 
-	log.Printf("[JOB] Archivator finished")
+	log.Printf("Archivator finished")
 
 	job.logfile.Sync()
 	job.logfile.Close()
 
-	log.Printf("[JOB] Job Teardown Finished")
+	log.Printf("Job Teardown Finished")
 }
 
 func (job *Job) RunRegularCommands() string {
 	exitCode := job.Executor.Prepare()
 	if exitCode != 0 {
-		log.Printf("[JOB] Failed to prepare executor")
+		log.Printf("Failed to prepare executor")
 		return JOB_FAILED
 	}
 
 	exitCode = job.Executor.Start(job.EventHandler)
 	if exitCode != 0 {
-		log.Printf("[JOB] Failed to start executor")
+		log.Printf("Failed to start executor")
 		return JOB_FAILED
 	}
 
 	exitCode = job.Executor.ExportEnvVars(job.Request.EnvVars, job.EventHandler)
 	if exitCode != 0 {
-		log.Printf("[JOB] Failed to export env vars")
+		log.Printf("Failed to export env vars")
 
 		return JOB_FAILED
 	}
 
 	exitCode = job.Executor.InjectFiles(job.Request.Files, job.EventHandler)
 	if exitCode != 0 {
-		log.Printf("[JOB] Failed to inject files")
+		log.Printf("Failed to inject files")
 
 		return JOB_FAILED
 	}
@@ -189,11 +189,15 @@ func (j *Job) Stop() {
 
 	j.Stopped = true
 
+	log.Printf("Invoking process stopping")
+
 	j.Executor.Stop()
+
+	log.Printf("Process stopping finished. The run method should notice, and send the finished callback")
 }
 
 func LogJobStart(logfile *os.File) {
-	log.Printf("[JOB] Logging job start")
+	log.Printf("Logging job start")
 
 	m := make(map[string]interface{})
 
@@ -205,11 +209,11 @@ func LogJobStart(logfile *os.File) {
 	logfile.Write([]byte(jsonString))
 	logfile.Write([]byte("\n"))
 
-	log.Printf("[JOB] %s", jsonString)
+	log.Printf("%s", jsonString)
 }
 
 func LogJobFinish(logfile *os.File, result string) {
-	log.Printf("[JOB] Logging job finish")
+	log.Printf("Logging job finish")
 
 	m := make(map[string]interface{})
 
@@ -222,11 +226,11 @@ func LogJobFinish(logfile *os.File, result string) {
 	logfile.Write([]byte(jsonString))
 	logfile.Write([]byte("\n"))
 
-	log.Printf("[JOB] %s", jsonString)
+	log.Printf("%s", jsonString)
 }
 
 func LogCmdStarted(logfile *os.File, timestamp int, directive string) {
-	log.Printf("[JOB] Logging command started")
+	log.Printf("Logging command started")
 
 	m := make(map[string]interface{})
 
@@ -239,7 +243,7 @@ func LogCmdStarted(logfile *os.File, timestamp int, directive string) {
 	logfile.Write([]byte(jsonString))
 	logfile.Write([]byte("\n"))
 
-	log.Printf("[JOB] %s", jsonString)
+	log.Printf("%s", jsonString)
 }
 
 func LogCmdOutput(logfile *os.File, timestamp int, output string) {
@@ -256,7 +260,7 @@ func LogCmdOutput(logfile *os.File, timestamp int, output string) {
 }
 
 func LogCmdFinished(logfile *os.File, timestamp int, directive string, exitCode int, startedAt int, finishedAt int) {
-	log.Printf("[JOB] Logging command finished")
+	log.Printf("Logging command finished")
 
 	m := make(map[string]interface{})
 
@@ -272,7 +276,7 @@ func LogCmdFinished(logfile *os.File, timestamp int, directive string, exitCode 
 	logfile.Write([]byte(jsonString))
 	logfile.Write([]byte("\n"))
 
-	log.Printf("[JOB] %s", jsonString)
+	log.Printf("%s", jsonString)
 }
 
 func (job *Job) SendStartedCallback() error {
@@ -292,7 +296,7 @@ func (job *Job) SendTeardownFinishedCallback() error {
 }
 
 func (job *Job) SendCallback(url string, payload string) error {
-	log.Printf("[JOB] Sending callback: %s with %+v\n", url, payload)
+	log.Printf("Sending callback: %s with %+v\n", url, payload)
 
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer([]byte(payload)))
 

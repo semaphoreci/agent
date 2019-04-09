@@ -45,6 +45,8 @@ stop_job
 
 sleep 1
 
+wait_for_job_to_finish
+
 assert_job_log <<-LOG
   {"event":"job_started",  "timestamp":"*"}
   {"event":"cmd_started",  "timestamp":"*", "directive":"Pulling docker images..."}

@@ -146,24 +146,24 @@ func (s *Server) AgentLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[server.Run] New job arrived")
+	log.Printf("New job arrived")
 
-	log.Printf("[server.Run] Reading content of the request")
+	log.Printf("Reading content of the request")
 	body, err := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 	if err != nil {
 
-		log.Printf("[server.Run] Failed to read the content of the job, returning 500")
+		log.Printf("Failed to read the content of the job, returning 500")
 		http.Error(w, err.Error(), 500)
 		return
 	}
 
-	log.Printf("[server.Run] Parsing job request")
+	log.Printf("Parsing job request")
 	request, err := api.NewRequestFromJSON(body)
 
 	if err != nil {
-		log.Printf("[server.Run] Failed to parse job request, returning 422")
-		log.Printf("[server.Run] %+v", err)
+		log.Printf("Failed to parse job request, returning 422")
+		log.Printf("%+v", err)
 
 		http.Error(w, err.Error(), 422)
 		fmt.Fprintf(w, `{"message": "%s"}`, err)
@@ -176,7 +176,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprint(w, `{"message": "ok"}`)
 			return
 		} else {
-			log.Printf("[server.Run] A job is already running, returning 422")
+			log.Printf("A job is already running, returning 422")
 
 			w.WriteHeader(422)
 			fmt.Fprintf(w, `{"message": "a job is already running"}`)
@@ -184,27 +184,27 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	log.Printf("[server.Run] Creating new job")
+	log.Printf("Creating new job")
 	job, err := jobs.NewJob(request)
 
 	if err != nil {
-		log.Printf("[server.Run] Failed to create a new job, returning 500")
+		log.Printf("Failed to create a new job, returning 500")
 
 		http.Error(w, err.Error(), 500)
 		fmt.Fprintf(w, `{"message": "%s"}`, err)
 		return
 	}
 
-	log.Printf("[server.Run] Setting up Active Job context")
+	log.Printf("Setting up Active Job context")
 	s.ActiveJob = job
 
-	log.Printf("[server.Run] Starting job execution")
+	log.Printf("Starting job execution")
 	go s.ActiveJob.Run()
 
-	log.Printf("[server.Run] Setting state to '%s'", ServerStateJobReceived)
+	log.Printf("Setting state to '%s'", ServerStateJobReceived)
 	s.State = ServerStateJobReceived
 
-	log.Printf("[server.Run] Respongind with OK")
+	log.Printf("Respongind with OK")
 	fmt.Fprint(w, `{"message": "ok"}`)
 }
 
