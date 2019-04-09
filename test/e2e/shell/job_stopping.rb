@@ -26,11 +26,13 @@ start_job <<-JSON
   }
 JSON
 
+wait_for_command_to_start("sleep 10")
+
 sleep 1
 
 stop_job
 
-sleep 1
+wait_for_job_to_finish
 
 assert_job_log <<-LOG
   {"event":"job_started",  "timestamp":"*"}
