@@ -189,7 +189,11 @@ func (j *Job) Stop() {
 
 	j.Stopped = true
 
+	log.Printf("Invoking process stopping")
+
 	j.Executor.Stop()
+
+	log.Printf("Process stopping finished. The run method should notice, and send the finished callback")
 }
 
 func LogJobStart(logfile *os.File) {

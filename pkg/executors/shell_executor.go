@@ -365,11 +365,16 @@ func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
 }
 
 func (e *ShellExecutor) Stop() int {
+	log.Println("Starting the process killing procedure")
+
 	err := e.terminal.Process.Kill()
 
 	if err != nil {
+		log.Printf("Process killing procedure returned an erorr %+v\n", err)
 		return 0
 	}
+
+	log.Printf("Process killing finished without errors")
 
 	return 0
 }
