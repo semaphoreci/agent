@@ -14,7 +14,7 @@ func Test__ShellExecutor(t *testing.T) {
 	events := []string{}
 
 	eventHandler := func(event interface{}) {
-		log.Printf("[TEST] %+v", event)
+		log.Printf("%+v", event)
 
 		switch e := event.(type) {
 		case *CommandStartedEvent:
@@ -102,7 +102,7 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 	events := []string{}
 
 	eventHandler := func(event interface{}) {
-		log.Printf("[TEST] %+v", event)
+		log.Printf("%+v", event)
 
 		switch e := event.(type) {
 		case *CommandStartedEvent:
@@ -148,7 +148,7 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 	events := []string{}
 
 	eventHandler := func(event interface{}) {
-		log.Printf("[TEST] %+v", event)
+		log.Printf("%+v", event)
 
 		switch e := event.(type) {
 		case *CommandStartedEvent:

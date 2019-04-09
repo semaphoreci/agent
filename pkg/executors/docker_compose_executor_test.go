@@ -14,7 +14,7 @@ func Test__DockerComposeExecutor(t *testing.T) {
 	events := []string{}
 
 	eventHandler := func(event interface{}) {
-		log.Printf("[TEST] %+v", event)
+		log.Printf("%+v", event)
 
 		switch e := event.(type) {
 		case *CommandStartedEvent:
@@ -126,7 +126,7 @@ func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
 	events := []string{}
 
 	eventHandler := func(event interface{}) {
-		log.Printf("[TEST] %+v", event)
+		log.Printf("%+v", event)
 
 		switch e := event.(type) {
 		case *CommandStartedEvent:
