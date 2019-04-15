@@ -101,6 +101,10 @@ func (e *DockerComposeExecutor) Start(callback EventHandler) int {
 }
 
 func (e *DockerComposeExecutor) injectImagePullSecrets(callback EventHandler) int {
+	if len(e.dockerConfiguration.ImagePullCredentials) == 0 {
+		return 0 // do nothing if there are no credentials
+	}
+
 	directive := "Setting up image pull credentials"
 	commandStartedAt := int(time.Now().Unix())
 	exitCode := 0
