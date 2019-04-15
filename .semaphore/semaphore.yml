@@ -152,6 +152,10 @@ blocks:
           commands:
             - make e2e TEST=docker/dockerhub_private_image
 
+        - name: DockerHub Login Failed
+          commands:
+            - make e2e TEST=docker/dockerhub_private_image_bad_creds
+
 promotions:
   - name: Release
     pipeline_file: "release.yml"
