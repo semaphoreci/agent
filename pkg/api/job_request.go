@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 
@@ -105,5 +106,26 @@ const ImagePullCredentialsStrategyECR = "ECR"
 const ImagePullCredentialsStrategyGCR = "GCR"
 
 func (c *ImagePullCredentials) Strategy() (string, error) {
-	return "DockerHub", nil
+	for _, e := range c.EnvVars {
+		if e.Name == "DOCKER_CREDENTIAL_TYPE" {
+			v, err := e.Decode()
+
+			if err != nil {
+				return "", err
+			}
+
+			switch string(v) {
+			case ImagePullCredentialsStrategyDockerHub:
+				return ImagePullCredentialsStrategyDockerHub, nil
+			case ImagePullCredentialsStrategyECR:
+				return ImagePullCredentialsStrategyECR, nil
+			case ImagePullCredentialsStrategyGCR:
+				return ImagePullCredentialsStrategyECR, nil
+			default:
+				return "", fmt.Errorf("Unknown DOCKER_CREDENTIAL_TYPE: '%s'", v)
+			}
+		}
+	}
+
+	return "", fmt.Errorf("DOCKER_CREDENTIAL_TYPE not set")
 }

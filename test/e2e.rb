@@ -3,6 +3,7 @@
 require 'tempfile'
 require 'json'
 require 'timeout'
+require 'base64'
 
 $JOB_ID = `uuidgen`.strip
 

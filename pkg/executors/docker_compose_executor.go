@@ -114,6 +114,8 @@ func (e *DockerComposeExecutor) injectImagePullSecrets(callback EventHandler) in
 		s, err := c.Strategy()
 
 		if err != nil {
+			callback(NewCommandOutputEvent(fmt.Sprintf("Failed to resolve docker login strategy: %+v", err)))
+
 			exitCode = 1
 			break
 		}
@@ -122,7 +124,7 @@ func (e *DockerComposeExecutor) injectImagePullSecrets(callback EventHandler) in
 		case api.ImagePullCredentialsStrategyDockerHub:
 			exitCode = e.injectImagePullSecretsForDockerHub(callback, c.EnvVars)
 		default:
-			callback(NewCommandOutputEvent(fmt.Sprintf("Unknown Credential Type %s", s)))
+			callback(NewCommandOutputEvent(fmt.Sprintf("Unknown Handler for credential type %s", s)))
 			exitCode = 1
 		}
 
@@ -160,15 +162,17 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForDockerHub(callback Even
 		env = append(env, fmt.Sprintf("%s=%s", name, ShellQuote(string(value))))
 	}
 
-	logicCmd := "docker login --username $DOCKERHUB_USERNAME --password --$DOCKERHUB_PASSWORD"
+	loginCmd := `docker login --username $DOCKERHUB_USERNAME --password $DOCKERHUB_PASSWORD`
 
-	callback(NewCommandOutputEvent(logicCmd))
+	callback(NewCommandOutputEvent(loginCmd))
 
-	cmd := exec.Command("bash", "-c", logicCmd)
+	cmd := exec.Command("bash", "-c", loginCmd)
 	cmd.Env = env
 
-	if err := cmd.Run(); err != nil {
-		callback(NewCommandOutputEvent("Setting up credentials for DockerHub"))
+	out, err := cmd.CombinedOutput()
+	callback(NewCommandOutputEvent(string(out)))
+
+	if err != nil {
 		return 1
 	}
 
