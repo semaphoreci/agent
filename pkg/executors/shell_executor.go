@@ -2,7 +2,6 @@ package executors
 
 import (
 	"bufio"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -125,7 +124,7 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, callback EventHandle
 	for _, e := range envVars {
 		callback(NewCommandOutputEvent(fmt.Sprintf("Exporting %s\n", e.Name)))
 
-		value, err := base64.StdEncoding.DecodeString(e.Value)
+		value, err := e.Decode()
 
 		if err != nil {
 			exitCode = 1
@@ -167,7 +166,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File, callback EventHandler) int
 
 		callback(NewCommandOutputEvent(output))
 
-		content, err := base64.StdEncoding.DecodeString(f.Content)
+		content, err := f.Decode()
 
 		if err != nil {
 			callback(NewCommandOutputEvent("Failed to decode content of file.\n"))

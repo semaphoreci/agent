@@ -73,35 +73,46 @@ func (job *Job) EventHandler(event interface{}) {
 
 func (job *Job) Run() {
 	log.Printf("Job Started")
+	executorRunning := false
+	result := JOB_FAILED
 
 	job.SendStartedCallback()
 	LogJobStart(job.logfile)
 
-	result := job.RunRegularCommands()
-
-	log.Printf("Regular Commands Finished. Result: %s", result)
-
-	log.Printf("Exporting job result")
-
-	job.RunCommandsUntilFirstFailure([]api.Command{
-		api.Command{
-			Directive: fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%s", result),
-		},
-	})
-
-	log.Printf("Starting Epilogue Always Commands.")
-	job.RunCommandsUntilFirstFailure(job.Request.EpilogueAlwaysCommands)
-
-	if result == JOB_PASSED {
-		log.Printf("Starting Epilogue On Pass Commands.")
-		job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnPassCommands)
+	exitCode := job.PrepareEnvironment()
+	if exitCode == 0 {
+		executorRunning = true
 	} else {
-		log.Printf("Starting Epilogue On Fail Commands.")
-		job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnFailCommands)
+		log.Printf("Executor failed to boot up")
+	}
+
+	if executorRunning {
+		result = job.RunRegularCommands()
+
+		log.Printf("Regular Commands Finished. Result: %s", result)
+
+		log.Printf("Exporting job result")
+
+		job.RunCommandsUntilFirstFailure([]api.Command{
+			api.Command{
+				Directive: fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%s", result),
+			},
+		})
+
+		log.Printf("Starting Epilogue Always Commands.")
+		job.RunCommandsUntilFirstFailure(job.Request.EpilogueAlwaysCommands)
+
+		if result == JOB_PASSED {
+			log.Printf("Starting Epilogue On Pass Commands.")
+			job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnPassCommands)
+		} else {
+			log.Printf("Starting Epilogue On Fail Commands.")
+			job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnFailCommands)
+		}
+
 	}
 
 	log.Printf("Sending finished callback.")
-
 	job.SendFinishedCallback(result)
 
 	LogJobFinish(job.logfile, result)
@@ -118,20 +129,24 @@ func (job *Job) Run() {
 	log.Printf("Job Teardown Finished")
 }
 
-func (job *Job) RunRegularCommands() string {
+func (job *Job) PrepareEnvironment() int {
 	exitCode := job.Executor.Prepare()
 	if exitCode != 0 {
 		log.Printf("Failed to prepare executor")
-		return JOB_FAILED
+		return exitCode
 	}
 
 	exitCode = job.Executor.Start(job.EventHandler)
 	if exitCode != 0 {
 		log.Printf("Failed to start executor")
-		return JOB_FAILED
+		return exitCode
 	}
 
-	exitCode = job.Executor.ExportEnvVars(job.Request.EnvVars, job.EventHandler)
+	return 0
+}
+
+func (job *Job) RunRegularCommands() string {
+	exitCode := job.Executor.ExportEnvVars(job.Request.EnvVars, job.EventHandler)
 	if exitCode != 0 {
 		log.Printf("Failed to export env vars")
 

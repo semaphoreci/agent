@@ -1,7 +1,9 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 
@@ -15,9 +17,14 @@ type Container struct {
 	EnvVars []EnvVar `json:"env_vars" yaml:"env_vars"`
 }
 
+type ImagePullCredentials struct {
+	EnvVars []EnvVar `json:"env_vars" yaml:"env_vars"`
+	Files   []File   `json:"files" yaml:"files"`
+}
+
 type Compose struct {
-	Creadentilals File        `json:"credentials" yaml:"credentials"`
-	Containers    []Container `json:"containers" yaml:"containers"`
+	ImagePullCredentials []ImagePullCredentials `json:"image_pull_credentials" yaml:"image_pull_credentials"`
+	Containers           []Container            `json:"containers" yaml:"containers"`
 }
 
 type Command struct {
@@ -84,4 +91,41 @@ func NewRequestFromYamlFile(path string) (*JobRequest, error) {
 	}
 
 	return jobRequest, nil
+}
+
+func (e *EnvVar) Decode() ([]byte, error) {
+	return base64.StdEncoding.DecodeString(e.Value)
+}
+
+func (f *File) Decode() ([]byte, error) {
+	return base64.StdEncoding.DecodeString(f.Content)
+}
+
+const ImagePullCredentialsStrategyDockerHub = "DockerHub"
+const ImagePullCredentialsStrategyECR = "ECR"
+const ImagePullCredentialsStrategyGCR = "GCR"
+
+func (c *ImagePullCredentials) Strategy() (string, error) {
+	for _, e := range c.EnvVars {
+		if e.Name == "DOCKER_CREDENTIAL_TYPE" {
+			v, err := e.Decode()
+
+			if err != nil {
+				return "", err
+			}
+
+			switch string(v) {
+			case ImagePullCredentialsStrategyDockerHub:
+				return ImagePullCredentialsStrategyDockerHub, nil
+			case ImagePullCredentialsStrategyECR:
+				return ImagePullCredentialsStrategyECR, nil
+			case ImagePullCredentialsStrategyGCR:
+				return ImagePullCredentialsStrategyECR, nil
+			default:
+				return "", fmt.Errorf("Unknown DOCKER_CREDENTIAL_TYPE: '%s'", v)
+			}
+		}
+	}
+
+	return "", fmt.Errorf("DOCKER_CREDENTIAL_TYPE not set")
 }
