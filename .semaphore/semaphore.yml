@@ -148,6 +148,10 @@ blocks:
           commands:
             - make e2e TEST=docker/container_env_vars
 
+        - name: Docker Login Dockerhub
+          commands:
+            - make e2e TEST=docker/dockerhub_private_image
+
 promotions:
   - name: Release
     pipeline_file: "release.yml"
