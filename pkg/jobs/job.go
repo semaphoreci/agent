@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
 	executors "github.com/semaphoreci/agent/pkg/executors"
+	pester "github.com/sethgrid/pester"
 )
 
 const JOB_PASSED = "passed"
@@ -313,7 +313,11 @@ func (job *Job) SendTeardownFinishedCallback() error {
 func (job *Job) SendCallback(url string, payload string) error {
 	log.Printf("Sending callback: %s with %+v\n", url, payload)
 
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer([]byte(payload)))
+	client := pester.New()
+	client.MaxRetries = 100
+	client.KeepLog = true
+
+	resp, err := client.Post(url, "application/json", bytes.NewBuffer([]byte(payload)))
 
 	log.Printf("%+v\n", resp)
 
