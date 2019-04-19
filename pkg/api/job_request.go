@@ -43,7 +43,6 @@ type File struct {
 }
 
 type Callbacks struct {
-	Started          string `json:"started" yaml:"started"`
 	Finished         string `json:"finished" yaml:"finished"`
 	TeardownFinished string `json:"teardown_finished" yaml:"teardown_finished"`
 }

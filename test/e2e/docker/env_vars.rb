@@ -37,7 +37,6 @@ start_job <<-JSON
     "epilogue_always_commands": [],
 
     "callbacks": {
-      "started": "https://httpbin.org/status/200",
       "finished": "https://httpbin.org/status/200",
       "teardown_finished": "https://httpbin.org/status/200"
     }
