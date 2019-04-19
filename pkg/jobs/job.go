@@ -76,7 +76,6 @@ func (job *Job) Run() {
 	executorRunning := false
 	result := JOB_FAILED
 
-	job.SendStartedCallback()
 	LogJobStart(job.logfile)
 
 	exitCode := job.PrepareEnvironment()
@@ -292,12 +291,6 @@ func LogCmdFinished(logfile *os.File, timestamp int, directive string, exitCode 
 	logfile.Write([]byte("\n"))
 
 	log.Printf("%s", jsonString)
-}
-
-func (job *Job) SendStartedCallback() error {
-	payload := `{"port": 22}`
-
-	return job.SendCallback(job.Request.Callbacks.Started, payload)
 }
 
 func (job *Job) SendFinishedCallback(result string) error {
