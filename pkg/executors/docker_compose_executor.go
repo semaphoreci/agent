@@ -115,7 +115,7 @@ func (e *DockerComposeExecutor) injectImagePullSecrets(callback EventHandler) in
 		s, err := c.Strategy()
 
 		if err != nil {
-			callback(NewCommandOutputEvent(fmt.Sprintf("Failed to resolve docker login strategy: %+v", err)))
+			callback(NewCommandOutputEvent(fmt.Sprintf("Failed to resolve docker login strategy: %+v\n", err)))
 
 			exitCode = 1
 			break
@@ -125,7 +125,7 @@ func (e *DockerComposeExecutor) injectImagePullSecrets(callback EventHandler) in
 		case api.ImagePullCredentialsStrategyDockerHub:
 			exitCode = e.injectImagePullSecretsForDockerHub(callback, c.EnvVars)
 		default:
-			callback(NewCommandOutputEvent(fmt.Sprintf("Unknown Handler for credential type %s", s)))
+			callback(NewCommandOutputEvent(fmt.Sprintf("Unknown Handler for credential type %s\n", s)))
 			exitCode = 1
 		}
 
@@ -147,7 +147,7 @@ func (e *DockerComposeExecutor) injectImagePullSecrets(callback EventHandler) in
 }
 
 func (e *DockerComposeExecutor) injectImagePullSecretsForDockerHub(callback EventHandler, envVars []api.EnvVar) int {
-	callback(NewCommandOutputEvent("Setting up credentials for DockerHub"))
+	callback(NewCommandOutputEvent("Setting up credentials for DockerHub\n"))
 
 	env := []string{}
 
@@ -156,7 +156,7 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForDockerHub(callback Even
 		value, err := e.Decode()
 
 		if err != nil {
-			callback(NewCommandOutputEvent(fmt.Sprintf("Failed to decode %s", name)))
+			callback(NewCommandOutputEvent(fmt.Sprintf("Failed to decode %s\n", name)))
 			return 1
 		}
 
@@ -165,13 +165,13 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForDockerHub(callback Even
 
 	loginCmd := `docker login --username $DOCKERHUB_USERNAME --password $DOCKERHUB_PASSWORD`
 
-	callback(NewCommandOutputEvent(loginCmd))
+	callback(NewCommandOutputEvent(loginCmd + "\n"))
 
 	cmd := exec.Command("bash", "-c", loginCmd)
 	cmd.Env = env
 
 	out, err := cmd.CombinedOutput()
-	callback(NewCommandOutputEvent(string(out)))
+	callback(NewCommandOutputEvent(string(out) + "\n"))
 
 	if err != nil {
 		return 1
@@ -203,7 +203,7 @@ func (e *DockerComposeExecutor) pullDockerImages(callback EventHandler) int {
 	ScanLines(tty, func(line string) bool {
 		log.Printf("(tty) %s\n", line)
 
-		callback(NewCommandOutputEvent(line))
+		callback(NewCommandOutputEvent(line + "\n"))
 
 		return true
 	})
