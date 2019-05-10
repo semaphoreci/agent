@@ -49,8 +49,7 @@ wait_for_job_to_finish
 assert_job_log <<-LOG
   {"event":"job_started",  "timestamp":"*"}
   {"event":"cmd_started",  "timestamp":"*", "directive":"Pulling docker images..."}
-  {"event":"cmd_output",   "timestamp":"*", "output":"*"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"*"}
+  *** LONG_OUTPUT ***
   {"event":"cmd_finished", "timestamp":"*", "directive":"Pulling docker images...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
   {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"Exporting environment variables","exit_code":0,"finished_at":"*","started_at":"*"}

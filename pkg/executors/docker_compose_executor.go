@@ -73,6 +73,7 @@ func (e *DockerComposeExecutor) Start(callback EventHandler) int {
 
 	e.terminal = exec.Command(
 		"docker-compose",
+		"--no-ansi",
 		"-f",
 		e.dockerComposeManifestPath,
 		"run",
@@ -188,6 +189,7 @@ func (e *DockerComposeExecutor) pullDockerImages(callback EventHandler) int {
 
 	cmd := exec.Command(
 		"docker-compose",
+		"--no-ansi",
 		"-f",
 		e.dockerComposeManifestPath,
 		"pull")

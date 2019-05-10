@@ -58,8 +58,7 @@ assert_job_log <<-LOG
   {"event":"cmd_finished", "timestamp":"*", "directive":"Setting up image pull credentials", "event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"Pulling docker images..."}
-  {"event":"cmd_output",   "timestamp":"*", "output":"*"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"*"}
+  *** LONG_OUTPUT ***
   {"event":"cmd_finished", "timestamp":"*", "directive":"Pulling docker images...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
