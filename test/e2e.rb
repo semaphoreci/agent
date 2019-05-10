@@ -83,40 +83,79 @@ def assert_job_log(expected_log)
   actual_log   = actual_log.split("\n").map(&:strip).reject(&:empty?)
   expected_log = expected_log.split("\n").map(&:strip).reject(&:empty?)
 
-  expected_log.zip(actual_log).each.with_index do |pair, index|
+  index_in_actual_logs = 0
+  index_in_expected_logs = 0
+
+  while index_in_actual_logs < actual_log.length && index_in_expected_logs < expected_log.length
     begin
-      puts "Comparing log lines #{index}"
+      puts "Comparing log lines Actual=#{index_in_actual_logs} Expected=#{index_in_expected_logs}"
 
-      expected_log_line = pair[0]
-      actual_log_line   = pair[1]
+      expected_log_line = expected_log[index_in_expected_logs]
+      actual_log_line   = actual_log[index_in_actual_logs]
 
-      expected_log_line_json = Hash[JSON.parse(expected_log_line).sort]
-      actual_log_line_json   = Hash[JSON.parse(actual_log_line).sort]
+      puts "  actual:   #{actual_log_line}"
+      puts "  expected: #{expected_log_line}"
 
-      puts "  expected: #{expected_log_line_json.to_json}"
-      puts "  actual:   #{actual_log_line_json.to_json}"
+      actual_log_line_json = Hash[JSON.parse(actual_log_line).sort]
 
-      if expected_log_line_json.keys != actual_log_line_json.keys
-        abort "(fail) JSON keys are different."
-      end
+      if expected_log_line =~ /\*\*\* LONG_OUTPUT \*\*\*/
+        if actual_log_line_json["event"] == "cmd_output"
+          # if we have a *** LONG_OUTPUT *** marker
 
-      expected_log_line_json.keys.each do |key|
-        # ignore expected entries with '*'
-        next if expected_log_line_json[key] == "*"
+          # we go to next actual log line
+          # but we stay on the same expected log line
 
-        if expected_log_line_json[key] != actual_log_line_json[key]
-          abort "(fail) Values for '#{key}' are not equal."
+          index_in_actual_logs += 1
+
+          next
+        else
+          # end of the LONG_OUTPUT marker, we increase the expected log line
+          # and in the next iteration we will compare regularly again
+          index_in_expected_logs += 1
+
+          next
         end
+      else
+        # if there is no marker, we compare the JSONs
+        # we ignore the timestamps because they change every time
+
+        expected_log_line_json = Hash[JSON.parse(expected_log_line).sort]
+
+        if expected_log_line_json.keys != actual_log_line_json.keys
+          abort "(fail) JSON keys are different."
+        end
+
+        expected_log_line_json.keys.each do |key|
+          # Special case when we want to ignore only the output
+          # ignore expected entries with '*'
+
+          next if expected_log_line_json[key] == "*"
+
+          if expected_log_line_json[key] != actual_log_line_json[key]
+            abort "(fail) Values for '#{key}' are not equal."
+          end
+        end
+
+        index_in_actual_logs += 1
+        index_in_expected_logs += 1
       end
 
       puts "success"
     rescue
       puts ""
-      puts "Line Number: #{index}"
+      puts "Line Number: Actual=#{index_in_actual_logs} Expected=#{index_in_expected_logs}"
       puts "Expected: '#{expected_log_line}'"
       puts "Actual:   '#{actual_log_line}'"
 
       abort "(fail) Failed to parse log line"
     end
+  end
+
+  if index_in_actual_logs != actual_log.length
+    abort "(fail) There are unchecked log lines from the actual log"
+  end
+
+  if index_in_expected_logs != expected_log.length
+    abort "(fail) There are unchecked log lines from the expected log"
   end
 end
