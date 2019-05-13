@@ -163,7 +163,7 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForDockerHub(callback Even
 		env = append(env, fmt.Sprintf("%s=%s", name, ShellQuote(string(value))))
 	}
 
-	loginCmd := `docker login --username $DOCKERHUB_USERNAME --password $DOCKERHUB_PASSWORD`
+	loginCmd := `echo $DOCKERHUB_PASSWORD | docker login --username $DOCKERHUB_USERNAME --password-stdin`
 
 	callback(NewCommandOutputEvent(loginCmd + "\n"))
 
@@ -171,7 +171,10 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForDockerHub(callback Even
 	cmd.Env = env
 
 	out, err := cmd.CombinedOutput()
-	callback(NewCommandOutputEvent(string(out) + "\n"))
+
+	for _, line := range strings.Split(string(out), "\n") {
+		callback(NewCommandOutputEvent(line + "\n"))
+	}
 
 	if err != nil {
 		return 1
