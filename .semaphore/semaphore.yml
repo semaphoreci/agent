@@ -148,7 +148,7 @@ blocks:
           commands:
             - make e2e TEST=docker/container_env_vars
 
-        - name: Docker Login Dockerhub
+        - name: DockerHub Login
           commands:
             - make e2e TEST=docker/dockerhub_private_image
 
