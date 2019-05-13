@@ -211,16 +211,22 @@ func (e *DockerComposeExecutor) pullDockerImages(callback EventHandler) int {
 		return true
 	})
 
+	exitCode := 0
+
+	if err := cmd.Wait(); err != nil {
+		exitCode = 1
+	}
+
 	commandFinishedAt := int(time.Now().Unix())
 
 	callback(NewCommandFinishedEvent(
 		directive,
-		0,
+		exitCode,
 		commandStartedAt,
 		commandFinishedAt,
 	))
 
-	return 0
+	return exitCode
 }
 
 func (e *DockerComposeExecutor) silencePromptAndDisablePS1() {
