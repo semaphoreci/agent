@@ -108,7 +108,6 @@ func (job *Job) Run() {
 			log.Printf("Starting Epilogue On Fail Commands.")
 			job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnFailCommands)
 		}
-
 	}
 
 	log.Printf("Sending finished callback.")

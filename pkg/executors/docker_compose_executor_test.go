@@ -1,6 +1,7 @@
 package executors
 
 import (
+	"encoding/base64"
 	"fmt"
 	"log"
 	"testing"
@@ -9,6 +10,39 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	assert "github.com/stretchr/testify/assert"
 )
+
+func request() *api.JobRequest {
+	return &api.JobRequest{
+		Compose: api.Compose{
+			Containers: []api.Container{
+				api.Container{
+					Name:  "main",
+					Image: "ruby:2.6",
+				},
+				api.Container{
+					Name:    "db",
+					Image:   "postgres:9.6",
+					Command: "postgres start",
+					EnvVars: []api.EnvVar{
+						api.EnvVar{
+							Name:  "FOO",
+							Value: "BAR",
+						},
+						api.EnvVar{
+							Name:  "FAZ",
+							Value: "ZEZ",
+						},
+					},
+				},
+			},
+		},
+
+		SSHPublicKeys: []api.PublicKey{
+			api.PublicKey(base64.StdEncoding.EncodeToString([]byte("ssh-rsa aaaaa"))),
+		},
+	}
+
+}
 
 func Test__DockerComposeExecutor(t *testing.T) {
 	events := []string{}
@@ -29,31 +63,7 @@ func Test__DockerComposeExecutor(t *testing.T) {
 		}
 	}
 
-	conf := api.Compose{
-		Containers: []api.Container{
-			api.Container{
-				Name:  "main",
-				Image: "ruby:2.6",
-			},
-			api.Container{
-				Name:    "db",
-				Image:   "postgres:9.6",
-				Command: "postgres start",
-				EnvVars: []api.EnvVar{
-					api.EnvVar{
-						Name:  "FOO",
-						Value: "BAR",
-					},
-					api.EnvVar{
-						Name:  "FAZ",
-						Value: "ZEZ",
-					},
-				},
-			},
-		},
-	}
-
-	e := NewDockerComposeExecutor(conf)
+	e := NewDockerComposeExecutor(request())
 
 	e.Prepare()
 	e.Start(DevNullEventHandler)
@@ -141,31 +151,7 @@ func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
 		}
 	}
 
-	conf := api.Compose{
-		Containers: []api.Container{
-			api.Container{
-				Name:  "main",
-				Image: "ruby:2.6",
-			},
-			api.Container{
-				Name:    "db",
-				Image:   "postgres:9.6",
-				Command: "postgres start",
-				EnvVars: []api.EnvVar{
-					api.EnvVar{
-						Name:  "FOO",
-						Value: "BAR",
-					},
-					api.EnvVar{
-						Name:  "FAZ",
-						Value: "ZEZ",
-					},
-				},
-			},
-		},
-	}
-
-	e := NewDockerComposeExecutor(conf)
+	e := NewDockerComposeExecutor(request())
 
 	e.Prepare()
 	e.Start(DevNullEventHandler)

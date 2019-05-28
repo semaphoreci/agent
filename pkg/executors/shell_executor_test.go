@@ -1,6 +1,7 @@
 package executors
 
 import (
+	"encoding/base64"
 	"fmt"
 	"log"
 	"testing"
@@ -29,7 +30,13 @@ func Test__ShellExecutor(t *testing.T) {
 		}
 	}
 
-	e := NewShellExecutor()
+	request := api.JobRequest{
+		SSHPublicKeys: []api.PublicKey{
+			api.PublicKey(base64.StdEncoding.EncodeToString([]byte("ssh-rsa aaaaa"))),
+		},
+	}
+
+	e := NewShellExecutor(&request)
 
 	e.Prepare()
 	e.Start(eventHandler)
@@ -117,7 +124,13 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 		}
 	}
 
-	e := NewShellExecutor()
+	request := api.JobRequest{
+		SSHPublicKeys: []api.PublicKey{
+			api.PublicKey(base64.StdEncoding.EncodeToString([]byte("ssh-rsa aaaaa"))),
+		},
+	}
+
+	e := NewShellExecutor(&request)
 
 	e.Prepare()
 	e.Start(eventHandler)
@@ -163,7 +176,13 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 		}
 	}
 
-	e := NewShellExecutor()
+	request := api.JobRequest{
+		SSHPublicKeys: []api.PublicKey{
+			api.PublicKey(base64.StdEncoding.EncodeToString([]byte("ssh-rsa aaaaa"))),
+		},
+	}
+
+	e := NewShellExecutor(&request)
 
 	e.Prepare()
 	e.Start(eventHandler)

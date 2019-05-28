@@ -21,6 +21,7 @@ import (
 type ShellExecutor struct {
 	Executor
 
+	jobRequest    *api.JobRequest
 	eventHandler  *EventHandler
 	terminal      *exec.Cmd
 	tty           *os.File
@@ -29,14 +30,42 @@ type ShellExecutor struct {
 	tmpDirectory  string
 }
 
-func NewShellExecutor() *ShellExecutor {
+func NewShellExecutor(request *api.JobRequest) *ShellExecutor {
 	return &ShellExecutor{
+		jobRequest:   request,
 		tmpDirectory: "/tmp",
 	}
 }
 
 func (e *ShellExecutor) Prepare() int {
 	e.terminal = exec.Command("bash", "--login")
+
+	return e.setUpSSHJumpPoint()
+}
+
+func (e *ShellExecutor) setUpSSHJumpPoint() int {
+	err := InjectEntriesToAuthorizedKeys(e.jobRequest.SSHPublicKeys)
+
+	if err != nil {
+		log.Printf("Failed to inject authorized keys: %+v", err)
+		return 1
+	}
+
+	script := strings.Join([]string{
+		"#!/bin/bash",
+		"",
+		"if [ $# -eq 0 ]; then",
+		"  bash --login",
+		"else",
+		"  exec \"$@\"",
+		"fi",
+	}, "\n")
+
+	err = SetUpSSHJumpPoint(script)
+	if err != nil {
+		log.Printf("Failed to set up SSH jump point: %+v", err)
+		return 1
+	}
 
 	return 0
 }

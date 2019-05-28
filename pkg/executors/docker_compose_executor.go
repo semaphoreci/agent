@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path"
@@ -21,6 +22,7 @@ import (
 type DockerComposeExecutor struct {
 	Executor
 
+	jobRequest                *api.JobRequest
 	tmpDirectory              string
 	dockerConfiguration       api.Compose
 	dockerComposeManifestPath string
@@ -29,13 +31,18 @@ type DockerComposeExecutor struct {
 	tty                       *os.File
 	stdin                     io.Writer
 	stdoutScanner             *bufio.Scanner
+	mainContainerName         string
 }
 
-func NewDockerComposeExecutor(dockerConfiguration api.Compose) *DockerComposeExecutor {
+func NewDockerComposeExecutor(request *api.JobRequest) *DockerComposeExecutor {
 	return &DockerComposeExecutor{
-		dockerConfiguration:       dockerConfiguration,
+		jobRequest:                request,
+		dockerConfiguration:       request.Compose,
 		dockerComposeManifestPath: "/tmp/docker-compose.yml",
 		tmpDirectory:              "/tmp/agent-temp-directory", // make a better random name
+
+		// during testing the name main gets taken up, if we make it random we avoid headaches
+		mainContainerName: fmt.Sprintf("main-%d", rand.Intn(1000000)),
 	}
 }
 
@@ -51,6 +58,50 @@ func (e *DockerComposeExecutor) Prepare() int {
 	log.Println(compose)
 
 	ioutil.WriteFile(e.dockerComposeManifestPath, []byte(compose), 0644)
+
+	return e.setUpSSHJumpPoint()
+}
+
+func (e *DockerComposeExecutor) setUpSSHJumpPoint() int {
+	err := InjectEntriesToAuthorizedKeys(e.jobRequest.SSHPublicKeys)
+
+	if err != nil {
+		log.Printf("Failed to inject authorized keys: %+v", err)
+		return 1
+	}
+
+	script := strings.Join([]string{
+		`#!/bin/bash`,
+		``,
+		`cd /tmp`,
+		``,
+		`echo -n "Waiting for the container to start up"`,
+		``,
+		`while true; do`,
+		`  docker exec -i ` + e.mainContainerName + ` true 2>/dev/null`,
+		``,
+		`  if [ $? == 0 ]; then`,
+		`    echo ""`,
+		``,
+		`    break`,
+		`  else`,
+		`    sleep 3`,
+		`    echo -n "."`,
+		`  fi`,
+		`done`,
+		``,
+		`if [ $# -eq 0 ]; then`,
+		`  docker exec -ti ` + e.mainContainerName + ` bash --login`,
+		`else`,
+		`  docker exec -i ` + e.mainContainerName + ` "$@"`,
+		`fi`,
+	}, "\n")
+
+	err = SetUpSSHJumpPoint(script)
+	if err != nil {
+		log.Printf("Failed to set up SSH jump point: %+v", err)
+		return 1
+	}
 
 	return 0
 }
@@ -77,6 +128,8 @@ func (e *DockerComposeExecutor) Start(callback EventHandler) int {
 		"-f",
 		e.dockerComposeManifestPath,
 		"run",
+		"--name",
+		e.mainContainerName,
 		"-v",
 		"/var/run/docker.sock:/var/run/docker.sock",
 		"-v",

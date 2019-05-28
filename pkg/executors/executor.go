@@ -22,9 +22,9 @@ const ExecutorTypeDockerCompose = "dockercompose"
 func CreateExecutor(request *api.JobRequest) (Executor, error) {
 	switch request.Executor {
 	case ExecutorTypeShell:
-		return NewShellExecutor(), nil
+		return NewShellExecutor(request), nil
 	case ExecutorTypeDockerCompose:
-		return NewDockerComposeExecutor(request.Compose), nil
+		return NewDockerComposeExecutor(request), nil
 	default:
 		return nil, fmt.Errorf("Uknown executor type")
 	}

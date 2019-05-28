@@ -83,6 +83,10 @@ blocks:
           commands:
             - make e2e TEST=shell/epilogue_on_fail
 
+        - name: SSH Jump Point
+          commands:
+            - make e2e TEST=shell/ssh_jump_points
+
   - name: "Docker Executor E2E tests"
     dependencies:
       - "Tests"
@@ -155,6 +159,10 @@ blocks:
         - name: DockerHub Login Failed
           commands:
             - make e2e TEST=docker/dockerhub_private_image_bad_creds
+
+        - name: SSH Jump Point
+          commands:
+            - make e2e TEST=docker/ssh_jump_points
 
 promotions:
   - name: Release
