@@ -54,7 +54,11 @@ func (e *ShellExecutor) setUpSSHJumpPoint() int {
 	script := strings.Join([]string{
 		"#!/bin/bash",
 		"",
-		"bash --login",
+		"if [ $# -eq 0 ]; then",
+		"  bash --login",
+		"else",
+		"  exec \"$@\"",
+		"fi",
 	}, "\n")
 
 	err = SetUpSSHJumpPoint(script)
