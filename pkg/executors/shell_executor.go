@@ -21,6 +21,7 @@ import (
 type ShellExecutor struct {
 	Executor
 
+	jobRequest    *api.JobRequest
 	eventHandler  *EventHandler
 	terminal      *exec.Cmd
 	tty           *os.File
@@ -29,8 +30,9 @@ type ShellExecutor struct {
 	tmpDirectory  string
 }
 
-func NewShellExecutor() *ShellExecutor {
+func NewShellExecutor(request *api.JobRequest) *ShellExecutor {
 	return &ShellExecutor{
+		jobRequest:   request,
 		tmpDirectory: "/tmp",
 	}
 }

@@ -21,6 +21,7 @@ import (
 type DockerComposeExecutor struct {
 	Executor
 
+	jobRequest                *api.JobRequest
 	tmpDirectory              string
 	dockerConfiguration       api.Compose
 	dockerComposeManifestPath string
@@ -31,9 +32,10 @@ type DockerComposeExecutor struct {
 	stdoutScanner             *bufio.Scanner
 }
 
-func NewDockerComposeExecutor(dockerConfiguration api.Compose) *DockerComposeExecutor {
+func NewDockerComposeExecutor(request *api.JobRequest) *DockerComposeExecutor {
 	return &DockerComposeExecutor{
-		dockerConfiguration:       dockerConfiguration,
+		jobRequest:                request,
+		dockerConfiguration:       request.Compose,
 		dockerComposeManifestPath: "/tmp/docker-compose.yml",
 		tmpDirectory:              "/tmp/agent-temp-directory", // make a better random name
 	}
