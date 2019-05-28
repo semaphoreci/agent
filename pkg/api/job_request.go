@@ -47,11 +47,14 @@ type Callbacks struct {
 	TeardownFinished string `json:"teardown_finished" yaml:"teardown_finished"`
 }
 
+type PublicKey string
+
 type JobRequest struct {
-	ID       string    `json:"id" yaml:"id"`
-	Executor string    `json:"executor" yaml:"executor"`
-	Compose  Compose   `json:"compose" yaml:"compose"`
-	Commands []Command `json:"commands" yaml:"commands"`
+	ID            string      `json:"id" yaml:"id"`
+	Executor      string      `json:"executor" yaml:"executor"`
+	Compose       Compose     `json:"compose" yaml:"compose"`
+	Commands      []Command   `json:"commands" yaml:"commands"`
+	SSHPublicKeys []PublicKey `json:"ssh_public_keys" yaml:"ssh_public_keys"`
 
 	EpilogueAlwaysCommands []Command `json:"epilogue_always_commands" yaml:"epilogue_always_commands"`
 	EpilogueOnPassCommands []Command `json:"epilogue_on_pass_commands" yaml:"epilogue_on_pass_commands"`
@@ -90,6 +93,10 @@ func NewRequestFromYamlFile(path string) (*JobRequest, error) {
 	}
 
 	return jobRequest, nil
+}
+
+func (p *PublicKey) Decode() ([]byte, error) {
+	return base64.StdEncoding.DecodeString(string(*p))
 }
 
 func (e *EnvVar) Decode() ([]byte, error) {
