@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"os"
+	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
@@ -15,6 +17,9 @@ import (
 var VERSION = "dev"
 
 func main() {
+	// Initialize global randomness
+	rand.Seed(time.Now().UnixNano())
+
 	action := os.Args[1]
 
 	logfile := OpenLogfile()

@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path"
@@ -30,6 +31,7 @@ type DockerComposeExecutor struct {
 	tty                       *os.File
 	stdin                     io.Writer
 	stdoutScanner             *bufio.Scanner
+	mainContainerName         string
 }
 
 func NewDockerComposeExecutor(request *api.JobRequest) *DockerComposeExecutor {
@@ -38,6 +40,9 @@ func NewDockerComposeExecutor(request *api.JobRequest) *DockerComposeExecutor {
 		dockerConfiguration:       request.Compose,
 		dockerComposeManifestPath: "/tmp/docker-compose.yml",
 		tmpDirectory:              "/tmp/agent-temp-directory", // make a better random name
+
+		// during testing the name main gets taken up, if we make it random we avoid headaches
+		mainContainerName: fmt.Sprintf("main-%d", rand.Intn(1000000)),
 	}
 }
 
@@ -68,17 +73,15 @@ func (e *DockerComposeExecutor) setUpSSHJumpPoint() int {
 	script := strings.Join([]string{
 		`#!/bin/bash`,
 		``,
-		`cd ~/code/zebra`,
-		``,
-		`container_name="` + e.dockerConfiguration.MainContainerName() + `"`,
+		`cd /tmp`,
 		``,
 		`echo -n "Waiting for the container to start up"`,
 		``,
 		`while true; do`,
-		`  docker-compose exec $container_name true 2>/dev/null`,
+		`  docker exec -i ` + e.mainContainerName + ` true 2>/dev/null`,
 		``,
 		`  if [ $? == 0 ]; then`,
-		`    echo "\n"`,
+		`    echo ""`,
 		``,
 		`    break`,
 		`  else`,
@@ -87,7 +90,11 @@ func (e *DockerComposeExecutor) setUpSSHJumpPoint() int {
 		`  fi`,
 		`done`,
 		``,
-		`docker-compose exec $container_name bash --login`,
+		`if [ $# -eq 0 ]; then`,
+		`  docker exec -ti ` + e.mainContainerName + ` bash --login`,
+		`else`,
+		`  docker exec -i ` + e.mainContainerName + ` "$@"`,
+		`fi`,
 	}, "\n")
 
 	err = SetUpSSHJumpPoint(script)
@@ -121,6 +128,8 @@ func (e *DockerComposeExecutor) Start(callback EventHandler) int {
 		"-f",
 		e.dockerComposeManifestPath,
 		"run",
+		"--name",
+		e.mainContainerName,
 		"-v",
 		"/var/run/docker.sock:/var/run/docker.sock",
 		"-v",
