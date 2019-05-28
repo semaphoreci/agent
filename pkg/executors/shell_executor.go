@@ -51,6 +51,18 @@ func (e *ShellExecutor) setUpSSHJumpPoint() int {
 		return 1
 	}
 
+	script := strings.Join([]string{
+		"#!/bin/bash",
+		"",
+		"bash --login",
+	}, "\n")
+
+	err = SetUpSSHJumpPoint(script)
+	if err != nil {
+		log.Printf("Failed to set up SSH jump point: %+v", err)
+		return 1
+	}
+
 	return 0
 }
 

@@ -65,6 +65,37 @@ func (e *DockerComposeExecutor) setUpSSHJumpPoint() int {
 		return 1
 	}
 
+	script := strings.Join([]string{
+		`#!/bin/bash`,
+		``,
+		`cd ~/code/zebra`,
+		``,
+		`container_name="` + e.dockerConfiguration.MainContainerName() + `"`,
+		``,
+		`echo -n "Waiting for the container to start up"`,
+		``,
+		`while true; do`,
+		`  docker-compose exec $container_name true 2>/dev/null`,
+		``,
+		`  if [ $? == 0 ]; then`,
+		`    echo "\n"`,
+		``,
+		`    break`,
+		`  else`,
+		`    sleep 3`,
+		`    echo -n "."`,
+		`  fi`,
+		`done`,
+		``,
+		`docker-compose exec $container_name bash --login`,
+	}, "\n")
+
+	err = SetUpSSHJumpPoint(script)
+	if err != nil {
+		log.Printf("Failed to set up SSH jump point: %+v", err)
+		return 1
+	}
+
 	return 0
 }
 

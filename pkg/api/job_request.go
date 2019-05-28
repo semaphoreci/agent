@@ -27,6 +27,10 @@ type Compose struct {
 	Containers           []Container            `json:"containers" yaml:"containers"`
 }
 
+func (c *Compose) MainContainerName() string {
+	return c.Containers[0].Name
+}
+
 type Command struct {
 	Directive string `json:"directive" yaml:"directive"`
 }
