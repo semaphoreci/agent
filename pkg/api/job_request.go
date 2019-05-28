@@ -49,6 +49,10 @@ type Callbacks struct {
 
 type PublicKey string
 
+func (p *PublicKey) Decode() ([]byte, error) {
+	return base64.StdEncoding.DecodeString(string(*p))
+}
+
 type JobRequest struct {
 	ID            string      `json:"id" yaml:"id"`
 	Executor      string      `json:"executor" yaml:"executor"`
@@ -93,10 +97,6 @@ func NewRequestFromYamlFile(path string) (*JobRequest, error) {
 	}
 
 	return jobRequest, nil
-}
-
-func (p *PublicKey) Decode() ([]byte, error) {
-	return base64.StdEncoding.DecodeString(string(*p))
 }
 
 func (e *EnvVar) Decode() ([]byte, error) {

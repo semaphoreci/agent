@@ -54,6 +54,17 @@ func (e *DockerComposeExecutor) Prepare() int {
 
 	ioutil.WriteFile(e.dockerComposeManifestPath, []byte(compose), 0644)
 
+	return e.setUpSSHJumpPoint()
+}
+
+func (e *DockerComposeExecutor) setUpSSHJumpPoint() int {
+	err := InjectEntriesToAuthorizedKeys(e.jobRequest.SSHPublicKeys)
+
+	if err != nil {
+		log.Printf("Failed to inject authorized keys: %+v", err)
+		return 1
+	}
+
 	return 0
 }
 

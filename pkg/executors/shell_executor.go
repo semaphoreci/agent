@@ -40,6 +40,17 @@ func NewShellExecutor(request *api.JobRequest) *ShellExecutor {
 func (e *ShellExecutor) Prepare() int {
 	e.terminal = exec.Command("bash", "--login")
 
+	return e.setUpSSHJumpPoint()
+}
+
+func (e *ShellExecutor) setUpSSHJumpPoint() int {
+	err := InjectEntriesToAuthorizedKeys(e.jobRequest.SSHPublicKeys)
+
+	if err != nil {
+		log.Printf("Failed to inject authorized keys: %+v", err)
+		return 1
+	}
+
 	return 0
 }
 
