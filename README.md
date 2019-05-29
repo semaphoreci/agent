@@ -22,15 +22,15 @@ Docker Based CI/CD:
 - [x] Upload docker images from docker
 - [x] Set up an SSH jump-point
 
-## Usage:
+## Usage
 
-```
+``` bash
 agent [command] [flag]
 ```
 
 Commands:
 
-```
+``` txt
   version   Print Agent version
   serve     Start server
   run       Runs a single job
@@ -38,7 +38,7 @@ Commands:
 
 Flags:
 
-```
+``` txt
  --auth-token-secret  Auth token for accessing the server (required)
  --port               Set a custom port (default 8000)
  --host               Set the bind address to a specific IP (default 0.0.0.0)
