@@ -108,7 +108,7 @@ func (f *File) Decode() ([]byte, error) {
 }
 
 const ImagePullCredentialsStrategyDockerHub = "DockerHub"
-const ImagePullCredentialsStrategyECR = "ECR"
+const ImagePullCredentialsStrategyECR = "AWS_ECR"
 const ImagePullCredentialsStrategyGCR = "GCR"
 
 func (c *ImagePullCredentials) Strategy() (string, error) {

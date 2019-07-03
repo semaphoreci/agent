@@ -177,8 +177,8 @@ func (e *DockerComposeExecutor) injectImagePullSecrets(callback EventHandler) in
 		switch s {
 		case api.ImagePullCredentialsStrategyDockerHub:
 			exitCode = e.injectImagePullSecretsForDockerHub(callback, c.EnvVars)
-    case api.ImagePullCredentialsStrategyECR:
-      exitCode = e.injectImagePullSecretsForECR(callback, c.EnvVars)
+		case api.ImagePullCredentialsStrategyECR:
+			exitCode = e.injectImagePullSecretsForECR(callback, c.EnvVars)
 		default:
 			callback(NewCommandOutputEvent(fmt.Sprintf("Unknown Handler for credential type %s\n", s)))
 			exitCode = 1
