@@ -177,6 +177,8 @@ func (e *DockerComposeExecutor) injectImagePullSecrets(callback EventHandler) in
 		switch s {
 		case api.ImagePullCredentialsStrategyDockerHub:
 			exitCode = e.injectImagePullSecretsForDockerHub(callback, c.EnvVars)
+    case api.ImagePullCredentialsStrategyECR:
+      exitCode = e.injectImagePullSecretsForECR(callback, c.EnvVars)
 		default:
 			callback(NewCommandOutputEvent(fmt.Sprintf("Unknown Handler for credential type %s\n", s)))
 			exitCode = 1
@@ -217,6 +219,43 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForDockerHub(callback Even
 	}
 
 	loginCmd := `echo $DOCKERHUB_PASSWORD | docker login --username $DOCKERHUB_USERNAME --password-stdin`
+
+	callback(NewCommandOutputEvent(loginCmd + "\n"))
+
+	cmd := exec.Command("bash", "-c", loginCmd)
+	cmd.Env = env
+
+	out, err := cmd.CombinedOutput()
+
+	for _, line := range strings.Split(string(out), "\n") {
+		callback(NewCommandOutputEvent(line + "\n"))
+	}
+
+	if err != nil {
+		return 1
+	}
+
+	return 0
+}
+
+func (e *DockerComposeExecutor) injectImagePullSecretsForECR(callback EventHandler, envVars []api.EnvVar) int {
+	callback(NewCommandOutputEvent("Setting up credentials for ECR\n"))
+
+	env := []string{}
+
+	for _, e := range envVars {
+		name := e.Name
+		value, err := e.Decode()
+
+		if err != nil {
+			callback(NewCommandOutputEvent(fmt.Sprintf("Failed to decode %s\n", name)))
+			return 1
+		}
+
+		env = append(env, fmt.Sprintf("%s=%s", name, ShellQuote(string(value))))
+	}
+
+	loginCmd := `$(aws ecr get-login --no-include-email --region $AWS_REGION)`
 
 	callback(NewCommandOutputEvent(loginCmd + "\n"))
 
