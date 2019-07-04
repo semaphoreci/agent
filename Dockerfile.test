@@ -5,7 +5,7 @@ RUN apt-get update && \
   apt-get install curl -y && \
   curl -sSL https://get.docker.com/ | sh && \
   apt-get install -y ssh && \
-  pip install docker-compose
+  pip install docker-compose awscli
 
 ADD server.key /app/server.key
 ADD server.crt /app/server.crt

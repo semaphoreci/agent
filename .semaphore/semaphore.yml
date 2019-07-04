@@ -91,9 +91,13 @@ blocks:
     dependencies:
       - "Tests"
     task:
+      secrets:
+        - name: aws-ecr-payground
       env_vars:
         - name: GO111MODULE
           value: "on"
+        - name: AWS_REGION
+          value: "us-east-1"
 
       prologue:
         commands:
@@ -156,9 +160,17 @@ blocks:
           commands:
             - make e2e TEST=docker/dockerhub_private_image
 
+        - name: ECR Login
+          commands:
+            - make e2e TEST=docker/docker_private_image_ecr
+
         - name: DockerHub Login Failed
           commands:
             - make e2e TEST=docker/dockerhub_private_image_bad_creds
+
+        - name: ECR Login Failed
+          commands:
+            - make e2e TEST=docker/docker_private_image_ecr_bad_creds
 
         - name: SSH Jump Point
           commands:
