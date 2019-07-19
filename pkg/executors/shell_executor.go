@@ -38,7 +38,7 @@ func NewShellExecutor(request *api.JobRequest) *ShellExecutor {
 }
 
 func (e *ShellExecutor) Prepare() int {
-	e.terminal = exec.Command("bash", "--login -O huponexit")
+	e.terminal = exec.Command("bash", "--login", "-O huponexit")
 
 	return e.setUpSSHJumpPoint()
 }
