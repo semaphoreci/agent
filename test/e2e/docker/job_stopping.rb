@@ -23,7 +23,7 @@ start_job <<-JSON
     "files": [],
 
     "commands": [
-      { "directive": "sleep 10" },
+      { "directive": "sleep infinity" },
       { "directive": "echo 'here'" }
     ],
 
@@ -36,7 +36,7 @@ start_job <<-JSON
   }
 JSON
 
-wait_for_command_to_start("sleep 10")
+wait_for_command_to_start("sleep infinity")
 
 sleep 1
 
@@ -55,7 +55,7 @@ assert_job_log <<-LOG
   {"event":"cmd_finished", "timestamp":"*", "directive":"Exporting environment variables","exit_code":0,"finished_at":"*","started_at":"*"}
   {"event":"cmd_started",  "timestamp":"*", "directive":"Injecting Files"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"Injecting Files","exit_code":0,"finished_at":"*","started_at":"*"}
-  {"event":"cmd_started",  "timestamp":"*", "directive":"sleep 10"}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"sleep 10","exit_code":1,"finished_at":"*","started_at":"*"}
-  {"event":"job_finished", "timestamp":"*", "result":"failed"}
+  {"event":"cmd_started",  "timestamp":"*", "directive":"sleep infinity"}
+  {"event":"cmd_finished", "timestamp":"*", "directive":"sleep infinity","exit_code":1,"finished_at":"*","started_at":"*"}
+  {"event":"job_finished", "timestamp":"*", "result":"stopped"}
 LOG

@@ -24,6 +24,17 @@ type Job struct {
 	Stopped        bool
 
 	logfile *os.File // TODO: extract me
+
+	//
+	// The Teardown phase can be entered either after:
+	//  - a regular job execution ends
+	//  - from the Job.Stop procedure
+	//
+	// With this lock, we are making sure that only one Teardown is
+	// executed. This solves the race condition where both the job finishes
+	// and the job stops at the same time.
+	//
+	TeardownLock Lock
 }
 
 func NewJob(request *api.JobRequest) (*Job, error) {
@@ -110,21 +121,7 @@ func (job *Job) Run() {
 		}
 	}
 
-	log.Printf("Sending finished callback.")
-	job.SendFinishedCallback(result)
-
-	LogJobFinish(job.logfile, result)
-
-	log.Printf("Waiting for archivator")
-
-	job.WaitForArchivator()
-
-	log.Printf("Archivator finished")
-
-	job.logfile.Sync()
-	job.logfile.Close()
-
-	log.Printf("Job Teardown Finished")
+	job.Teardown(result)
 }
 
 func (job *Job) PrepareEnvironment() int {
@@ -186,15 +183,36 @@ func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command) int {
 	return lastExitCode
 }
 
-func (job *Job) WaitForArchivator() {
+func (job *Job) Teardown(result string) {
+	if !job.TeardownLock.TryLock() {
+		log.Printf("[warning] Duplicate attempts to enter the Teardown phase")
+		return
+	}
+
+	log.Printf("Job Teardown Started")
+
+	log.Printf("Sending finished callback.")
+	job.SendFinishedCallback(result)
+	LogJobFinish(job.logfile, result)
+
+	log.Printf("Waiting for archivator")
+
 	for {
 		if job.JobLogArchived {
-			job.SendTeardownFinishedCallback()
 			break
+		} else {
+			time.Sleep(1000 * time.Millisecond)
 		}
-
-		time.Sleep(1000 * time.Millisecond)
 	}
+
+	job.SendTeardownFinishedCallback()
+
+	log.Printf("Archivator finished")
+
+	job.logfile.Sync()
+	job.logfile.Close()
+
+	log.Printf("Job Teardown Finished")
 }
 
 func (j *Job) Stop() {
@@ -204,9 +222,13 @@ func (j *Job) Stop() {
 
 	log.Printf("Invoking process stopping")
 
-	j.Executor.Stop()
+	PreventPanicPropagation(func() {
+		j.Executor.Stop()
+	})
 
-	log.Printf("Process stopping finished. The run method should notice, and send the finished callback")
+	log.Printf("Process stopping finished. Entering the Teardown phase.")
+
+	j.Teardown("stopped")
 }
 
 func LogJobStart(logfile *os.File) {
