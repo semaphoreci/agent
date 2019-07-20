@@ -1,4 +1,35 @@
-FROM ubuntu
+FROM phusion/baseimage
+
+#
+# For our tests to be realistic, we need to run our tests in an environment
+# that has an `init` process as PID 1. We are using phusion/baseimage for that.
+#
+# Job Stopping works a bit differently on systems that have an init system.
+#
+# For example, if we run our tests in an regular ubuntu image, we will get the
+# following structure:
+#
+# (pid 1) agent
+#          | -> bash
+#                 | -> sleep inifinity (example user command)
+#
+# Then, when we kill bash with -9, our sleep commands also dies.
+# However, if the system has an init process on the top:
+#
+# (pid 1) init
+#          | -> agent
+#                 | -> bash
+#                      | -> sleep inifinity (example user command)
+#
+# Then, when we kill the bash with -9, the init process takes over ownership of
+# the process.
+#
+# (pid 1) init
+#          | -> sleep inifinity (example user command)
+#          | -> agent
+#
+# And the user command continues to run.
+#
 
 RUN apt-get update && \
   apt-get install -y python python-dev python-distribute python-pip && \
@@ -7,10 +38,14 @@ RUN apt-get update && \
   apt-get install -y ssh && \
   pip install docker-compose awscli
 
-ADD server.key /app/server.key
-ADD server.crt /app/server.crt
-ADD build/agent /app/agent
+ADD server.key server.key
+ADD server.crt server.crt
+ADD build/agent agent
 
-WORKDIR /app
+# Start up the agent
+RUN mkdir /etc/service/agent
+ADD docker_test_init_agent_script.sh /etc/service/agent/run
+RUN chmod +x /etc/service/agent/run
 
-CMD service ssh restart && ./agent serve
+# Start up the SSH server
+RUN rm -f /etc/service/sshd/down # enable SSH server
