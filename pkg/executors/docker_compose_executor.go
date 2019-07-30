@@ -632,11 +632,11 @@ func (e *DockerComposeExecutor) RunCommand(command string, callback EventHandler
 func (e *DockerComposeExecutor) Stop() int {
 	log.Println("Starting the process killing procedure")
 
-	err := e.terminal.Process.Kill()
+	killCmd := exec.Command("docker-compose", "kill")
 
+	err := killCmd.Run()
 	if err != nil {
-		log.Printf("Process killing procedure returned an erorr %+v\n", err)
-
+		log.Printf("Failed to execute docker-compose kill, err: %s", err)
 		return 0
 	}
 
