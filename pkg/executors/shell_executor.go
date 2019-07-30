@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	pty "github.com/kr/pty"
@@ -395,8 +396,30 @@ func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
 func (e *ShellExecutor) Stop() int {
 	log.Println("Starting the process killing procedure")
 
-	err := e.terminal.Process.Kill()
+	//
+	// The terminal process, bash --login in our case, is the session leader
+	// for all the processes started in the tests.
+	//
+	// Passing a negative value PID to the Kill syscal, will kill all the
+	// started in that bash session that are not explicly detched or deamonized.
+	//
+	// Read the Advanced programming in the Unix environement Chapter 9 for
+	// more details about process relationships.
+	//
 
+	pid := e.terminal.Process.Pid
+	log.Printf("Terminal PID: %d\n", pid)
+
+	pgid, err := syscall.Getpgid(pid)
+	if err != nil {
+		log.Printf("[err] Failed to lookup terminal process group ID, err: %s", err)
+		return 0
+	}
+	log.Printf("Terminal PGID %d\n", pgid)
+
+	log.Printf("Executing KILL with %d\n", -pgid)
+
+	err = syscall.Kill(-pgid, syscall.SIGKILL)
 	if err != nil {
 		log.Printf("Process killing procedure returned an erorr %+v\n", err)
 		return 0
