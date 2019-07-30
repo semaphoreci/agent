@@ -68,6 +68,17 @@ def wait_for_job_to_finish
   end
 end
 
+def assert_has_no_running_process(cmd)
+  running_processes = `ps j -A | grep "#{cmd}" | grep -v grep`
+
+  if running_processes.include?(cmd)
+    puts running_processes
+    puts
+
+    abort "(fail) Process '#{cmd}' is still running"
+  end
+end
+
 def assert_job_log(expected_log)
   puts "========================="
   puts "Asserting Job Logs"

@@ -43,3 +43,5 @@ assert_job_log <<-LOG
   {"event":"cmd_finished", "timestamp":"*", "directive":"sleep infinity","exit_code":1,"finished_at":"*","started_at":"*"}
   {"event":"job_finished", "timestamp":"*", "result":"stopped"}
 LOG
+
+assert_has_no_running_process("sleep")
