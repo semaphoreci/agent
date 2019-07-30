@@ -60,4 +60,6 @@ assert_job_log <<-LOG
   {"event":"job_finished", "timestamp":"*", "result":"stopped"}
 LOG
 
+sleep 3
+
 assert_has_no_running_process("sleep")
