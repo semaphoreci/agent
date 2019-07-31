@@ -407,19 +407,19 @@ func (e *ShellExecutor) Stop() int {
 	// more details about process relationships.
 	//
 
-	pid := e.terminal.Process.Pid
-	log.Printf("Terminal PID: %d\n", pid)
+	err := e.terminal.Process.Signal(syscall.SIGHUP)
+	// log.Printf("Terminal PID: %d\n", pid)
 
-	pgid, err := syscall.Getpgid(pid)
-	if err != nil {
-		log.Printf("[err] Failed to lookup terminal process group ID, err: %s", err)
-		return 0
-	}
-	log.Printf("Terminal PGID %d\n", pgid)
+	// pgid, err := syscall.Getpgid(pid)
+	// if err != nil {
+	// 	log.Printf("[err] Failed to lookup terminal process group ID, err: %s", err)
+	// 	return 0
+	// }
+	// log.Printf("Terminal PGID %d\n", pgid)
 
-	log.Printf("Executing KILL with %d\n", -pgid)
+	// log.Printf("Executing KILL with %d\n", -pgid)
 
-	err = syscall.Kill(-pgid, syscall.SIGKILL)
+	// err = syscall.Kill(-pgid, syscall.SIGKILL)
 	if err != nil {
 		log.Printf("Process killing procedure returned an erorr %+v\n", err)
 		return 0
