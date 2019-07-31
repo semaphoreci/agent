@@ -96,6 +96,7 @@ func (e *ShellExecutor) silencePromptAndDisablePS1() {
 	e.stdin.Write([]byte("export PS1=''\n"))
 	e.stdin.Write([]byte("stty -echo\n"))
 	e.stdin.Write([]byte("echo stty `stty -g` > /tmp/restore-tty\n"))
+	e.stdin.Write([]byte("shopt -s huponexit"))
 	e.stdin.Write([]byte("cd ~\n"))
 	e.stdin.Write([]byte("echo '" + everythingIsReadyMark + "'\n"))
 

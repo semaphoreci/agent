@@ -7,6 +7,7 @@ require (
 	github.com/gorilla/mux v1.6.2
 	github.com/kr/pty v1.1.3
 	github.com/sethgrid/pester v0.0.0-20190127155807-68a33a018ad0
+	github.com/sevlyar/go-daemon v0.1.5
 	github.com/spf13/pflag v1.0.3
 	github.com/stretchr/testify v1.3.0
 	golang.org/x/crypto v0.0.0-20190131182504-b8fe1690c613

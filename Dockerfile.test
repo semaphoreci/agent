@@ -13,4 +13,4 @@ ADD build/agent /app/agent
 
 WORKDIR /app
 
-CMD service ssh restart && ./agent serve
+CMD service ssh restart && sleep infinity
