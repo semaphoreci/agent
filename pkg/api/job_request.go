@@ -126,7 +126,7 @@ func (c *ImagePullCredentials) Strategy() (string, error) {
 			case ImagePullCredentialsStrategyECR:
 				return ImagePullCredentialsStrategyECR, nil
 			case ImagePullCredentialsStrategyGCR:
-				return ImagePullCredentialsStrategyECR, nil
+				return ImagePullCredentialsStrategyGCR, nil
 			default:
 				return "", fmt.Errorf("Unknown DOCKER_CREDENTIAL_TYPE: '%s'", v)
 			}

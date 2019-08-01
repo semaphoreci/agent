@@ -179,6 +179,8 @@ func (e *DockerComposeExecutor) injectImagePullSecrets(callback EventHandler) in
 			exitCode = e.injectImagePullSecretsForDockerHub(callback, c.EnvVars)
 		case api.ImagePullCredentialsStrategyECR:
 			exitCode = e.injectImagePullSecretsForECR(callback, c.EnvVars)
+		case api.ImagePullCredentialsStrategyGCR:
+			exitCode = e.injectImagePullSecretsForGCR(callback, c.EnvVars, c.Files)
 		default:
 			callback(NewCommandOutputEvent(fmt.Sprintf("Unknown Handler for credential type %s\n", s)))
 			exitCode = 1
@@ -256,6 +258,96 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForECR(callback EventHandl
 	}
 
 	loginCmd := `$(aws ecr get-login --no-include-email --region $AWS_REGION)`
+
+	callback(NewCommandOutputEvent(loginCmd + "\n"))
+
+	cmd := exec.Command("bash", "-c", loginCmd)
+	cmd.Env = env
+
+	out, err := cmd.CombinedOutput()
+
+	for _, line := range strings.Split(string(out), "\n") {
+		callback(NewCommandOutputEvent(line + "\n"))
+	}
+
+	if err != nil {
+		return 1
+	}
+
+	return 0
+}
+
+func (e *DockerComposeExecutor) injectImagePullSecretsForGCR(callback EventHandler, envVars []api.EnvVar, files []api.File) int {
+	callback(NewCommandOutputEvent("Setting up credentials for GCR\n"))
+
+	for _, f := range files {
+
+		content, err := f.Decode()
+
+		if err != nil {
+			callback(NewCommandOutputEvent("Failed to decode content of file.\n"))
+			return 1
+		}
+
+		tmpPath := fmt.Sprintf("%s/file", e.tmpDirectory)
+
+		err = ioutil.WriteFile(tmpPath, []byte(content), 0644)
+		if err != nil {
+			callback(NewCommandOutputEvent(err.Error() + "\n"))
+			return 1
+		}
+
+		destPath := ""
+
+		if f.Path[0] == '/' || f.Path[0] == '~' {
+			destPath = f.Path
+		} else {
+			destPath = "~/" + f.Path
+		}
+
+		fileCmd := fmt.Sprintf("mkdir -p %s", path.Dir(destPath))
+		cmd := exec.Command("bash", "-c", fileCmd)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			output := fmt.Sprintf("Failed to create destination path %s, cmd: %s, out: %s", destPath, err, out)
+			callback(NewCommandOutputEvent(output + "\n"))
+			return 1
+		}
+
+		fileCmd = fmt.Sprintf("cp %s %s", tmpPath, destPath)
+		cmd = exec.Command("bash", "-c", fileCmd)
+		out, err = cmd.CombinedOutput()
+		if err != nil {
+			output := fmt.Sprintf("Failed to move to destination path %s %s, cmd: %s, out: %s", tmpPath, destPath, err, out)
+			callback(NewCommandOutputEvent(output + "\n"))
+			return 1
+		}
+
+		fileCmd = fmt.Sprintf("chmod %s %s", f.Mode, destPath)
+		cmd = exec.Command("bash", "-c", fileCmd)
+		out, err = cmd.CombinedOutput()
+		if err != nil {
+			output := fmt.Sprintf("Failed to set file mode to %s, cmd: %s, out: %s", f.Mode, err, out)
+			callback(NewCommandOutputEvent(output + "\n"))
+			return 1
+		}
+	}
+
+	env := []string{}
+
+	for _, e := range envVars {
+		name := e.Name
+		value, err := e.Decode()
+
+		if err != nil {
+			callback(NewCommandOutputEvent(fmt.Sprintf("Failed to decode %s\n", name)))
+			return 1
+		}
+
+		env = append(env, fmt.Sprintf("%s=%s", name, ShellQuote(string(value))))
+	}
+
+	loginCmd := `cat /tmp/gcr/keyfile.json | docker login -u _json_key --password-stdin https://$GCR_HOSTNAME`
 
 	callback(NewCommandOutputEvent(loginCmd + "\n"))
 

@@ -93,6 +93,7 @@ blocks:
     task:
       secrets:
         - name: aws-ecr-payground
+        - name: gcr-test-secret
       env_vars:
         - name: GO111MODULE
           value: "on"
@@ -164,6 +165,10 @@ blocks:
           commands:
             - make e2e TEST=docker/docker_private_image_ecr
 
+        - name: GCR Login
+          commands:
+            - make e2e TEST=docker/docker_private_image_gcr
+
         - name: DockerHub Login Failed
           commands:
             - make e2e TEST=docker/dockerhub_private_image_bad_creds
@@ -171,6 +176,10 @@ blocks:
         - name: ECR Login Failed
           commands:
             - make e2e TEST=docker/docker_private_image_ecr_bad_creds
+
+        - name: GCR Login Failed
+          commands:
+            - make e2e TEST=docker/docker_private_image_gcr_bad_creds
 
         - name: SSH Jump Point
           commands:
