@@ -13,7 +13,7 @@ start_job <<-JSON
       "containers": [
         {
           "name": "main",
-          "image": "501965974906.dkr.ecr.us-east-1.amazonaws.com/ecr-playground:latest"
+          "image": "#{ENV['AWS_IMAGE']}"
         }
       ],
 
