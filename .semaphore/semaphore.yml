@@ -94,6 +94,7 @@ blocks:
       secrets:
         - name: aws-ecr-payground
         - name: gcr-test-secret
+        - name: docker-registry-test-secret
       env_vars:
         - name: GO111MODULE
           value: "on"
@@ -161,6 +162,10 @@ blocks:
           commands:
             - make e2e TEST=docker/dockerhub_private_image
 
+        - name: DockerRegistry Login
+          commands:
+            - make e2e TEST=docker/docker_registry_private_image
+
         - name: ECR Login
           commands:
             - make e2e TEST=docker/docker_private_image_ecr
@@ -172,6 +177,10 @@ blocks:
         - name: DockerHub Login Failed
           commands:
             - make e2e TEST=docker/dockerhub_private_image_bad_creds
+
+        - name: DockerRegistry Login Failed
+          commands:
+            - make e2e TEST=docker/docker_registry_private_image_bad_creds
 
         - name: ECR Login Failed
           commands:
