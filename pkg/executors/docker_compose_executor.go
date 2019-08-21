@@ -179,6 +179,8 @@ func (e *DockerComposeExecutor) injectImagePullSecrets(callback EventHandler) in
 			exitCode = e.injectImagePullSecretsForDockerHub(callback, c.EnvVars)
 		case api.ImagePullCredentialsStrategyECR:
 			exitCode = e.injectImagePullSecretsForECR(callback, c.EnvVars)
+		case api.ImagePullCredentialsStrategyGenericDocker:
+			exitCode = e.injectImagePullSecretsForGenericDocker(callback, c.EnvVars)
 		case api.ImagePullCredentialsStrategyGCR:
 			exitCode = e.injectImagePullSecretsForGCR(callback, c.EnvVars, c.Files)
 		default:
@@ -221,6 +223,43 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForDockerHub(callback Even
 	}
 
 	loginCmd := `echo $DOCKERHUB_PASSWORD | docker login --username $DOCKERHUB_USERNAME --password-stdin`
+
+	callback(NewCommandOutputEvent(loginCmd + "\n"))
+
+	cmd := exec.Command("bash", "-c", loginCmd)
+	cmd.Env = env
+
+	out, err := cmd.CombinedOutput()
+
+	for _, line := range strings.Split(string(out), "\n") {
+		callback(NewCommandOutputEvent(line + "\n"))
+	}
+
+	if err != nil {
+		return 1
+	}
+
+	return 0
+}
+
+func (e *DockerComposeExecutor) injectImagePullSecretsForGenericDocker(callback EventHandler, envVars []api.EnvVar) int {
+	callback(NewCommandOutputEvent("Setting up credentials for Docker\n"))
+
+	env := []string{}
+
+	for _, e := range envVars {
+		name := e.Name
+		value, err := e.Decode()
+
+		if err != nil {
+			callback(NewCommandOutputEvent(fmt.Sprintf("Failed to decode %s\n", name)))
+			return 1
+		}
+
+		env = append(env, fmt.Sprintf("%s=%s", name, ShellQuote(string(value))))
+	}
+
+	loginCmd := `docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD" $DOCKER_URL`
 
 	callback(NewCommandOutputEvent(loginCmd + "\n"))
 

@@ -108,6 +108,7 @@ func (f *File) Decode() ([]byte, error) {
 }
 
 const ImagePullCredentialsStrategyDockerHub = "DockerHub"
+const ImagePullCredentialsStrategyGenericDocker = "GenericDocker"
 const ImagePullCredentialsStrategyECR = "AWS_ECR"
 const ImagePullCredentialsStrategyGCR = "GCR"
 
@@ -123,6 +124,8 @@ func (c *ImagePullCredentials) Strategy() (string, error) {
 			switch string(v) {
 			case ImagePullCredentialsStrategyDockerHub:
 				return ImagePullCredentialsStrategyDockerHub, nil
+			case ImagePullCredentialsStrategyGenericDocker:
+				return ImagePullCredentialsStrategyGenericDocker, nil
 			case ImagePullCredentialsStrategyECR:
 				return ImagePullCredentialsStrategyECR, nil
 			case ImagePullCredentialsStrategyGCR:
