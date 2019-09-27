@@ -64,6 +64,11 @@ assert_job_log <<-LOG
   {"directive":"Pulling docker images...","event":"cmd_started","timestamp":"*"}
   *** LONG_OUTPUT ***
   {"directive":"Pulling docker images...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
+
+  {"event":"cmd_started",  "timestamp":"*", "directive":"Starting the docker image..."}
+  {"event":"cmd_output",   "timestamp":"*", "output":"Starting a new bash session.\\n"}
+  {"event":"cmd_finished", "timestamp":"*", "directive":"Starting the docker image...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
+
   {"directive":"Exporting environment variables","event":"cmd_started","timestamp":"*"}
   {"directive":"Exporting environment variables","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
   {"directive":"Injecting Files","event":"cmd_started","timestamp":"*"}
