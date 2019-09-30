@@ -3,6 +3,15 @@
 
 require_relative '../../e2e'
 
+#
+# Not every Docker image has pre-installed bash. For example the Alpine docker
+# image.
+#
+# This test verifies the behaviour of the Agent in case bash is not part of the
+# standard PATH. In these scenarios, we expect to see a warning displayed to the
+# customer.
+#
+
 start_job <<-JSON
   {
     "id": "#{$JOB_ID}",
@@ -13,7 +22,7 @@ start_job <<-JSON
       "containers": [
         {
           "name": "main",
-          "image": "ruby:2.6"
+          "image": "alpine"
         }
       ]
     },
@@ -23,7 +32,7 @@ start_job <<-JSON
     "files": [],
 
     "commands": [
-      { "directive": "false" }
+      { "directive": "echo Hello World" }
     ],
 
     "epilogue_always_commands": [],
@@ -45,15 +54,8 @@ assert_job_log <<-LOG
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"Starting the docker image..."}
   {"event":"cmd_output",   "timestamp":"*", "output":"Starting a new bash session.\\n"}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"Starting the docker image...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"*"}
+  {"event":"cmd_finished", "timestamp":"*", "directive":"Starting the docker image...","event":"cmd_finished","exit_code":1,"finished_at":"*","started_at":"*","timestamp":"*"}
 
-  {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"Exporting environment variables","exit_code":0,"finished_at":"*","started_at":"*"}
-  {"event":"cmd_started",  "timestamp":"*", "directive":"Injecting Files"}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"Injecting Files","exit_code":0,"finished_at":"*","started_at":"*"}
-  {"event":"cmd_started",  "timestamp":"*", "directive":"false"}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"false","exit_code":1,"finished_at":"*","started_at":"*"}
-  {"event":"cmd_started",  "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=failed"}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=failed","exit_code":0,"finished_at":"*","started_at":"*"}
   {"event":"job_finished", "timestamp":"*", "result":"failed"}
 LOG

@@ -194,6 +194,10 @@ blocks:
           commands:
             - make e2e TEST=docker/ssh_jump_points
 
+        - name: "No Bash"
+          commands:
+            - make e2e TEST=docker/no_bash
+
 promotions:
   - name: Release
     pipeline_file: "release.yml"

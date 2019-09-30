@@ -120,6 +120,31 @@ func (e *DockerComposeExecutor) Start(callback EventHandler) int {
 		return exitCode
 	}
 
+	exitCode = e.startBashSession(callback)
+
+	return exitCode
+}
+
+func (e *DockerComposeExecutor) startBashSession(callback EventHandler) int {
+	commandStartedAt := int(time.Now().Unix())
+	directive := "Starting the docker image..."
+	exitCode := 0
+
+	callback(NewCommandStartedEvent(directive))
+
+	defer func() {
+		commandFinishedAt := int(time.Now().Unix())
+
+		callback(NewCommandFinishedEvent(
+			directive,
+			exitCode,
+			commandStartedAt,
+			commandFinishedAt,
+		))
+	}()
+
+	callback(NewCommandOutputEvent("Starting a new bash session.\n"))
+
 	log.Printf("Starting stateful shell")
 
 	e.terminal = exec.Command(
@@ -141,7 +166,9 @@ func (e *DockerComposeExecutor) Start(callback EventHandler) int {
 	tty, err := pty.Start(e.terminal)
 	if err != nil {
 		log.Printf("Failed to start stateful shell err: %+v", err)
-		return 1
+		callback(NewCommandOutputEvent("Failed to start the docker image"))
+		exitCode := 1
+		return exitCode
 	}
 
 	e.stdin = tty
@@ -149,9 +176,9 @@ func (e *DockerComposeExecutor) Start(callback EventHandler) int {
 
 	time.Sleep(1000)
 
-	e.silencePromptAndDisablePS1()
+	exitCode = e.silencePromptAndDisablePS1(callback)
 
-	return 0
+	return exitCode
 }
 
 func (e *DockerComposeExecutor) injectImagePullSecrets(callback EventHandler) int {
@@ -452,7 +479,7 @@ func (e *DockerComposeExecutor) pullDockerImages(callback EventHandler) int {
 	return exitCode
 }
 
-func (e *DockerComposeExecutor) silencePromptAndDisablePS1() {
+func (e *DockerComposeExecutor) silencePromptAndDisablePS1(callback EventHandler) int {
 	everythingIsReadyMark := "87d140552e404df69f6472729d2b2c3"
 
 	e.stdin.Write([]byte("export PS1=''\n"))
@@ -481,16 +508,31 @@ func (e *DockerComposeExecutor) silencePromptAndDisablePS1() {
 
 	log.Println("Waiting for initialization")
 
+	sessionInitilized := false
+
 	for stdoutScanner.Scan() {
 		text := stdoutScanner.Text()
-
 		log.Printf("(tty) %s\n", text)
+
+		// Docker deamon has an issue, no further processing is neaded
+		if strings.Contains(text, "Error response from daemon") {
+			callback(NewCommandOutputEvent(fmt.Sprintf("%s\n", text)))
+			break
+		}
+
 		if !strings.Contains(text, "echo") && strings.Contains(text, everythingIsReadyMark) {
+			sessionInitilized = true
 			break
 		}
 	}
 
-	log.Println("Initialization complete")
+	if sessionInitilized {
+		log.Println("Initialization complete")
+		return 0
+	} else {
+		log.Println("Initialization failed")
+		return 1
+	}
 }
 
 func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, callback EventHandler) int {
