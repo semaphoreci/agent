@@ -55,6 +55,9 @@ func NewServer(host string, port int, tlsCertPath, tlsKeyPath, version string, l
 
 	jwtMiddleware := CreateJwtMiddleware(jwtSecret)
 
+	// The path to check if agent is running
+	router.HandleFunc("/is_alive", server.isAlive).Methods("GET")
+
 	router.HandleFunc("/status", jwtMiddleware(server.Status)).Methods("GET")
 	router.HandleFunc("/jobs", jwtMiddleware(server.Run)).Methods("POST")
 
@@ -97,6 +100,12 @@ func (s *Server) Status(w http.ResponseWriter, r *http.Request) {
 	jsonString, _ := json.Marshal(m)
 
 	fmt.Fprintf(w, string(jsonString))
+}
+
+func (s *Server) isAlive(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(200)
+
+	fmt.Fprintf(w, "yes")
 }
 
 func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
