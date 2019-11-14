@@ -6,7 +6,6 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path"
@@ -42,7 +41,7 @@ func NewDockerComposeExecutor(request *api.JobRequest) *DockerComposeExecutor {
 		tmpDirectory:              "/tmp/agent-temp-directory", // make a better random name
 
 		// during testing the name main gets taken up, if we make it random we avoid headaches
-		mainContainerName: fmt.Sprintf("main-%d", rand.Intn(1000000)),
+		mainContainerName: fmt.Sprintf("%s", request.Compose.Containers[0].Name),
 	}
 }
 
@@ -159,7 +158,7 @@ func (e *DockerComposeExecutor) startBashSession(callback EventHandler) int {
 		"/var/run/docker.sock:/var/run/docker.sock",
 		"-v",
 		fmt.Sprintf("%s:%s:ro", e.tmpDirectory, e.tmpDirectory),
-		"main",
+		e.mainContainerName,
 		"bash",
 	)
 

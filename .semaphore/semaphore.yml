@@ -198,6 +198,10 @@ blocks:
           commands:
             - make e2e TEST=docker/no_bash
 
+        - name: "Container custom name"
+          commands:
+            - make e2e TEST=docker/container_custom_name
+
 promotions:
   - name: Release
     pipeline_file: "release.yml"
