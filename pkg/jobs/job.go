@@ -2,13 +2,12 @@ package jobs
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	executors "github.com/semaphoreci/agent/pkg/executors"
 	pester "github.com/sethgrid/pester"
 )
@@ -19,11 +18,10 @@ const JOB_FAILED = "failed"
 type Job struct {
 	Request  *api.JobRequest
 	Executor executors.Executor
+	Logger   eventlogger.EventLogger
 
 	JobLogArchived bool
 	Stopped        bool
-
-	logfile *os.File // TODO: extract me
 
 	//
 	// The Teardown phase can be entered either after:
@@ -44,20 +42,17 @@ func NewJob(request *api.JobRequest) (*Job, error) {
 		request.Executor = executors.ExecutorTypeShell
 	}
 
-	executor, err := executors.CreateExecutor(request)
+	logger, err := eventlogger.Default()
+	if err != nil {
+		return nil, err
+	}
 
+	executor, err := executors.CreateExecutor(request, logger)
 	if err != nil {
 		return nil, err
 	}
 
 	log.Printf("Job Request %+v\n", request)
-
-	// TODO: find better place for this
-	logfile, err := os.Create("/tmp/job_log.json")
-	if err != nil {
-		panic(err)
-	}
-
 	log.Printf("Constructed job")
 
 	return &Job{
@@ -65,21 +60,8 @@ func NewJob(request *api.JobRequest) (*Job, error) {
 		Executor:       executor,
 		JobLogArchived: false,
 		Stopped:        false,
-		logfile:        logfile,
+		Logger:         logger,
 	}, nil
-}
-
-func (job *Job) EventHandler(event interface{}) {
-	switch e := event.(type) {
-	case *executors.CommandStartedEvent:
-		LogCmdStarted(job.logfile, e.Timestamp, e.Directive)
-	case *executors.CommandOutputEvent:
-		LogCmdOutput(job.logfile, e.Timestamp, e.Output)
-	case *executors.CommandFinishedEvent:
-		LogCmdFinished(job.logfile, e.Timestamp, e.Directive, e.ExitCode, e.StartedAt, e.FinishedAt)
-	default:
-		log.Printf("(err) Unknown executor event event: %+v", e)
-	}
 }
 
 func (job *Job) Run() {
@@ -87,7 +69,7 @@ func (job *Job) Run() {
 	executorRunning := false
 	result := JOB_FAILED
 
-	LogJobStart(job.logfile)
+	job.Logger.LogJobStarted()
 
 	exitCode := job.PrepareEnvironment()
 	if exitCode == 0 {
@@ -131,7 +113,7 @@ func (job *Job) PrepareEnvironment() int {
 		return exitCode
 	}
 
-	exitCode = job.Executor.Start(job.EventHandler)
+	exitCode = job.Executor.Start()
 	if exitCode != 0 {
 		log.Printf("Failed to start executor")
 		return exitCode
@@ -141,14 +123,14 @@ func (job *Job) PrepareEnvironment() int {
 }
 
 func (job *Job) RunRegularCommands() string {
-	exitCode := job.Executor.ExportEnvVars(job.Request.EnvVars, job.EventHandler)
+	exitCode := job.Executor.ExportEnvVars(job.Request.EnvVars)
 	if exitCode != 0 {
 		log.Printf("Failed to export env vars")
 
 		return JOB_FAILED
 	}
 
-	exitCode = job.Executor.InjectFiles(job.Request.Files, job.EventHandler)
+	exitCode = job.Executor.InjectFiles(job.Request.Files)
 	if exitCode != 0 {
 		log.Printf("Failed to inject files")
 
@@ -173,7 +155,7 @@ func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command) int {
 			return 1
 		}
 
-		lastExitCode = job.Executor.RunCommand(c.Directive, job.EventHandler)
+		lastExitCode = job.Executor.RunCommand(c.Directive)
 
 		if lastExitCode != 0 {
 			break
@@ -193,7 +175,7 @@ func (job *Job) Teardown(result string) {
 
 	log.Printf("Sending finished callback.")
 	job.SendFinishedCallback(result)
-	LogJobFinish(job.logfile, result)
+	job.Logger.LogJobFinished(result)
 
 	log.Printf("Waiting for archivator")
 
@@ -209,8 +191,10 @@ func (job *Job) Teardown(result string) {
 
 	log.Printf("Archivator finished")
 
-	job.logfile.Sync()
-	job.logfile.Close()
+	err := job.Logger.Close()
+	if err != nil {
+		log.Printf("Event Logger error %+v", err)
+	}
 
 	log.Printf("Job Teardown Finished")
 }
@@ -229,89 +213,6 @@ func (j *Job) Stop() {
 	log.Printf("Process stopping finished. Entering the Teardown phase.")
 
 	j.Teardown("stopped")
-}
-
-func LogJobStart(logfile *os.File) {
-	log.Printf("Logging job start")
-
-	m := make(map[string]interface{})
-
-	m["event"] = "job_started"
-	m["timestamp"] = int(time.Now().Unix())
-
-	jsonString, _ := json.Marshal(m)
-
-	logfile.Write([]byte(jsonString))
-	logfile.Write([]byte("\n"))
-
-	log.Printf("%s", jsonString)
-}
-
-func LogJobFinish(logfile *os.File, result string) {
-	log.Printf("Logging job finish")
-
-	m := make(map[string]interface{})
-
-	m["event"] = "job_finished"
-	m["timestamp"] = int(time.Now().Unix())
-	m["result"] = result
-
-	jsonString, _ := json.Marshal(m)
-
-	logfile.Write([]byte(jsonString))
-	logfile.Write([]byte("\n"))
-
-	log.Printf("%s", jsonString)
-}
-
-func LogCmdStarted(logfile *os.File, timestamp int, directive string) {
-	log.Printf("Logging command started")
-
-	m := make(map[string]interface{})
-
-	m["event"] = "cmd_started"
-	m["timestamp"] = timestamp
-	m["directive"] = directive
-
-	jsonString, _ := json.Marshal(m)
-
-	logfile.Write([]byte(jsonString))
-	logfile.Write([]byte("\n"))
-
-	log.Printf("%s", jsonString)
-}
-
-func LogCmdOutput(logfile *os.File, timestamp int, output string) {
-	m := make(map[string]interface{})
-
-	m["event"] = "cmd_output"
-	m["timestamp"] = timestamp
-	m["output"] = output
-
-	jsonString, _ := json.Marshal(m)
-
-	logfile.Write([]byte(jsonString))
-	logfile.Write([]byte("\n"))
-}
-
-func LogCmdFinished(logfile *os.File, timestamp int, directive string, exitCode int, startedAt int, finishedAt int) {
-	log.Printf("Logging command finished")
-
-	m := make(map[string]interface{})
-
-	m["event"] = "cmd_finished"
-	m["timestamp"] = timestamp
-	m["directive"] = directive
-	m["exit_code"] = exitCode
-	m["started_at"] = startedAt
-	m["finished_at"] = finishedAt
-
-	jsonString, _ := json.Marshal(m)
-
-	logfile.Write([]byte(jsonString))
-	logfile.Write([]byte("\n"))
-
-	log.Printf("%s", jsonString)
 }
 
 func (job *Job) SendFinishedCallback(result string) error {

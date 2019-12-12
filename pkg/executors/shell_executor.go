@@ -16,13 +16,14 @@ import (
 
 	pty "github.com/kr/pty"
 	api "github.com/semaphoreci/agent/pkg/api"
+	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 )
 
 type ShellExecutor struct {
 	Executor
 
+	Logger        eventlogger.EventLogger
 	jobRequest    *api.JobRequest
-	eventHandler  *EventHandler
 	terminal      *exec.Cmd
 	tty           *os.File
 	stdin         io.Writer
@@ -30,8 +31,9 @@ type ShellExecutor struct {
 	tmpDirectory  string
 }
 
-func NewShellExecutor(request *api.JobRequest) *ShellExecutor {
+func NewShellExecutor(request *api.JobRequest, logger eventlogger.EventLogger) *ShellExecutor {
 	return &ShellExecutor{
+		Logger:       logger,
 		jobRequest:   request,
 		tmpDirectory: "/tmp",
 	}
@@ -130,37 +132,32 @@ func (e *ShellExecutor) silencePromptAndDisablePS1() {
 	log.Println("Initialization complete")
 }
 
-func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, callback EventHandler) int {
+func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar) int {
 	commandStartedAt := int(time.Now().Unix())
 	directive := fmt.Sprintf("Exporting environment variables")
 	exitCode := 0
 
-	callback(NewCommandStartedEvent(directive))
+	e.Logger.LogCommandStarted(directive)
 
 	defer func() {
 		commandFinishedAt := int(time.Now().Unix())
 
-		callback(NewCommandFinishedEvent(
-			directive,
-			exitCode,
-			commandStartedAt,
-			commandFinishedAt,
-		))
+		e.Logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandStartedAt)
 	}()
 
 	envFile := ""
 
-	for _, e := range envVars {
-		callback(NewCommandOutputEvent(fmt.Sprintf("Exporting %s\n", e.Name)))
+	for _, env := range envVars {
+		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", env.Name))
 
-		value, err := e.Decode()
+		value, err := env.Decode()
 
 		if err != nil {
 			exitCode = 1
 			return exitCode
 		}
 
-		envFile += fmt.Sprintf("export %s=%s\n", e.Name, ShellQuote(string(value)))
+		envFile += fmt.Sprintf("export %s=%s\n", env.Name, ShellQuote(string(value)))
 	}
 
 	err := ioutil.WriteFile("/tmp/.env", []byte(envFile), 0644)
@@ -170,12 +167,12 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, callback EventHandle
 		return exitCode
 	}
 
-	exitCode = e.RunCommand("source /tmp/.env", DevNullEventHandler)
+	exitCode = e.RunCommand("source /tmp/.env", true)
 	if exitCode != 0 {
 		return exitCode
 	}
 
-	exitCode = e.RunCommand("echo 'source /tmp/.env' >> ~/.bash_profile", DevNullEventHandler)
+	exitCode = e.RunCommand("echo 'source /tmp/.env' >> ~/.bash_profile", true)
 	if exitCode != 0 {
 		return exitCode
 	}
@@ -183,22 +180,22 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, callback EventHandle
 	return exitCode
 }
 
-func (e *ShellExecutor) InjectFiles(files []api.File, callback EventHandler) int {
+func (e *ShellExecutor) InjectFiles(files []api.File) int {
 	directive := fmt.Sprintf("Injecting Files")
 	commandStartedAt := int(time.Now().Unix())
 	exitCode := 0
 
-	callback(NewCommandStartedEvent(directive))
+	e.Logger.LogCommandStarted(directive)
 
 	for _, f := range files {
 		output := fmt.Sprintf("Injecting %s with file mode %s\n", f.Path, f.Mode)
 
-		callback(NewCommandOutputEvent(output))
+		e.Logger.LogCommandOutput(output)
 
 		content, err := f.Decode()
 
 		if err != nil {
-			callback(NewCommandOutputEvent("Failed to decode content of file.\n"))
+			e.Logger.LogCommandOutput("Failed to decode content of file.\n")
 			exitCode = 1
 			return exitCode
 		}
@@ -207,7 +204,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File, callback EventHandler) int
 
 		err = ioutil.WriteFile(tmpPath, []byte(content), 0644)
 		if err != nil {
-			callback(NewCommandOutputEvent(err.Error() + "\n"))
+			e.Logger.LogCommandOutput(err.Error() + "\n")
 			exitCode = 255
 			break
 		}
@@ -221,43 +218,38 @@ func (e *ShellExecutor) InjectFiles(files []api.File, callback EventHandler) int
 		}
 
 		cmd := fmt.Sprintf("mkdir -p %s", path.Dir(destPath))
-		exitCode = e.RunCommand(cmd, DevNullEventHandler)
+		exitCode = e.RunCommand(cmd, true)
 		if exitCode != 0 {
 			output := fmt.Sprintf("Failed to create destination path %s", destPath)
-			callback(NewCommandOutputEvent(output + "\n"))
+			e.Logger.LogCommandOutput(output + "\n")
 			break
 		}
 
 		cmd = fmt.Sprintf("cp %s %s", tmpPath, destPath)
-		exitCode = e.RunCommand(cmd, DevNullEventHandler)
+		exitCode = e.RunCommand(cmd, true)
 		if exitCode != 0 {
 			output := fmt.Sprintf("Failed to move to destination path %s %s", tmpPath, destPath)
-			callback(NewCommandOutputEvent(output + "\n"))
+			e.Logger.LogCommandOutput(output + "\n")
 			break
 		}
 
 		cmd = fmt.Sprintf("chmod %s %s", f.Mode, destPath)
-		exitCode = e.RunCommand(cmd, DevNullEventHandler)
+		exitCode = e.RunCommand(cmd, true)
 		if exitCode != 0 {
 			output := fmt.Sprintf("Failed to set file mode to %s", f.Mode)
-			callback(NewCommandOutputEvent(output + "\n"))
+			e.Logger.LogCommandOutput(output + "\n")
 			break
 		}
 	}
 
 	commandFinishedAt := int(time.Now().Unix())
 
-	callback(NewCommandFinishedEvent(
-		directive,
-		exitCode,
-		commandStartedAt,
-		commandFinishedAt,
-	))
+	e.Logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 
 	return exitCode
 }
 
-func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
+func (e *ShellExecutor) RunCommand(command string, silent bool) int {
 	var err error
 
 	log.Printf("Running command: %s", command)
@@ -273,12 +265,9 @@ func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
 	defer func() {
 		commandFinishedAt := int(time.Now().Unix())
 
-		callback(NewCommandFinishedEvent(
-			command,
-			exitCode,
-			commandStartedAt,
-			commandFinishedAt,
-		))
+		if !silent {
+			e.Logger.LogCommandFinished(command, exitCode, commandStartedAt, commandFinishedAt)
+		}
 	}()
 
 	commandEndRegex := regexp.MustCompile(finishMark + " " + `(\d)`)
@@ -307,8 +296,10 @@ func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
 	err = ioutil.WriteFile(cmdFilePath, []byte(command), 0644)
 
 	if err != nil {
-		callback(NewCommandStartedEvent(command))
-		callback(NewCommandOutputEvent(fmt.Sprintf("Failed to run command: %+v\n", err)))
+		if !silent {
+			e.Logger.LogCommandStarted(command)
+			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to run command: %+v\n", err))
+		}
 
 		return 1
 	}
@@ -341,7 +332,9 @@ func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
 			log.Printf("Detected command start")
 			streamEvents = true
 
-			callback(NewCommandStartedEvent(command))
+			if !silent {
+				e.Logger.LogCommandStarted(command)
+			}
 
 			return true
 		}
@@ -354,7 +347,9 @@ func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
 			// if there is anything else other than the command end marker
 			// print it to the user
 			if finalOutputPart[0] != "" {
-				callback(NewCommandOutputEvent(finalOutputPart[0] + "\n"))
+				if !silent {
+					e.Logger.LogCommandOutput(finalOutputPart[0] + "\n")
+				}
 			}
 
 			streamEvents = false
@@ -367,7 +362,7 @@ func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
 				if err != nil {
 					log.Printf("Panic while parsing exit status, err: %+v", err)
 
-					callback(NewCommandOutputEvent("Failed to read command exit code\n"))
+					e.Logger.LogCommandOutput("Failed to read command exit code\n")
 				}
 
 				log.Printf("Setting exit code to %d", exitCode)
@@ -375,7 +370,7 @@ func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
 				log.Printf("Failed to parse exit status")
 
 				exitCode = 1
-				callback(NewCommandOutputEvent("Failed to read command exit code\n"))
+				e.Logger.LogCommandOutput("Failed to read command exit code\n")
 			}
 
 			log.Printf("Stopping scanner")
@@ -383,7 +378,7 @@ func (e *ShellExecutor) RunCommand(command string, callback EventHandler) int {
 		}
 
 		if streamEvents {
-			callback(NewCommandOutputEvent(line + "\n"))
+			e.Logger.LogCommandOutput(line + "\n")
 		}
 
 		return true
