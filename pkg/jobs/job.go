@@ -16,9 +16,10 @@ const JOB_PASSED = "passed"
 const JOB_FAILED = "failed"
 
 type Job struct {
-	Request  *api.JobRequest
+	Request *api.JobRequest
+	Logger  *eventlogger.Logger
+
 	Executor executors.Executor
-	Logger   eventlogger.EventLogger
 
 	JobLogArchived bool
 	Stopped        bool
@@ -155,7 +156,7 @@ func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command) int {
 			return 1
 		}
 
-		lastExitCode = job.Executor.RunCommand(c.Directive)
+		lastExitCode = job.Executor.RunCommand(c.Directive, false)
 
 		if lastExitCode != 0 {
 			break

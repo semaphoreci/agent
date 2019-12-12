@@ -2,12 +2,11 @@ package executors
 
 import (
 	"encoding/base64"
-	"fmt"
-	"log"
 	"testing"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -45,44 +44,28 @@ func request() *api.JobRequest {
 }
 
 func Test__DockerComposeExecutor(t *testing.T) {
-	events := []string{}
+	testLogger := eventlogger.DefaultTestLogger()
 
-	eventHandler := func(event interface{}) {
-		log.Printf("%+v", event)
-
-		switch e := event.(type) {
-		case *CommandStartedEvent:
-			events = append(events, e.Directive)
-		case *CommandOutputEvent:
-			events = append(events, e.Output)
-		case *CommandFinishedEvent:
-			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
-		default:
-			fmt.Printf("Shell Event %+v\n", e)
-			panic("Unknown shell event")
-		}
-	}
-
-	e := NewDockerComposeExecutor(request())
+	e := NewDockerComposeExecutor(request(), testLogger)
 
 	e.Prepare()
-	e.Start(DevNullEventHandler)
+	e.Start()
 
-	e.RunCommand("echo 'here'", eventHandler)
+	e.RunCommand("echo 'here'", false)
 
 	multilineCmd := `
 	  if [ -d /etc ]; then
 	    echo 'etc exists, multiline huzzahh!'
 	  fi
 	`
-	e.RunCommand(multilineCmd, eventHandler)
+	e.RunCommand(multilineCmd, false)
 
 	envVars := []api.EnvVar{
 		api.EnvVar{Name: "A", Value: "Zm9vCg=="},
 	}
 
-	e.ExportEnvVars(envVars, eventHandler)
-	e.RunCommand("echo $A", eventHandler)
+	e.ExportEnvVars(envVars)
+	e.RunCommand("echo $A", false)
 
 	files := []api.File{
 		api.File{
@@ -92,15 +75,15 @@ func Test__DockerComposeExecutor(t *testing.T) {
 		},
 	}
 
-	e.InjectFiles(files, eventHandler)
-	e.RunCommand("cat /tmp/random-file.txt", eventHandler)
+	e.InjectFiles(files)
+	e.RunCommand("cat /tmp/random-file.txt", false)
 
-	e.RunCommand("echo $?", eventHandler)
+	e.RunCommand("echo $?", false)
 
 	e.Stop()
 	e.Cleanup()
 
-	assert.Equal(t, events, []string{
+	assert.Equal(t, testLogger.Backend.Read(0, 100), []string{
 		"echo 'here'",
 		"here\n",
 		"Exit Code: 0",
@@ -133,32 +116,16 @@ func Test__DockerComposeExecutor(t *testing.T) {
 }
 
 func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
-	events := []string{}
+	testLogger := eventlogger.DefaultTestLogger()
 
-	eventHandler := func(event interface{}) {
-		log.Printf("%+v", event)
-
-		switch e := event.(type) {
-		case *CommandStartedEvent:
-			events = append(events, e.Directive)
-		case *CommandOutputEvent:
-			events = append(events, e.Output)
-		case *CommandFinishedEvent:
-			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
-		default:
-			fmt.Printf("Shell Event %+v\n", e)
-			panic("Unknown shell event")
-		}
-	}
-
-	e := NewDockerComposeExecutor(request())
+	e := NewDockerComposeExecutor(request(), testLogger)
 
 	e.Prepare()
-	e.Start(DevNullEventHandler)
+	e.Start()
 
 	go func() {
-		e.RunCommand("echo 'here'", eventHandler)
-		e.RunCommand("sleep 5", eventHandler)
+		e.RunCommand("echo 'here'", false)
+		e.RunCommand("sleep 5", false)
 	}()
 
 	time.Sleep(1 * time.Second)
@@ -168,7 +135,7 @@ func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	assert.Equal(t, events, []string{
+	assert.Equal(t, testLogger.Backend.Read(0, 100), []string{
 		"echo 'here'",
 		"here\n",
 		"Exit Code: 0",

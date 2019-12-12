@@ -22,7 +22,7 @@ import (
 type ShellExecutor struct {
 	Executor
 
-	Logger        eventlogger.EventLogger
+	Logger        *eventlogger.Logger
 	jobRequest    *api.JobRequest
 	terminal      *exec.Cmd
 	tty           *os.File
@@ -31,7 +31,7 @@ type ShellExecutor struct {
 	tmpDirectory  string
 }
 
-func NewShellExecutor(request *api.JobRequest, logger eventlogger.EventLogger) *ShellExecutor {
+func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger) *ShellExecutor {
 	return &ShellExecutor{
 		Logger:       logger,
 		jobRequest:   request,
@@ -72,7 +72,7 @@ func (e *ShellExecutor) setUpSSHJumpPoint() int {
 	return 0
 }
 
-func (e *ShellExecutor) Start(EventHandler) int {
+func (e *ShellExecutor) Start() int {
 	log.Printf("Starting stateful shell")
 
 	tty, err := pty.Start(e.terminal)
@@ -142,7 +142,7 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar) int {
 	defer func() {
 		commandFinishedAt := int(time.Now().Unix())
 
-		e.Logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandStartedAt)
+		e.Logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
 	envFile := ""

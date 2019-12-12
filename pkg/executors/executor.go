@@ -12,7 +12,7 @@ type Executor interface {
 	Start() int
 	ExportEnvVars([]api.EnvVar) int
 	InjectFiles([]api.File) int
-	RunCommand(string) int
+	RunCommand(string, bool) int
 	Stop() int
 	Cleanup() int
 }
@@ -20,7 +20,7 @@ type Executor interface {
 const ExecutorTypeShell = "shell"
 const ExecutorTypeDockerCompose = "dockercompose"
 
-func CreateExecutor(request *api.JobRequest, logger eventlogger.EventLogger) (Executor, error) {
+func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger) (Executor, error) {
 	switch request.Executor {
 	case ExecutorTypeShell:
 		return NewShellExecutor(request, logger), nil

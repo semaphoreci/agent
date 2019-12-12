@@ -20,9 +20,9 @@ import (
 )
 
 type DockerComposeExecutor struct {
-	Executor
+	Logger     *eventlogger.Logger
+	jobRequest *api.JobRequest
 
-	jobRequest                *api.JobRequest
 	tmpDirectory              string
 	dockerConfiguration       api.Compose
 	dockerComposeManifestPath string
@@ -31,10 +31,9 @@ type DockerComposeExecutor struct {
 	stdin                     io.Writer
 	stdoutScanner             *bufio.Scanner
 	mainContainerName         string
-	Logger                    eventlogger.EventLogger
 }
 
-func NewDockerComposeExecutor(request *api.JobRequest, logger eventlogger.EventLogger) *DockerComposeExecutor {
+func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logger) *DockerComposeExecutor {
 	return &DockerComposeExecutor{
 		Logger:                    logger,
 		jobRequest:                request,
@@ -613,7 +612,7 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 		exitCode = e.RunCommand(cmd, true)
 		if exitCode != 0 {
 			output := fmt.Sprintf("Failed to create destination path %s", destPath)
-			e.LogCommandOutput(output + "\n")
+			e.Logger.LogCommandOutput(output + "\n")
 			break
 		}
 
