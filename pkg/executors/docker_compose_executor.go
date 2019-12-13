@@ -9,8 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -640,150 +638,26 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 	return exitCode
 }
 
-func (e *DockerComposeExecutor) RunCommand(command string, silence bool) int {
-	var err error
+func (e *DockerComposeExecutor) RunCommand(command string, silent bool) int {
+	p := NewProcess(command, e.tmpDirectory, e.stdin, e.tty)
 
-	log.Printf("Running command: %s", command)
-
-	cmdFilePath := fmt.Sprintf("%s/current-agent-cmd", e.tmpDirectory)
-	restoreTtyMark := "97d140552e404df69f6472729d2b2c1"
-	startMark := "87d140552e404df69f6472729d2b2c1"
-	finishMark := "97d140552e404df69f6472729d2b2c2"
-
-	commandStartedAt := int(time.Now().Unix())
-	exitCode := 1
-
-	defer func() {
-		commandFinishedAt := int(time.Now().Unix())
-
-		if !silence {
-			e.Logger.LogCommandFinished(command, exitCode, commandStartedAt, commandFinishedAt)
-		}
-	}()
-
-	commandEndRegex := regexp.MustCompile(finishMark + " " + `(\d)`)
-	streamEvents := false
-
-	restoreTtyCmd := "source /tmp/restore-tty; echo " + restoreTtyMark + "\n"
-
-	// restore a sane STTY interface
-	ioutil.WriteFile(cmdFilePath, []byte(restoreTtyCmd), 0644)
-	e.stdin.Write([]byte("source " + cmdFilePath + "\n"))
-
-	ScanLines(e.tty, func(line string) bool {
-		log.Printf("(tty-restore) %s\n", line)
-
-		if strings.Contains(line, restoreTtyMark) {
-			return false
-		}
-
-		return true
-	})
-
-	//
-	// Multiline commands don't work very well with the start/finish marker scheme.
-	// To circumvent this, we are storing the command in a file
-	//
-	err = ioutil.WriteFile(cmdFilePath, []byte(command), 0644)
-
-	if err != nil {
-		if !silence {
-			e.Logger.LogCommandStarted(command)
-			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to run command: %+v\n", err))
-		}
-
-		return 1
+	if !silent {
+		e.Logger.LogCommandStarted(command)
 	}
 
-	// Constructing command with start and end markers:
-	//
-	// 0. Restore stty options to sanity
-	// 1. display START marker
-	// 2. execute the command file by sourcing it
-	// 3. save the original exit status
-	// 4. display the END marker with the exit status
-	// 5. return the original exit status to the caller
-	//
-
-	commandWithStartAndEndMarkers := strings.Join([]string{
-		"/tmp/restore-tty",
-		fmt.Sprintf("echo '%s'", startMark),
-		fmt.Sprintf("source %s", cmdFilePath),
-		"AGENT_CMD_RESULT=$?",
-		fmt.Sprintf(`echo "%s $AGENT_CMD_RESULT"`, finishMark),
-		"echo \"exit $AGENT_CMD_RESULT\"|sh\n",
-	}, ";")
-
-	e.stdin.Write([]byte(commandWithStartAndEndMarkers))
-
-	log.Println("Scan started")
-
-	err = ScanLines(e.tty, func(line string) bool {
-		log.Printf("(tty) %s\n", line)
-
-		if strings.Contains(line, startMark) {
-			log.Printf("Detected command start")
-			streamEvents = true
-
-			if !silence {
-				e.Logger.LogCommandStarted(command)
-			}
-
-			return true
+	p.OnStdout(func(output string) {
+		if !silent {
+			e.Logger.LogCommandOutput(output)
 		}
-
-		if strings.Contains(line, finishMark) {
-			log.Printf("Detected command end")
-
-			finalOutputPart := strings.Split(line, finishMark)
-
-			// if there is anything else other than the command end marker
-			// print it to the user
-			if finalOutputPart[0] != "" {
-				if !silence {
-					e.Logger.LogCommandOutput(finalOutputPart[0] + "\n")
-				}
-			}
-
-			streamEvents = false
-
-			if match := commandEndRegex.FindStringSubmatch(line); len(match) == 2 {
-				log.Printf("Parsing exit status succedded")
-
-				exitCode, err = strconv.Atoi(match[1])
-
-				if err != nil {
-					log.Printf("Panic while parsing exit status, err: %+v", err)
-
-					if !silence {
-						e.Logger.LogCommandOutput("Failed to read command exit code\n")
-					}
-				}
-
-				log.Printf("Setting exit code to %d", exitCode)
-			} else {
-				log.Printf("Failed to parse exit status")
-
-				exitCode = 1
-				if !silence {
-					e.Logger.LogCommandOutput("Failed to read command exit code\n")
-				}
-			}
-
-			log.Printf("Stopping scanner")
-			return false
-		}
-
-		if streamEvents {
-			if !silence {
-				e.Logger.LogCommandOutput(line + "\n")
-			}
-		}
-
-		return true
 	})
 
-	return exitCode
+	p.Run()
+
+	if !silent {
+		e.Logger.LogCommandFinished(command, p.ExitCode, p.StartedAt, p.FinishedAt)
+	}
+
+	return p.ExitCode
 }
 
 func (e *DockerComposeExecutor) Stop() int {
