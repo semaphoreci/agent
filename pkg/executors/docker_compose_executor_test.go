@@ -44,7 +44,7 @@ func request() *api.JobRequest {
 }
 
 func Test__DockerComposeExecutor(t *testing.T) {
-	testLogger := eventlogger.DefaultTestLogger()
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 
 	e := NewDockerComposeExecutor(request(), testLogger)
 
@@ -83,40 +83,40 @@ func Test__DockerComposeExecutor(t *testing.T) {
 	e.Stop()
 	e.Cleanup()
 
-	assert.Equal(t, testLogger.Backend.Read(0, 100), []string{
-		"echo 'here'",
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
+		"directive: echo 'here'",
 		"here\n",
 		"Exit Code: 0",
 
-		multilineCmd,
+		"directive: " + multilineCmd,
 		"etc exists, multiline huzzahh!\n",
 		"Exit Code: 0",
 
-		"Exporting environment variables",
+		"directive: Exporting environment variables",
 		"Exporting A\n",
 		"Exit Code: 0",
 
-		"echo $A",
+		"directive: echo $A",
 		"foo\n",
 		"Exit Code: 0",
 
-		"Injecting Files",
+		"directive: Injecting Files",
 		"Injecting /tmp/random-file.txt with file mode 0600\n",
 		"Exit Code: 0",
 
-		"cat /tmp/random-file.txt",
+		"directive: cat /tmp/random-file.txt",
 		"aaabbb\n",
 		"\n",
 		"Exit Code: 0",
 
-		"echo $?",
+		"directive: echo $?",
 		"0\n",
 		"Exit Code: 0",
 	})
 }
 
 func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
-	testLogger := eventlogger.DefaultTestLogger()
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 
 	e := NewDockerComposeExecutor(request(), testLogger)
 
@@ -135,12 +135,12 @@ func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	assert.Equal(t, testLogger.Backend.Read(0, 100), []string{
-		"echo 'here'",
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
+		"directive: echo 'here'",
 		"here\n",
 		"Exit Code: 0",
 
-		"sleep 5",
+		"directive: sleep 5",
 		"Exit Code: 1",
 	})
 }

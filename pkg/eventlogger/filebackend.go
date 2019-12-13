@@ -1,21 +1,22 @@
 package eventlogger
 
 import (
+	"bufio"
 	"encoding/json"
 	"log"
 	"os"
 )
 
-type fileBackend struct {
+type FileBackend struct {
 	path string
 	file *os.File
 }
 
-func newFileBackend(path string) (*fileBackend, error) {
-	return &fileBackend{path: path}, nil
+func NewFileBackend(path string) (*FileBackend, error) {
+	return &FileBackend{path: path}, nil
 }
 
-func (l *fileBackend) Open() error {
+func (l *FileBackend) Open() error {
 	file, err := os.Create(l.path)
 	if err != nil {
 		return nil
@@ -26,7 +27,7 @@ func (l *fileBackend) Open() error {
 	return nil
 }
 
-func (l *fileBackend) Write(event interface{}) error {
+func (l *FileBackend) Write(event interface{}) error {
 	jsonString, _ := json.Marshal(event)
 
 	l.file.Write([]byte(jsonString))
@@ -37,10 +38,30 @@ func (l *fileBackend) Write(event interface{}) error {
 	return nil
 }
 
-func (l *fileBackend) Close() error {
+func (l *FileBackend) Close() error {
 	return nil
 }
 
-func (l *fileBackend) Read(from, to int) []string {
-	return []string{}
+func (l *FileBackend) Read(from, to int) ([]string, error) {
+	return []string{}, nil
+}
+
+func (l *FileBackend) ReadAll() ([]string, error) {
+	file, err := os.Open(l.path)
+
+	if err != nil {
+		return []string{}, err
+	}
+
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+	var lines []string
+
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+
+	file.Close()
+
+	return lines, nil
 }

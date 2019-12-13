@@ -1,7 +1,7 @@
 package eventlogger
 
 func Default() (*Logger, error) {
-	backend, err := newFileBackend("/tmp/job_log.json")
+	backend, err := NewFileBackend("/tmp/job_log.json")
 	if err != nil {
 		return nil, err
 	}
@@ -19,8 +19,8 @@ func Default() (*Logger, error) {
 	return logger, nil
 }
 
-func DefaultTestLogger() *Logger {
-	backend, err := newFileBackend("/tmp/job_log_test.json")
+func DefaultTestLogger() (*Logger, *InMemoryBackend) {
+	backend, err := NewInMemoryBackend()
 	if err != nil {
 		panic(err)
 	}
@@ -35,5 +35,5 @@ func DefaultTestLogger() *Logger {
 		panic(err)
 	}
 
-	return logger
+	return logger, backend
 }

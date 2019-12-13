@@ -3,6 +3,8 @@ package eventlogger
 type Backend interface {
 	Open() error
 	Write(interface{}) error
-	Read(from, to int) []string
 	Close() error
 }
+
+var _ Backend = (*FileBackend)(nil)
+var _ Backend = (*InMemoryBackend)(nil)
