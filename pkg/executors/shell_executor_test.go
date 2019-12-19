@@ -2,15 +2,19 @@ package executors
 
 import (
 	"encoding/base64"
+	"fmt"
 	"testing"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
+	testsupport "github.com/semaphoreci/agent/test/support"
 	assert "github.com/stretchr/testify/assert"
 )
 
 func Test__ShellExecutor(t *testing.T) {
+	testsupport.SetupTestLogs()
+
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 
 	request := &api.JobRequest{
@@ -84,6 +88,35 @@ func Test__ShellExecutor(t *testing.T) {
 
 		"directive: echo $?",
 		"0\n",
+		"Exit Code: 0",
+	})
+}
+
+func Test__ShellExecutor__LowBaudRate(t *testing.T) {
+	testsupport.SetupTestLogs()
+
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+
+	request := &api.JobRequest{
+		SSHPublicKeys: []api.PublicKey{
+			api.PublicKey(base64.StdEncoding.EncodeToString([]byte("ssh-rsa aaaaa"))),
+		},
+	}
+
+	e := NewShellExecutor(request, testLogger)
+
+	e.Prepare()
+	e.Start()
+
+	e.RunCommand(fmt.Sprintf("stty -F %s ispeed 1", e.tty.Name()), false)
+	e.RunCommand("echo 'here'", false)
+
+	e.Stop()
+	e.Cleanup()
+
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
+		"echo 'here'",
+		"here\n",
 		"Exit Code: 0",
 	})
 }

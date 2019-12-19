@@ -1,10 +1,12 @@
 package executors
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"os"
 	"regexp"
 	"strconv"
@@ -30,6 +32,8 @@ type Process struct {
 
 	tempStoragePath string
 	cmdFilePath     string
+
+	outputBuffer []byte
 }
 
 func NewProcess(cmd string, tempStoragePath string, shell io.Writer, tty *os.File) *Process {
@@ -37,7 +41,7 @@ func NewProcess(cmd string, tempStoragePath string, shell io.Writer, tty *os.Fil
 	endMark := "97d140552e404df69f6472729d2b2c2"
 	restoreTtyMark := "97d140552e404df69f6472729d2b2c1"
 
-	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d)`)
+	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d)` + "\n")
 
 	return &Process{
 		Command:  cmd,
@@ -60,6 +64,18 @@ func (p *Process) OnStdout(callback func(string)) {
 	p.OnStdoutCallback = callback
 }
 
+func (p *Process) publishStdout(start, end int) {
+	output := make([]byte, end-start)
+
+	copy(output, p.outputBuffer[start:end])
+
+	p.outputBuffer = p.outputBuffer[start:end]
+
+	log.Println("stdout:", output, strings.Replace(string(output), "\n", "\\n", -1))
+
+	p.OnStdoutCallback(string(output))
+}
+
 func (p *Process) Run() {
 	instruction := p.constructShellInstruction()
 
@@ -67,6 +83,12 @@ func (p *Process) Run() {
 	defer func() {
 		p.FinishedAt = int(time.Now().Unix())
 	}()
+
+	err := p.loadCommand()
+	if err != nil {
+		log.Printf("err: %v", err)
+		return
+	}
 
 	p.send(instruction)
 	p.scan()
@@ -77,13 +99,13 @@ func (p *Process) constructShellInstruction() string {
 	// A process is sending a complex instruction to the shell. The instruction
 	// does the following:
 	//
-	//   1. display START marker
+	//   1. display magic-header and the START marker
 	//   2. execute the command file by sourcing it
 	//   3. save the original exit status
-	//   4. display the END marker with the exit status
+	//   4. display magic-header, the end marker, and the command's exit status
 	//   5. return the original exit status to the caller
 	//
-	template := `echo %s; source %s; AGENT_CMD_RESULT=$?; echo "%s $AGENT_CMD_RESULT"; echo \"exit $AGENT_CMD_RESULT\" | sh \n`
+	template := `echo -e "\001 %s"; source %s; AGENT_CMD_RESULT=$?; echo -e "\001 %s $AGENT_CMD_RESULT"; echo "exit $AGENT_CMD_RESULT" | sh`
 
 	return fmt.Sprintf(template, p.startMark, p.cmdFilePath, p.endMark)
 }
@@ -109,65 +131,141 @@ func (p *Process) loadCommand() error {
 func (p *Process) send(instruction string) {
 	log.Printf("Sending Instruction: %s", instruction)
 
-	p.Shell.Write([]byte(instruction))
+	p.Shell.Write([]byte(instruction + "\n"))
 }
 
-func (p *Process) scan() {
+func (p *Process) bufferSize() int {
+	if flag.Lookup("test.v") == nil {
+		return 100
+	} else {
+		// simulating the worst kind of baud rate
+		// random in size, and possibly very short
+
+		// The implementation needs to handle everything.
+		rand.Seed(time.Now().UnixNano())
+
+		min := 1
+		max := 20
+
+		return rand.Intn(max-min) + min
+	}
+}
+
+//
+// Read state from shell into the outputBuffer
+//
+func (p *Process) read() error {
+	buffer := make([]byte, p.bufferSize())
+
+	n, err := p.TTY.Read(buffer)
+	if err != nil {
+		return err
+	}
+
+	log.Println("read:", buffer[0:n], strings.Replace(string(buffer[0:n]), "\n\r", "\\n", -1))
+
+	p.outputBuffer = append(p.outputBuffer, buffer[0:n]...)
+
+	return nil
+}
+
+func (p *Process) waitForStartMarker() error {
+	log.Println("Waiting for start marker", p.startMark)
+
+	//
+	// Fill the output buffer, until the start marker appears
+	//
+	for {
+		err := p.read()
+		if err != nil {
+			return err
+		}
+
+		//
+		// If the outputBuffer has a start marker, the wait is done
+		//
+		index := strings.Index(string(p.outputBuffer), p.startMark)
+
+		if index >= 0 {
+			//
+			// Cut everything from the buffer before the marker
+			// Example:
+			//
+			// buffer before: some test <***marker**> rest of the test
+			// buffer after :  rest of the test
+			//
+
+			p.outputBuffer = p.outputBuffer[index+len(p.startMark) : len(p.outputBuffer)]
+
+			break
+		}
+	}
+
+	log.Println("Start marker found", p.startMark)
+
+	if len(p.outputBuffer) > 0 {
+		p.publishStdout(0, len(p.outputBuffer))
+	}
+
+	return nil
+}
+
+func (p *Process) scan() error {
 	log.Println("Scan started")
 
-	streamEvents := false
+	err := p.waitForStartMarker()
+	if err != nil {
+		return err
+	}
 
-	ScanLines(p.TTY, func(line string) bool {
-		log.Printf("(tty) %s\n", line)
+	exitCode := ""
 
-		if strings.Contains(line, p.startMark) {
-			log.Printf("Detected command start")
-			streamEvents = true
-
-			return true
+	for {
+		err := p.read()
+		if err != nil {
+			return err
 		}
 
-		if strings.Contains(line, p.endMark) {
-			log.Printf("Detected command end")
+		if index := strings.Index(string(p.outputBuffer), "\001"); index >= 0 {
+			log.Println("Start of end marker detected, entering buffering mode")
+			// The end marker header has appeared
 
-			finalOutputPart := strings.Split(line, p.endMark)
-
-			// if there is anything else other than the command end marker
-			// print it to the user
-			if finalOutputPart[0] != "" {
-				p.OnStdoutCallback(finalOutputPart[0] + "\n")
+			if index > 0 {
+				// publish everything until the end mark
+				p.publishStdout(0, index)
 			}
 
-			streamEvents = false
-
-			if match := p.commandEndRegex.FindStringSubmatch(line); len(match) == 2 {
-				log.Printf("Parsing exit status succedded")
-
-				exitCode, err := strconv.Atoi(match[1])
-				if err != nil {
-					log.Printf("Panic while parsing exit status, err: %+v", err)
-
-					p.OnStdoutCallback("Failed to read command exit code\n")
-				}
-
-				log.Printf("Setting exit code to %d", exitCode)
-
-				p.ExitCode = exitCode
-			} else {
-				log.Printf("Failed to parse exit status")
-
-				p.OnStdoutCallback("Failed to read command exit code\n")
+			if match := p.commandEndRegex.FindStringSubmatch(string(p.outputBuffer)); len(match) == 2 {
+				exitCode = match[1]
+				break
 			}
 
-			log.Printf("Stopping scanner")
-
-			return false
+			//
+			// The buffer is much longer than the end mark, at least by 10
+			// characters.
+			//
+			// If it is not matching the full end mark, it is safe to dump.
+			//
+			if len(p.outputBuffer) >= len(p.endMark)+10 {
+				p.publishStdout(0, len(p.outputBuffer))
+			}
+		} else {
+			p.publishStdout(0, len(p.outputBuffer))
 		}
+	}
 
-		if streamEvents {
-			p.OnStdoutCallback(line + "\n")
-		}
+	log.Println("Command output finished")
+	log.Println("Parsing exit code", exitCode)
 
-		return true
-	})
+	code, err := strconv.Atoi(exitCode)
+	if err != nil {
+		log.Printf("Error while parsing exit code, err: %v", err)
+
+		return err
+	}
+
+	log.Printf("Parsing exit code fininished %d", code)
+	p.ExitCode = code
+
+	return nil
 }
