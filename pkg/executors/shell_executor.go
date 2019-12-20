@@ -275,7 +275,13 @@ func (e *ShellExecutor) RunCommand(command string, silent bool) int {
 func (e *ShellExecutor) Stop() int {
 	log.Println("Starting the process killing procedure")
 
-	err := e.terminal.Process.Kill()
+	err := e.tty.Close()
+	if err != nil {
+		log.Printf("Closing the TTY returned an error")
+		return 0
+	}
+
+	err = e.terminal.Process.Kill()
 	if err != nil {
 		log.Printf("Process killing procedure returned an erorr %+v\n", err)
 		return 0

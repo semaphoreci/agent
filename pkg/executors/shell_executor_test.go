@@ -118,13 +118,12 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents()[0:4], []string{
 		"directive: echo 'here'",
 		"here\n",
 		"Exit Code: 0",
 
 		"directive: sleep 5",
-		"Exit Code: 1",
 	})
 }
 
