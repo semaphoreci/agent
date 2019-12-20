@@ -84,6 +84,13 @@ func Test__DockerComposeExecutor(t *testing.T) {
 	e.Cleanup()
 
 	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
+		"directive: Pulling docker images...",
+		"Exit Code: 0",
+
+		"directive: Starting the docker image...",
+		"Starting a new bash session.\n",
+		"Exit Code: 0",
+
 		"directive: echo 'here'",
 		"here\n",
 		"Exit Code: 0",
@@ -105,8 +112,7 @@ func Test__DockerComposeExecutor(t *testing.T) {
 		"Exit Code: 0",
 
 		"directive: cat /tmp/random-file.txt",
-		"aaabbb\n",
-		"\n",
+		"aaabbb\n\n",
 		"Exit Code: 0",
 
 		"directive: echo $?",

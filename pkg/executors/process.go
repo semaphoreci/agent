@@ -46,7 +46,7 @@ func NewProcess(cmd string, tempStoragePath string, shell io.Writer, tty *os.Fil
 	startMark := randomMagicMark() + "-start"
 	endMark := randomMagicMark() + "-end"
 
-	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d)` + "\n")
+	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d)` + "[\r\n]+")
 
 	return &Process{
 		Command:  cmd,
@@ -81,8 +81,10 @@ func (p *Process) StreamToStdout() {
 		copy(output, p.outputBuffer[0:l])
 		p.outputBuffer = p.outputBuffer[l:]
 
-		log.Printf("Stream to stdout: %#v", string(output))
-		p.OnStdoutCallback(string(output))
+		out := strings.Replace(string(output), "\r\n", "\n", -1)
+
+		log.Printf("Stream to stdout: %#v", out)
+		p.OnStdoutCallback(out)
 
 		p.lastStream = time.Now()
 	}
@@ -197,11 +199,8 @@ func (p *Process) read() error {
 		return err
 	}
 
-	input := string(buffer[0:n])
-	input = strings.Replace(input, "\r\n", "\n", -1)
-
-	p.inputBuffer = append(p.inputBuffer, []byte(input)...)
-	log.Printf("reading data from shell. Input buffer: %#v", input)
+	p.inputBuffer = append(p.inputBuffer, buffer[0:n]...)
+	log.Printf("reading data from shell. Input buffer: %#v", string(p.inputBuffer))
 
 	return nil
 }
@@ -219,9 +218,9 @@ func (p *Process) waitForStartMarker() error {
 		}
 
 		//
-		// If the outputBuffer has a start marker, the wait is done
+		// If the inputBuffer has a start marker, the wait is done
 		//
-		index := strings.Index(string(p.inputBuffer), p.startMark+"\n")
+		index := strings.Index(string(p.inputBuffer), p.startMark+"\r\n")
 
 		if index >= 0 {
 			//
@@ -232,7 +231,7 @@ func (p *Process) waitForStartMarker() error {
 			// buffer after :  rest of the test
 			//
 
-			p.inputBuffer = p.inputBuffer[index+len(p.startMark)+1 : len(p.inputBuffer)]
+			p.inputBuffer = p.inputBuffer[index+len(p.startMark)+2 : len(p.inputBuffer)]
 
 			break
 		}
