@@ -41,7 +41,7 @@ func NewProcess(cmd string, tempStoragePath string, shell io.Writer, tty *os.Fil
 	endMark := "97d140552e404df69f6472729d2b2c2"
 	restoreTtyMark := "97d140552e404df69f6472729d2b2c1"
 
-	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d)` + "\n")
+	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d)` + "[\r\n]*")
 
 	return &Process{
 		Command:  cmd,
@@ -64,14 +64,22 @@ func (p *Process) OnStdout(callback func(string)) {
 	p.OnStdoutCallback = callback
 }
 
-func (p *Process) publishStdout(start, end int) {
-	output := make([]byte, end-start)
+func (p *Process) flushAll() {
+	p.flushTil(len(p.outputBuffer))
+}
 
-	copy(output, p.outputBuffer[start:end])
+func (p *Process) flushTil(index int) {
+	if index == 0 {
+		return
+	}
 
-	p.outputBuffer = p.outputBuffer[start:end]
+	output := make([]byte, index)
 
-	log.Println("stdout:", output, strings.Replace(string(output), "\n", "\\n", -1))
+	copy(output, p.outputBuffer[0:index])
+
+	p.outputBuffer = p.outputBuffer[index:]
+
+	log.Printf("Flushing process output. Output: %#v", string(output))
 
 	p.OnStdoutCallback(string(output))
 }
@@ -162,9 +170,8 @@ func (p *Process) read() error {
 		return err
 	}
 
-	log.Println("read:", buffer[0:n], strings.Replace(string(buffer[0:n]), "\n\r", "\\n", -1))
-
 	p.outputBuffer = append(p.outputBuffer, buffer[0:n]...)
+	log.Printf("reading data from shell. Buffer: %#v", string(p.outputBuffer))
 
 	return nil
 }
@@ -203,11 +210,11 @@ func (p *Process) waitForStartMarker() error {
 
 	log.Println("Start marker found", p.startMark)
 
-	if len(p.outputBuffer) > 0 {
-		p.publishStdout(0, len(p.outputBuffer))
-	}
-
 	return nil
+}
+
+func (p *Process) endMarkerHeaderIndex() int {
+	return strings.Index(string(p.outputBuffer), "\001")
 }
 
 func (p *Process) scan() error {
@@ -221,19 +228,13 @@ func (p *Process) scan() error {
 	exitCode := ""
 
 	for {
-		err := p.read()
-		if err != nil {
-			return err
-		}
-
-		if index := strings.Index(string(p.outputBuffer), "\001"); index >= 0 {
-			log.Println("Start of end marker detected, entering buffering mode")
-			// The end marker header has appeared
-
+		if index := p.endMarkerHeaderIndex(); index >= 0 {
 			if index > 0 {
 				// publish everything until the end mark
-				p.publishStdout(0, index)
+				p.flushTil(index)
 			}
+
+			log.Println("Start of end marker detected, entering buffering mode.")
 
 			if match := p.commandEndRegex.FindStringSubmatch(string(p.outputBuffer)); len(match) == 2 {
 				exitCode = match[1]
@@ -247,10 +248,15 @@ func (p *Process) scan() error {
 			// If it is not matching the full end mark, it is safe to dump.
 			//
 			if len(p.outputBuffer) >= len(p.endMark)+10 {
-				p.publishStdout(0, len(p.outputBuffer))
+				p.flushAll()
 			}
 		} else {
-			p.publishStdout(0, len(p.outputBuffer))
+			p.flushAll()
+		}
+
+		err := p.read()
+		if err != nil {
+			return err
 		}
 	}
 
