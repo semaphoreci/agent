@@ -27,7 +27,6 @@ type Process struct {
 
 	startMark       string
 	endMark         string
-	restoreTtyMark  string
 	commandEndRegex *regexp.Regexp
 
 	tempStoragePath string
@@ -39,10 +38,13 @@ type Process struct {
 	lastStream time.Time
 }
 
+func randomMagicMark() string {
+	return fmt.Sprintf("949556c7-%d", time.Now().Unix())
+}
+
 func NewProcess(cmd string, tempStoragePath string, shell io.Writer, tty *os.File) *Process {
-	startMark := "87d140552e404df69f6472729d2b2c1"
-	endMark := "97d140552e404df69f6472729d2b2c2"
-	restoreTtyMark := "97d140552e404df69f6472729d2b2c1"
+	startMark := randomMagicMark() + "-start"
+	endMark := randomMagicMark() + "-end"
 
 	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d)` + "[\r\n]+")
 
@@ -53,9 +55,8 @@ func NewProcess(cmd string, tempStoragePath string, shell io.Writer, tty *os.Fil
 		Shell: shell,
 		TTY:   tty,
 
-		startMark:      startMark,
-		endMark:        endMark,
-		restoreTtyMark: restoreTtyMark,
+		startMark: startMark,
+		endMark:   endMark,
 
 		commandEndRegex: commandEndRegex,
 		tempStoragePath: tempStoragePath,

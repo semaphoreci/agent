@@ -81,12 +81,11 @@ func Test__ShellExecutor(t *testing.T) {
 		"Exit Code: 0",
 
 		"directive: cat /tmp/random-file.txt",
-		"aaabbb\n",
-		"\n",
+		"aaabbb\r\n\r\n",
 		"Exit Code: 0",
 
 		"directive: echo $?",
-		"0\n",
+		"0\r\n",
 		"Exit Code: 0",
 	})
 }
