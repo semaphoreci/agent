@@ -91,6 +91,8 @@ func Test__ShellExecutor(t *testing.T) {
 }
 
 func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
+	testsupport.SetupTestLogs()
+
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 
 	request := &api.JobRequest{
@@ -127,6 +129,8 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 }
 
 func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
+	testsupport.SetupTestLogs()
+
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 
 	request := &api.JobRequest{
