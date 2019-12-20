@@ -2,7 +2,6 @@ package executors
 
 import (
 	"encoding/base64"
-	"fmt"
 	"testing"
 	"time"
 
@@ -62,7 +61,7 @@ func Test__ShellExecutor(t *testing.T) {
 
 	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
 		"directive: echo 'here'",
-		"here\n",
+		"here\r\n",
 		"Exit Code: 0",
 
 		"directive: " + multilineCmd,
@@ -74,7 +73,7 @@ func Test__ShellExecutor(t *testing.T) {
 		"Exit Code: 0",
 
 		"directive: echo $A",
-		"foo\n",
+		"foo\r\n",
 		"Exit Code: 0",
 
 		"directive: Injecting Files",
@@ -88,35 +87,6 @@ func Test__ShellExecutor(t *testing.T) {
 
 		"directive: echo $?",
 		"0\n",
-		"Exit Code: 0",
-	})
-}
-
-func Test__ShellExecutor__LowBaudRate(t *testing.T) {
-	testsupport.SetupTestLogs()
-
-	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
-
-	request := &api.JobRequest{
-		SSHPublicKeys: []api.PublicKey{
-			api.PublicKey(base64.StdEncoding.EncodeToString([]byte("ssh-rsa aaaaa"))),
-		},
-	}
-
-	e := NewShellExecutor(request, testLogger)
-
-	e.Prepare()
-	e.Start()
-
-	e.RunCommand(fmt.Sprintf("stty -F %s ispeed 1", e.tty.Name()), false)
-	e.RunCommand("echo 'here'", false)
-
-	e.Stop()
-	e.Cleanup()
-
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
-		"echo 'here'",
-		"here\n",
 		"Exit Code: 0",
 	})
 }
@@ -149,7 +119,7 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 
 	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
 		"directive: echo 'here'",
-		"here\n",
+		"here\r\n",
 		"Exit Code: 0",
 
 		"directive: sleep 5",
@@ -173,10 +143,9 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 
 	go func() {
 		e.RunCommand("for i in {1..100}; { printf 'hello'; }", false)
-		e.RunCommand("sleep 5", false)
 	}()
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	e.Stop()
 	e.Cleanup()
@@ -185,10 +154,11 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 
 	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
 		"directive: for i in {1..100}; { printf 'hello'; }",
-		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello\n",
+		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
+		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
+		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
+		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
+		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
 		"Exit Code: 0",
-
-		"directive: sleep 5",
-		"Exit Code: 1",
 	})
 }

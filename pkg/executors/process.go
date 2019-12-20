@@ -33,7 +33,10 @@ type Process struct {
 	tempStoragePath string
 	cmdFilePath     string
 
+	inputBuffer  []byte
 	outputBuffer []byte
+
+	lastStream time.Time
 }
 
 func NewProcess(cmd string, tempStoragePath string, shell io.Writer, tty *os.File) *Process {
@@ -41,7 +44,7 @@ func NewProcess(cmd string, tempStoragePath string, shell io.Writer, tty *os.Fil
 	endMark := "97d140552e404df69f6472729d2b2c2"
 	restoreTtyMark := "97d140552e404df69f6472729d2b2c1"
 
-	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d)` + "[\r\n]*")
+	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d)` + "[\r\n]+")
 
 	return &Process{
 		Command:  cmd,
@@ -57,6 +60,7 @@ func NewProcess(cmd string, tempStoragePath string, shell io.Writer, tty *os.Fil
 		commandEndRegex: commandEndRegex,
 		tempStoragePath: tempStoragePath,
 		cmdFilePath:     tempStoragePath + "/current-agent-cmd",
+		lastStream:      time.Now(),
 	}
 }
 
@@ -64,24 +68,46 @@ func (p *Process) OnStdout(callback func(string)) {
 	p.OnStdoutCallback = callback
 }
 
-func (p *Process) flushAll() {
-	p.flushTil(len(p.outputBuffer))
+func (p *Process) StreamToStdout() {
+	for len(p.outputBuffer) > 100 || time.Now().Sub(p.lastStream) > 100*time.Millisecond {
+		l := 100
+
+		if len(p.outputBuffer) < l {
+			l = len(p.outputBuffer)
+		}
+
+		output := make([]byte, l)
+		copy(output, p.outputBuffer[0:l])
+		p.outputBuffer = p.outputBuffer[l:]
+
+		log.Printf("Stream to stdout: %#v", string(output))
+		p.OnStdoutCallback(string(output))
+
+		p.lastStream = time.Now()
+	}
 }
 
-func (p *Process) flushTil(index int) {
+func (p *Process) flushOutputBuffer() {
+	for {
+		p.StreamToStdout()
+
+		if len(p.outputBuffer) == 0 {
+			break
+		}
+	}
+}
+
+func (p *Process) flushInputAll() {
+	p.flushInputBufferTill(len(p.inputBuffer))
+}
+
+func (p *Process) flushInputBufferTill(index int) {
 	if index == 0 {
 		return
 	}
 
-	output := make([]byte, index)
-
-	copy(output, p.outputBuffer[0:index])
-
-	p.outputBuffer = p.outputBuffer[index:]
-
-	log.Printf("Flushing process output. Output: %#v", string(output))
-
-	p.OnStdoutCallback(string(output))
+	p.outputBuffer = append(p.outputBuffer, p.inputBuffer[0:index]...)
+	p.inputBuffer = p.inputBuffer[index:]
 }
 
 func (p *Process) Run() {
@@ -142,7 +168,7 @@ func (p *Process) send(instruction string) {
 	p.Shell.Write([]byte(instruction + "\n"))
 }
 
-func (p *Process) bufferSize() int {
+func (p *Process) readBufferSize() int {
 	if flag.Lookup("test.v") == nil {
 		return 100
 	} else {
@@ -163,15 +189,15 @@ func (p *Process) bufferSize() int {
 // Read state from shell into the outputBuffer
 //
 func (p *Process) read() error {
-	buffer := make([]byte, p.bufferSize())
+	buffer := make([]byte, p.readBufferSize())
 
 	n, err := p.TTY.Read(buffer)
 	if err != nil {
 		return err
 	}
 
-	p.outputBuffer = append(p.outputBuffer, buffer[0:n]...)
-	log.Printf("reading data from shell. Buffer: %#v", string(p.outputBuffer))
+	p.inputBuffer = append(p.inputBuffer, buffer[0:n]...)
+	log.Printf("reading data from shell. Input buffer: %#v", string(p.inputBuffer))
 
 	return nil
 }
@@ -191,7 +217,7 @@ func (p *Process) waitForStartMarker() error {
 		//
 		// If the outputBuffer has a start marker, the wait is done
 		//
-		index := strings.Index(string(p.outputBuffer), p.startMark)
+		index := strings.Index(string(p.inputBuffer), p.startMark+"\r\n")
 
 		if index >= 0 {
 			//
@@ -202,7 +228,7 @@ func (p *Process) waitForStartMarker() error {
 			// buffer after :  rest of the test
 			//
 
-			p.outputBuffer = p.outputBuffer[index+len(p.startMark) : len(p.outputBuffer)]
+			p.inputBuffer = p.inputBuffer[index+len(p.startMark)+2 : len(p.inputBuffer)]
 
 			break
 		}
@@ -214,7 +240,7 @@ func (p *Process) waitForStartMarker() error {
 }
 
 func (p *Process) endMarkerHeaderIndex() int {
-	return strings.Index(string(p.outputBuffer), "\001")
+	return strings.Index(string(p.inputBuffer), "\001")
 }
 
 func (p *Process) scan() error {
@@ -231,12 +257,14 @@ func (p *Process) scan() error {
 		if index := p.endMarkerHeaderIndex(); index >= 0 {
 			if index > 0 {
 				// publish everything until the end mark
-				p.flushTil(index)
+				p.flushInputBufferTill(index)
 			}
 
 			log.Println("Start of end marker detected, entering buffering mode.")
 
-			if match := p.commandEndRegex.FindStringSubmatch(string(p.outputBuffer)); len(match) == 2 {
+			if match := p.commandEndRegex.FindStringSubmatch(string(p.inputBuffer)); len(match) == 2 {
+				log.Println("End marker detected. Exit code: ", match[1])
+
 				exitCode = match[1]
 				break
 			}
@@ -247,18 +275,22 @@ func (p *Process) scan() error {
 			//
 			// If it is not matching the full end mark, it is safe to dump.
 			//
-			if len(p.outputBuffer) >= len(p.endMark)+10 {
-				p.flushAll()
+			if len(p.inputBuffer) >= len(p.endMark)+10 {
+				p.flushInputAll()
 			}
 		} else {
-			p.flushAll()
+			p.flushInputAll()
 		}
+
+		p.StreamToStdout()
 
 		err := p.read()
 		if err != nil {
 			return err
 		}
 	}
+
+	p.flushOutputBuffer()
 
 	log.Println("Command output finished")
 	log.Println("Parsing exit code", exitCode)
