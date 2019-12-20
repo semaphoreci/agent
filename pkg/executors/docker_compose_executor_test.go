@@ -2,6 +2,7 @@ package executors
 
 import (
 	"encoding/base64"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -43,7 +44,15 @@ func request() *api.JobRequest {
 
 }
 
+func killAllContainers() {
+	cmd := exec.Command("/bin/bash", "-c", "docker stop $(docker ps -q) && docker rm $(docker ps -qa)")
+
+	cmd.Run()
+}
+
 func Test__DockerComposeExecutor(t *testing.T) {
+	killAllContainers()
+
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 
 	e := NewDockerComposeExecutor(request(), testLogger)
@@ -122,6 +131,8 @@ func Test__DockerComposeExecutor(t *testing.T) {
 }
 
 func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
+	killAllContainers()
+
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 
 	e := NewDockerComposeExecutor(request(), testLogger)
