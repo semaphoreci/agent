@@ -197,6 +197,7 @@ func (p *Process) read() error {
 	log.Println("Reading started")
 	n, err := p.TTY.Read(buffer)
 	if err != nil {
+		log.Println("Error while reading from the tty")
 		return err
 	}
 
