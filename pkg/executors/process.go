@@ -194,6 +194,7 @@ func (p *Process) readBufferSize() int {
 func (p *Process) read() error {
 	buffer := make([]byte, p.readBufferSize())
 
+	log.Println("Reading started")
 	n, err := p.TTY.Read(buffer)
 	if err != nil {
 		return err

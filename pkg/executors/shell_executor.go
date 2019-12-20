@@ -259,7 +259,11 @@ func (e *ShellExecutor) RunCommand(command string, silent bool) int {
 		}
 	})
 
+	log.Println("Process Started")
+
 	p.Run()
+
+	log.Println("Process finished")
 
 	if !silent {
 		e.Logger.LogCommandFinished(command, p.ExitCode, p.StartedAt, p.FinishedAt)
@@ -276,8 +280,6 @@ func (e *ShellExecutor) Stop() int {
 		log.Printf("Process killing procedure returned an erorr %+v\n", err)
 		return 0
 	}
-
-	e.tty.Close()
 
 	log.Printf("Process killing finished without errors")
 
