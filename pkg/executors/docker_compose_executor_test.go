@@ -25,11 +25,11 @@ func request() *api.JobRequest {
 					EnvVars: []api.EnvVar{
 						api.EnvVar{
 							Name:  "FOO",
-							Value: "BAR",
+							Value: base64.StdEncoding.EncodeToString([]byte("BAR")),
 						},
 						api.EnvVar{
 							Name:  "FAZ",
-							Value: "ZEZ",
+							Value: base64.StdEncoding.EncodeToString([]byte("ZEZ")),
 						},
 					},
 				},

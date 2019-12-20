@@ -61,7 +61,7 @@ func Test__ShellExecutor(t *testing.T) {
 
 	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
 		"directive: echo 'here'",
-		"here\r\n",
+		"here\n",
 		"Exit Code: 0",
 
 		"directive: " + multilineCmd,
@@ -73,7 +73,7 @@ func Test__ShellExecutor(t *testing.T) {
 		"Exit Code: 0",
 
 		"directive: echo $A",
-		"foo\r\n",
+		"foo\n",
 		"Exit Code: 0",
 
 		"directive: Injecting Files",
@@ -81,11 +81,11 @@ func Test__ShellExecutor(t *testing.T) {
 		"Exit Code: 0",
 
 		"directive: cat /tmp/random-file.txt",
-		"aaabbb\r\n\r\n",
+		"aaabbb\n\n",
 		"Exit Code: 0",
 
 		"directive: echo $?",
-		"0\r\n",
+		"0\n",
 		"Exit Code: 0",
 	})
 }
@@ -120,7 +120,7 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 
 	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
 		"directive: echo 'here'",
-		"here\r\n",
+		"here\n",
 		"Exit Code: 0",
 
 		"directive: sleep 5",
