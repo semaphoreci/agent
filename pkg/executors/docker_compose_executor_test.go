@@ -153,6 +153,13 @@ func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
+		"directive: Pulling docker images...",
+		"Exit Code: 0",
+
+		"directive: Starting the docker image...",
+		"Starting a new bash session.\n",
+		"Exit Code: 0",
+
 		"directive: echo 'here'",
 		"here\n",
 		"Exit Code: 0",
