@@ -1,32 +1,27 @@
 package executors
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
-	"os"
 	"os/exec"
 	"path"
 	"strings"
 	"time"
 
-	pty "github.com/kr/pty"
 	api "github.com/semaphoreci/agent/pkg/api"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
+	shell "github.com/semaphoreci/agent/pkg/shell"
 )
 
 type ShellExecutor struct {
 	Executor
 
-	Logger        *eventlogger.Logger
-	jobRequest    *api.JobRequest
-	terminal      *exec.Cmd
-	tty           *os.File
-	stdin         io.Writer
-	stdoutScanner *bufio.Scanner
-	tmpDirectory  string
+	Logger     *eventlogger.Logger
+	Shell      *shell.Shell
+	jobRequest *api.JobRequest
+
+	tmpDirectory string
 }
 
 func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger) *ShellExecutor {
@@ -38,8 +33,6 @@ func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger) *Shel
 }
 
 func (e *ShellExecutor) Prepare() int {
-	e.terminal = exec.Command("bash", "--login")
-
 	return e.setUpSSHJumpPoint()
 }
 
@@ -71,63 +64,23 @@ func (e *ShellExecutor) setUpSSHJumpPoint() int {
 }
 
 func (e *ShellExecutor) Start() int {
-	log.Printf("Starting stateful shell")
+	cmd := exec.Command("bash", "--login")
 
-	tty, err := pty.Start(e.terminal)
+	shell, err := shell.NewShell(cmd, e.tmpDirectory)
 	if err != nil {
-		log.Printf("Failed to start stateful shell")
+		log.Println(shell)
 		return 1
 	}
 
-	e.stdin = tty
-	e.tty = tty
+	e.Shell = shell
 
-	time.Sleep(1000)
-
-	e.silencePromptAndDisablePS1()
-
-	return 0
-}
-
-func (e *ShellExecutor) silencePromptAndDisablePS1() {
-	everythingIsReadyMark := "87d140552e404df69f6472729d2b2c3"
-
-	e.stdin.Write([]byte("export PS1=''\n"))
-	e.stdin.Write([]byte("stty -echo\n"))
-	e.stdin.Write([]byte("echo stty `stty -g` > /tmp/restore-tty\n"))
-	e.stdin.Write([]byte("cd ~\n"))
-	e.stdin.Write([]byte("echo '" + everythingIsReadyMark + "'\n"))
-
-	stdoutScanner := bufio.NewScanner(e.tty)
-
-	//
-	// At this point, the terminal is still echoing the output back to stdout
-	// we ignore the entered command, and look for the magic mark in the output
-	//
-	// Example content of output before ready mark:
-	//
-	//   export PS1=''
-	//   stty -echo
-	//   echo + '87d140552e404df69f6472729d2b2c3'
-	//   vagrant@boxbox:~/code/agent/pkg/executors/shell$ export PS1=''
-	//   stty -echo
-	//   echo '87d140552e404df69f6472729d2b2c3'
-	//
-
-	// We wait until marker is displayed in the output
-
-	log.Println("Waiting for initialization")
-
-	for stdoutScanner.Scan() {
-		text := stdoutScanner.Text()
-
-		log.Printf("(tty) %s\n", text)
-		if !strings.Contains(text, "echo") && strings.Contains(text, everythingIsReadyMark) {
-			break
-		}
+	err = e.Shell.Start()
+	if err != nil {
+		log.Println(err)
+		return 1
 	}
 
-	log.Println("Initialization complete")
+	return 0
 }
 
 func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar) int {
@@ -247,7 +200,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 }
 
 func (e *ShellExecutor) RunCommand(command string, silent bool) int {
-	p := NewProcess(command, e.tmpDirectory, e.stdin, e.tty)
+	p := e.Shell.NewProcess(command)
 
 	if !silent {
 		e.Logger.LogCommandStarted(command)
@@ -275,16 +228,9 @@ func (e *ShellExecutor) RunCommand(command string, silent bool) int {
 func (e *ShellExecutor) Stop() int {
 	log.Println("Starting the process killing procedure")
 
-	err := e.tty.Close()
+	err := e.Shell.Close()
 	if err != nil {
-		log.Printf("Closing the TTY returned an error")
-		return 0
-	}
-
-	err = e.terminal.Process.Kill()
-	if err != nil {
-		log.Printf("Process killing procedure returned an erorr %+v\n", err)
-		return 0
+		fmt.Println(err)
 	}
 
 	log.Printf("Process killing finished without errors")

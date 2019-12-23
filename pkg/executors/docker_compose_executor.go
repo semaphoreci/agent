@@ -3,7 +3,6 @@ package executors
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -15,19 +14,17 @@ import (
 	pty "github.com/kr/pty"
 	api "github.com/semaphoreci/agent/pkg/api"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
+	shell "github.com/semaphoreci/agent/pkg/shell"
 )
 
 type DockerComposeExecutor struct {
 	Logger     *eventlogger.Logger
+	Shell      *shell.Shell
 	jobRequest *api.JobRequest
 
 	tmpDirectory              string
 	dockerConfiguration       api.Compose
 	dockerComposeManifestPath string
-	terminal                  *exec.Cmd
-	tty                       *os.File
-	stdin                     io.Writer
-	stdoutScanner             *bufio.Scanner
 	mainContainerName         string
 }
 
@@ -139,7 +136,7 @@ func (e *DockerComposeExecutor) startBashSession() int {
 
 	log.Printf("Starting stateful shell")
 
-	e.terminal = exec.Command(
+	cmd := exec.Command(
 		"docker-compose",
 		"--no-ansi",
 		"-f",
@@ -155,20 +152,29 @@ func (e *DockerComposeExecutor) startBashSession() int {
 		"bash",
 	)
 
-	tty, err := pty.Start(e.terminal)
+	shell, err := shell.NewShell(cmd, e.tmpDirectory)
 	if err != nil {
 		log.Printf("Failed to start stateful shell err: %+v", err)
+
 		e.Logger.LogCommandOutput("Failed to start the docker image\n")
+		e.Logger.LogCommandOutput(err.Error())
+
 		exitCode := 1
 		return exitCode
 	}
 
-	e.stdin = tty
-	e.tty = tty
+	err = shell.Start()
+	if err != nil {
+		log.Printf("Failed to start stateful shell err: %+v", err)
 
-	time.Sleep(1000)
+		e.Logger.LogCommandOutput("Failed to start the docker image\n")
+		e.Logger.LogCommandOutput(err.Error())
 
-	exitCode = e.silencePromptAndDisablePS1()
+		exitCode := 1
+		return exitCode
+	}
+
+	e.Shell = shell
 
 	return exitCode
 }
@@ -468,62 +474,6 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	return exitCode
 }
 
-func (e *DockerComposeExecutor) silencePromptAndDisablePS1() int {
-	everythingIsReadyMark := "87d140552e404df69f6472729d2b2c3"
-
-	e.stdin.Write([]byte("export PS1=''\n"))
-	e.stdin.Write([]byte("stty -echo\n"))
-	e.stdin.Write([]byte("echo stty `stty -g` > /tmp/restore-tty\n"))
-	e.stdin.Write([]byte("cd ~\n"))
-	e.stdin.Write([]byte("echo '" + everythingIsReadyMark + "'\n"))
-
-	stdoutScanner := bufio.NewScanner(e.tty)
-
-	//
-	// At this point, the terminal is still echoing the output back to stdout
-	// we ignore the entered command, and look for the magic mark in the output
-	//
-	// Example content of output before ready mark:
-	//
-	//   export PS1=''
-	//   stty -echo
-	//   echo + '87d140552e404df69f6472729d2b2c3'
-	//   vagrant@boxbox:~/code/agent/pkg/executors/shell$ export PS1=''
-	//   stty -echo
-	//   echo '87d140552e404df69f6472729d2b2c3'
-	//
-
-	// We wait until marker is displayed in the output
-
-	log.Println("Waiting for initialization")
-
-	sessionInitilized := false
-
-	for stdoutScanner.Scan() {
-		text := stdoutScanner.Text()
-		log.Printf("(tty) %s\n", text)
-
-		// Docker deamon has an issue, no further processing is neaded
-		if strings.Contains(text, "Error response from daemon") {
-			e.Logger.LogCommandOutput(fmt.Sprintf("%s\n", text))
-			break
-		}
-
-		if !strings.Contains(text, "echo") && strings.Contains(text, everythingIsReadyMark) {
-			sessionInitilized = true
-			break
-		}
-	}
-
-	if sessionInitilized {
-		log.Println("Initialization complete")
-		return 0
-	} else {
-		log.Println("Initialization failed")
-		return 1
-	}
-}
-
 func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar) int {
 	commandStartedAt := int(time.Now().Unix())
 	directive := fmt.Sprintf("Exporting environment variables")
@@ -645,7 +595,7 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 }
 
 func (e *DockerComposeExecutor) RunCommand(command string, silent bool) int {
-	p := NewProcess(command, e.tmpDirectory, e.stdin, e.tty)
+	p := e.Shell.NewProcess(command)
 
 	if !silent {
 		e.Logger.LogCommandStarted(command)
@@ -669,8 +619,7 @@ func (e *DockerComposeExecutor) RunCommand(command string, silent bool) int {
 func (e *DockerComposeExecutor) Stop() int {
 	log.Println("Starting the process killing procedure")
 
-	err := e.terminal.Process.Kill()
-
+	err := e.Shell.Close()
 	if err != nil {
 		log.Printf("Process killing procedure returned an erorr %+v\n", err)
 
