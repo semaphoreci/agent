@@ -3,6 +3,8 @@ package eventlogger
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"os"
 )
@@ -42,26 +44,34 @@ func (l *FileBackend) Close() error {
 	return nil
 }
 
-func (l *FileBackend) Read(from, to int) ([]string, error) {
-	return []string{}, nil
-}
-
-func (l *FileBackend) ReadAll() ([]string, error) {
-	file, err := os.Open(l.path)
-
+func (l *FileBackend) Stream(startLine int, writter io.Writer) error {
+	fd, err := os.OpenFile(l.path, os.O_RDONLY, os.ModePerm)
 	if err != nil {
-		return []string{}, err
+		return err
+	}
+	defer fd.Close()
+
+	reader := bufio.NewReader(fd)
+	lineIndex := 0
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err != io.EOF {
+				return err
+			}
+
+			break
+		}
+
+		if lineIndex < startLine {
+			continue
+		}
+
+		fmt.Fprintln(writter, line)
+
+		lineIndex++
 	}
 
-	scanner := bufio.NewScanner(file)
-	scanner.Split(bufio.ScanLines)
-	var lines []string
-
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-
-	file.Close()
-
-	return lines, nil
+	return nil
 }

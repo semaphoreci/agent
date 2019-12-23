@@ -441,13 +441,19 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 		return 1
 	}
 
-	ScanLines(tty, func(line string) bool {
-		log.Printf("(tty) %s\n", line)
+	reader := bufio.NewReader(tty)
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err != io.EOF {
+				return 1
+			}
+
+			break
+		}
 
 		e.Logger.LogCommandOutput(line + "\n")
-
-		return true
-	})
+	}
 
 	exitCode := 0
 
