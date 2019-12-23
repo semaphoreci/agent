@@ -11,8 +11,8 @@ import (
 	assert "github.com/stretchr/testify/assert"
 )
 
-func request() *api.JobRequest {
-	return &api.JobRequest{
+func startComposeExecutor() (*DockerComposeExecutor, *eventlogger.Logger, *eventlogger.InMemoryBackend) {
+	request := &api.JobRequest{
 		Compose: api.Compose{
 			Containers: []api.Container{
 				api.Container{
@@ -42,23 +42,27 @@ func request() *api.JobRequest {
 		},
 	}
 
-}
-
-func killAllContainers() {
-	cmd := exec.Command("/bin/bash", "-c", "docker stop $(docker ps -q) && docker rm $(docker ps -qa)")
-
+	// kill all existing container
+	cmd := exec.Command("/bin/bash", "-c", "docker stop $(docker ps -q); docker rm $(docker ps -qa)")
 	cmd.Run()
-}
-
-func Test__DockerComposeExecutor(t *testing.T) {
-	killAllContainers()
 
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 
-	e := NewDockerComposeExecutor(request(), testLogger)
+	e := NewDockerComposeExecutor(request, testLogger)
 
-	e.Prepare()
-	e.Start()
+	if code := e.Prepare(); code != 0 {
+		panic("Prapare failed")
+	}
+
+	if code := e.Start(); code != 0 {
+		panic("Start failed")
+	}
+
+	return e, testLogger, testLoggerBackend
+}
+
+func Test__DockerComposeExecutor(t *testing.T) {
+	e, _, testLoggerBackend := startComposeExecutor()
 
 	e.RunCommand("echo 'here'", false)
 
@@ -92,7 +96,7 @@ func Test__DockerComposeExecutor(t *testing.T) {
 	e.Stop()
 	e.Cleanup()
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
+	assert.Equal(t, testLoggerBackend.SimplifiedEventsWithoutDockerPull(), []string{
 		"directive: Pulling docker images...",
 		"Exit Code: 0",
 
@@ -131,14 +135,7 @@ func Test__DockerComposeExecutor(t *testing.T) {
 }
 
 func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
-	killAllContainers()
-
-	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
-
-	e := NewDockerComposeExecutor(request(), testLogger)
-
-	e.Prepare()
-	e.Start()
+	e, _, testLoggerBackend := startComposeExecutor()
 
 	go func() {
 		e.RunCommand("echo 'here'", false)
@@ -152,7 +149,7 @@ func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
+	assert.Equal(t, testLoggerBackend.SimplifiedEventsWithoutDockerPull(), []string{
 		"directive: Pulling docker images...",
 		"Exit Code: 0",
 

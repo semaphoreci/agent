@@ -46,6 +46,10 @@ func NewProcess(cmd string, tempStoragePath string, shell io.Writer, tty *os.Fil
 	startMark := randomMagicMark() + "-start"
 	endMark := randomMagicMark() + "-end"
 
+	if tty == nil {
+		panic("Invalid TTY")
+	}
+
 	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d)` + "[\r\n]+")
 
 	return &Process{

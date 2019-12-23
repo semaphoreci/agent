@@ -112,7 +112,6 @@ func (e *DockerComposeExecutor) Start() int {
 	}
 
 	exitCode = e.pullDockerImages()
-
 	if exitCode != 0 {
 		log.Printf("Failed to pull images")
 		return exitCode
@@ -445,12 +444,10 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
-			if err != io.EOF {
-				return 1
-			}
-
 			break
 		}
+
+		log.Println("(tty) ", line)
 
 		e.Logger.LogCommandOutput(line + "\n")
 	}
@@ -458,8 +455,11 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	exitCode := 0
 
 	if err := cmd.Wait(); err != nil {
+		log.Println("Docker pull failed", err)
 		exitCode = 1
 	}
+
+	log.Println("Docker pull finished. Exit Code", exitCode)
 
 	commandFinishedAt := int(time.Now().Unix())
 

@@ -2,6 +2,7 @@ package eventlogger
 
 import (
 	"fmt"
+	"strings"
 )
 
 type InMemoryBackend struct {
@@ -47,4 +48,28 @@ func (l *InMemoryBackend) SimplifiedEvents() []string {
 	}
 
 	return events
+}
+
+func (l *InMemoryBackend) SimplifiedEventsWithoutDockerPull() []string {
+	logs := l.SimplifiedEvents()
+
+	start := 0
+
+	for i, l := range logs {
+		if strings.Contains(l, "Pulling docker images") {
+			start = i
+			break
+		}
+	}
+
+	end := start
+
+	for i, l := range logs[start:] {
+		if strings.Contains(l, "Exit Code") {
+			end = i
+			break
+		}
+	}
+
+	return append([]string{logs[start]}, logs[end:]...)
 }
