@@ -95,12 +95,8 @@ func (p *Process) StreamToStdout() {
 }
 
 func (p *Process) flushOutputBuffer() {
-	for {
+	for len(p.outputBuffer) > 0 {
 		p.StreamToStdout()
-
-		if len(p.outputBuffer) == 0 {
-			break
-		}
 	}
 }
 
