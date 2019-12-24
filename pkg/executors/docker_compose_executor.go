@@ -159,7 +159,7 @@ func (e *DockerComposeExecutor) startBashSession() int {
 		e.Logger.LogCommandOutput("Failed to start the docker image\n")
 		e.Logger.LogCommandOutput(err.Error())
 
-		exitCode := 1
+		exitCode = 1
 		return exitCode
 	}
 
@@ -170,7 +170,7 @@ func (e *DockerComposeExecutor) startBashSession() int {
 		e.Logger.LogCommandOutput("Failed to start the docker image\n")
 		e.Logger.LogCommandOutput(err.Error())
 
-		exitCode := 1
+		exitCode = 1
 		return exitCode
 	}
 

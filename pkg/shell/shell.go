@@ -73,13 +73,12 @@ func (s *Shell) silencePromptAndDisablePS1() error {
 	for stdoutScanner.Scan() {
 		text := stdoutScanner.Text()
 
-		// Special case when starting a bash session in a docker contianer
-		// Docker deamon has an issue, no further processing is neaded
-		if strings.Contains(text, "Error response from daemon") {
-			return fmt.Errorf("Failed to start a bash session: %s", text)
+		log.Printf("(tty) %s\n", text)
+
+		if strings.Contains(text, "executable file not found") {
+			return fmt.Errorf(text)
 		}
 
-		log.Printf("(tty) %s\n", text)
 		if !strings.Contains(text, "echo") && strings.Contains(text, everythingIsReadyMark) {
 			break
 		}

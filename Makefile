@@ -37,7 +37,12 @@ docker.run: docker.build
 	sleep 2
 .PHONY: docker.run
 
-e2e: docker.run
+docker.clean:
+	-docker stop $$(docker ps -q)
+	-docker rm $$(docker ps -qa)
+.PHONY: docker.clean
+
+e2e: docker.clean docker.run
 	ruby test/e2e/$(TEST).rb
 .PHONY: e2e
 
