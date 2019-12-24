@@ -2,60 +2,46 @@ package executors
 
 import (
 	"encoding/base64"
-	"fmt"
-	"log"
 	"testing"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
+	testsupport "github.com/semaphoreci/agent/test/support"
 	assert "github.com/stretchr/testify/assert"
 )
 
 func Test__ShellExecutor(t *testing.T) {
-	events := []string{}
+	testsupport.SetupTestLogs()
 
-	eventHandler := func(event interface{}) {
-		log.Printf("%+v", event)
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 
-		switch e := event.(type) {
-		case *CommandStartedEvent:
-			events = append(events, e.Directive)
-		case *CommandOutputEvent:
-			events = append(events, e.Output)
-		case *CommandFinishedEvent:
-			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
-		default:
-			fmt.Printf("Shell Event %+v\n", e)
-			panic("Unknown shell event")
-		}
-	}
-
-	request := api.JobRequest{
+	request := &api.JobRequest{
 		SSHPublicKeys: []api.PublicKey{
 			api.PublicKey(base64.StdEncoding.EncodeToString([]byte("ssh-rsa aaaaa"))),
 		},
 	}
 
-	e := NewShellExecutor(&request)
+	e := NewShellExecutor(request, testLogger)
 
 	e.Prepare()
-	e.Start(eventHandler)
+	e.Start()
 
-	e.RunCommand("echo 'here'", eventHandler)
+	e.RunCommand("echo 'here'", false)
 
 	multilineCmd := `
 	  if [ -d /etc ]; then
 	    echo 'etc exists, multiline huzzahh!'
 	  fi
 	`
-	e.RunCommand(multilineCmd, eventHandler)
+	e.RunCommand(multilineCmd, false)
 
 	envVars := []api.EnvVar{
 		api.EnvVar{Name: "A", Value: "Zm9vCg=="},
 	}
 
-	e.ExportEnvVars(envVars, eventHandler)
-	e.RunCommand("echo $A", eventHandler)
+	e.ExportEnvVars(envVars)
+	e.RunCommand("echo $A", false)
 
 	files := []api.File{
 		api.File{
@@ -65,79 +51,64 @@ func Test__ShellExecutor(t *testing.T) {
 		},
 	}
 
-	e.InjectFiles(files, eventHandler)
-	e.RunCommand("cat /tmp/random-file.txt", eventHandler)
+	e.InjectFiles(files)
+	e.RunCommand("cat /tmp/random-file.txt", false)
 
-	e.RunCommand("echo $?", eventHandler)
+	e.RunCommand("echo $?", false)
 
 	e.Stop()
 	e.Cleanup()
 
-	assert.Equal(t, events, []string{
-		"echo 'here'",
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
+		"directive: echo 'here'",
 		"here\n",
 		"Exit Code: 0",
 
-		multilineCmd,
+		"directive: " + multilineCmd,
 		"etc exists, multiline huzzahh!\n",
 		"Exit Code: 0",
 
-		"Exporting environment variables",
+		"directive: Exporting environment variables",
 		"Exporting A\n",
 		"Exit Code: 0",
 
-		"echo $A",
+		"directive: echo $A",
 		"foo\n",
 		"Exit Code: 0",
 
-		"Injecting Files",
+		"directive: Injecting Files",
 		"Injecting /tmp/random-file.txt with file mode 0600\n",
 		"Exit Code: 0",
 
-		"cat /tmp/random-file.txt",
-		"aaabbb\n",
-		"\n",
+		"directive: cat /tmp/random-file.txt",
+		"aaabbb\n\n",
 		"Exit Code: 0",
 
-		"echo $?",
+		"directive: echo $?",
 		"0\n",
 		"Exit Code: 0",
 	})
 }
 
 func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
-	events := []string{}
+	testsupport.SetupTestLogs()
 
-	eventHandler := func(event interface{}) {
-		log.Printf("%+v", event)
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 
-		switch e := event.(type) {
-		case *CommandStartedEvent:
-			events = append(events, e.Directive)
-		case *CommandOutputEvent:
-			events = append(events, e.Output)
-		case *CommandFinishedEvent:
-			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
-		default:
-			fmt.Printf("Shell Event %+v\n", e)
-			panic("Unknown shell event")
-		}
-	}
-
-	request := api.JobRequest{
+	request := &api.JobRequest{
 		SSHPublicKeys: []api.PublicKey{
 			api.PublicKey(base64.StdEncoding.EncodeToString([]byte("ssh-rsa aaaaa"))),
 		},
 	}
 
-	e := NewShellExecutor(&request)
+	e := NewShellExecutor(request, testLogger)
 
 	e.Prepare()
-	e.Start(eventHandler)
+	e.Start()
 
 	go func() {
-		e.RunCommand("echo 'here'", eventHandler)
-		e.RunCommand("sleep 5", eventHandler)
+		e.RunCommand("echo 'here'", false)
+		e.RunCommand("sleep 5", false)
 	}()
 
 	time.Sleep(1 * time.Second)
@@ -147,64 +118,49 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	assert.Equal(t, events, []string{
-		"echo 'here'",
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents()[0:4], []string{
+		"directive: echo 'here'",
 		"here\n",
 		"Exit Code: 0",
 
-		"sleep 5",
-		"Exit Code: 1",
+		"directive: sleep 5",
 	})
 }
 
 func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
-	events := []string{}
+	testsupport.SetupTestLogs()
 
-	eventHandler := func(event interface{}) {
-		log.Printf("%+v", event)
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 
-		switch e := event.(type) {
-		case *CommandStartedEvent:
-			events = append(events, e.Directive)
-		case *CommandOutputEvent:
-			events = append(events, e.Output)
-		case *CommandFinishedEvent:
-			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
-		default:
-			fmt.Printf("Shell Event %+v\n", e)
-			panic("Unknown shell event")
-		}
-	}
-
-	request := api.JobRequest{
+	request := &api.JobRequest{
 		SSHPublicKeys: []api.PublicKey{
 			api.PublicKey(base64.StdEncoding.EncodeToString([]byte("ssh-rsa aaaaa"))),
 		},
 	}
 
-	e := NewShellExecutor(&request)
+	e := NewShellExecutor(request, testLogger)
 
 	e.Prepare()
-	e.Start(eventHandler)
+	e.Start()
 
 	go func() {
-		e.RunCommand("for i in {1..100}; { printf 'hello'; }", eventHandler)
-		e.RunCommand("sleep 5", eventHandler)
+		e.RunCommand("for i in {1..100}; { printf 'hello'; }", false)
 	}()
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	e.Stop()
 	e.Cleanup()
 
 	time.Sleep(1 * time.Second)
 
-	assert.Equal(t, events, []string{
-		"for i in {1..100}; { printf 'hello'; }",
-		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello\n",
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
+		"directive: for i in {1..100}; { printf 'hello'; }",
+		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
+		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
+		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
+		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
+		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
 		"Exit Code: 0",
-
-		"sleep 5",
-		"Exit Code: 1",
 	})
 }

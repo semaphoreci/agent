@@ -54,6 +54,7 @@ assert_job_log <<-LOG
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"Starting the docker image..."}
   {"event":"cmd_output",   "timestamp":"*", "output":"Starting a new bash session.\\n"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"Failed to start the docker image\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"*"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"Starting the docker image...","event":"cmd_finished","exit_code":1,"finished_at":"*","started_at":"*","timestamp":"*"}
 

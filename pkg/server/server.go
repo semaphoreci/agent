@@ -14,7 +14,7 @@ import (
 	mux "github.com/gorilla/mux"
 
 	api "github.com/semaphoreci/agent/pkg/api"
-	executors "github.com/semaphoreci/agent/pkg/executors"
+	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 )
 
@@ -116,24 +116,21 @@ func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 		startFromLine = 0
 	}
 
-	logfile, err := os.Open("/tmp/job_log.json")
+	logFile, ok := s.ActiveJob.Logger.Backend.(*eventlogger.FileBackend)
+	if !ok {
+		log.Printf("Failed to stream job logs")
 
-	if err != nil {
-		w.WriteHeader(404)
-		return
+		http.Error(w, err.Error(), 500)
+		fmt.Fprintf(w, `{"message": "%s"}`, "Failed to open logfile")
 	}
-	defer logfile.Close()
 
-	logLine := 0
-	executors.ScanLines(logfile, func(line string) bool {
-		if logLine >= startFromLine {
-			fmt.Fprintln(w, line)
-		}
+	err = logFile.Stream(startFromLine, w)
+	if err != nil {
+		log.Printf("Error while streaming logs")
 
-		logLine += 1
-
-		return true // always continue reading
-	})
+		http.Error(w, err.Error(), 500)
+		fmt.Fprintf(w, `{"message": "%s"}`, err)
+	}
 
 	if r.Header.Get("X-Client-Name") == "archivator" {
 		s.ActiveJob.JobLogArchived = true

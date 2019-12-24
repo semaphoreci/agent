@@ -1,6 +1,7 @@
 package executors
 
 import (
+	"encoding/base64"
 	"testing"
 
 	api "github.com/semaphoreci/agent/pkg/api"
@@ -21,11 +22,11 @@ func Test__DockerComposeFileConstruction(t *testing.T) {
 				EnvVars: []api.EnvVar{
 					api.EnvVar{
 						Name:  "FOO",
-						Value: "BAR",
+						Value: base64.StdEncoding.EncodeToString([]byte("BAR")),
 					},
 					api.EnvVar{
 						Name:  "FAZ",
-						Value: "ZEZ",
+						Value: base64.StdEncoding.EncodeToString([]byte("ZEZ")),
 					},
 				},
 			},

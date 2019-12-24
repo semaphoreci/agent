@@ -2,17 +2,17 @@ package executors
 
 import (
 	"encoding/base64"
-	"fmt"
-	"log"
+	"os/exec"
 	"testing"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	assert "github.com/stretchr/testify/assert"
 )
 
-func request() *api.JobRequest {
-	return &api.JobRequest{
+func startComposeExecutor() (*DockerComposeExecutor, *eventlogger.Logger, *eventlogger.InMemoryBackend) {
+	request := &api.JobRequest{
 		Compose: api.Compose{
 			Containers: []api.Container{
 				api.Container{
@@ -26,11 +26,11 @@ func request() *api.JobRequest {
 					EnvVars: []api.EnvVar{
 						api.EnvVar{
 							Name:  "FOO",
-							Value: "BAR",
+							Value: base64.StdEncoding.EncodeToString([]byte("BAR")),
 						},
 						api.EnvVar{
 							Name:  "FAZ",
-							Value: "ZEZ",
+							Value: base64.StdEncoding.EncodeToString([]byte("ZEZ")),
 						},
 					},
 				},
@@ -42,47 +42,43 @@ func request() *api.JobRequest {
 		},
 	}
 
+	// kill all existing container
+	cmd := exec.Command("/bin/bash", "-c", "docker stop $(docker ps -q); docker rm $(docker ps -qa)")
+	cmd.Run()
+
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+
+	e := NewDockerComposeExecutor(request, testLogger)
+
+	if code := e.Prepare(); code != 0 {
+		panic("Prapare failed")
+	}
+
+	if code := e.Start(); code != 0 {
+		panic("Start failed")
+	}
+
+	return e, testLogger, testLoggerBackend
 }
 
 func Test__DockerComposeExecutor(t *testing.T) {
-	events := []string{}
+	e, _, testLoggerBackend := startComposeExecutor()
 
-	eventHandler := func(event interface{}) {
-		log.Printf("%+v", event)
-
-		switch e := event.(type) {
-		case *CommandStartedEvent:
-			events = append(events, e.Directive)
-		case *CommandOutputEvent:
-			events = append(events, e.Output)
-		case *CommandFinishedEvent:
-			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
-		default:
-			fmt.Printf("Shell Event %+v\n", e)
-			panic("Unknown shell event")
-		}
-	}
-
-	e := NewDockerComposeExecutor(request())
-
-	e.Prepare()
-	e.Start(DevNullEventHandler)
-
-	e.RunCommand("echo 'here'", eventHandler)
+	e.RunCommand("echo 'here'", false)
 
 	multilineCmd := `
 	  if [ -d /etc ]; then
 	    echo 'etc exists, multiline huzzahh!'
 	  fi
 	`
-	e.RunCommand(multilineCmd, eventHandler)
+	e.RunCommand(multilineCmd, false)
 
 	envVars := []api.EnvVar{
 		api.EnvVar{Name: "A", Value: "Zm9vCg=="},
 	}
 
-	e.ExportEnvVars(envVars, eventHandler)
-	e.RunCommand("echo $A", eventHandler)
+	e.ExportEnvVars(envVars)
+	e.RunCommand("echo $A", false)
 
 	files := []api.File{
 		api.File{
@@ -92,73 +88,58 @@ func Test__DockerComposeExecutor(t *testing.T) {
 		},
 	}
 
-	e.InjectFiles(files, eventHandler)
-	e.RunCommand("cat /tmp/random-file.txt", eventHandler)
+	e.InjectFiles(files)
+	e.RunCommand("cat /tmp/random-file.txt", false)
 
-	e.RunCommand("echo $?", eventHandler)
+	e.RunCommand("echo $?", false)
 
 	e.Stop()
 	e.Cleanup()
 
-	assert.Equal(t, events, []string{
-		"echo 'here'",
+	assert.Equal(t, testLoggerBackend.SimplifiedEventsWithoutDockerPull(), []string{
+		"directive: Pulling docker images...",
+		"Exit Code: 0",
+
+		"directive: Starting the docker image...",
+		"Starting a new bash session.\n",
+		"Exit Code: 0",
+
+		"directive: echo 'here'",
 		"here\n",
 		"Exit Code: 0",
 
-		multilineCmd,
+		"directive: " + multilineCmd,
 		"etc exists, multiline huzzahh!\n",
 		"Exit Code: 0",
 
-		"Exporting environment variables",
+		"directive: Exporting environment variables",
 		"Exporting A\n",
 		"Exit Code: 0",
 
-		"echo $A",
+		"directive: echo $A",
 		"foo\n",
 		"Exit Code: 0",
 
-		"Injecting Files",
+		"directive: Injecting Files",
 		"Injecting /tmp/random-file.txt with file mode 0600\n",
 		"Exit Code: 0",
 
-		"cat /tmp/random-file.txt",
-		"aaabbb\n",
-		"\n",
+		"directive: cat /tmp/random-file.txt",
+		"aaabbb\n\n",
 		"Exit Code: 0",
 
-		"echo $?",
+		"directive: echo $?",
 		"0\n",
 		"Exit Code: 0",
 	})
 }
 
 func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
-	events := []string{}
-
-	eventHandler := func(event interface{}) {
-		log.Printf("%+v", event)
-
-		switch e := event.(type) {
-		case *CommandStartedEvent:
-			events = append(events, e.Directive)
-		case *CommandOutputEvent:
-			events = append(events, e.Output)
-		case *CommandFinishedEvent:
-			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
-		default:
-			fmt.Printf("Shell Event %+v\n", e)
-			panic("Unknown shell event")
-		}
-	}
-
-	e := NewDockerComposeExecutor(request())
-
-	e.Prepare()
-	e.Start(DevNullEventHandler)
+	e, _, testLoggerBackend := startComposeExecutor()
 
 	go func() {
-		e.RunCommand("echo 'here'", eventHandler)
-		e.RunCommand("sleep 5", eventHandler)
+		e.RunCommand("echo 'here'", false)
+		e.RunCommand("sleep 5", false)
 	}()
 
 	time.Sleep(1 * time.Second)
@@ -168,12 +149,19 @@ func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	assert.Equal(t, events, []string{
-		"echo 'here'",
+	assert.Equal(t, testLoggerBackend.SimplifiedEventsWithoutDockerPull(), []string{
+		"directive: Pulling docker images...",
+		"Exit Code: 0",
+
+		"directive: Starting the docker image...",
+		"Starting a new bash session.\n",
+		"Exit Code: 0",
+
+		"directive: echo 'here'",
 		"here\n",
 		"Exit Code: 0",
 
-		"sleep 5",
+		"directive: sleep 5",
 		"Exit Code: 1",
 	})
 }

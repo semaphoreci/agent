@@ -4,14 +4,15 @@ import (
 	"fmt"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 )
 
 type Executor interface {
 	Prepare() int
-	Start(EventHandler) int
-	ExportEnvVars([]api.EnvVar, EventHandler) int
-	InjectFiles([]api.File, EventHandler) int
-	RunCommand(string, EventHandler) int
+	Start() int
+	ExportEnvVars([]api.EnvVar) int
+	InjectFiles([]api.File) int
+	RunCommand(string, bool) int
 	Stop() int
 	Cleanup() int
 }
@@ -19,12 +20,12 @@ type Executor interface {
 const ExecutorTypeShell = "shell"
 const ExecutorTypeDockerCompose = "dockercompose"
 
-func CreateExecutor(request *api.JobRequest) (Executor, error) {
+func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger) (Executor, error) {
 	switch request.Executor {
 	case ExecutorTypeShell:
-		return NewShellExecutor(request), nil
+		return NewShellExecutor(request, logger), nil
 	case ExecutorTypeDockerCompose:
-		return NewDockerComposeExecutor(request), nil
+		return NewDockerComposeExecutor(request, logger), nil
 	default:
 		return nil, fmt.Errorf("Uknown executor type")
 	}
