@@ -65,12 +65,11 @@ func (l *FileBackend) Stream(startLine int, writter io.Writer) error {
 		}
 
 		if lineIndex < startLine {
+			lineIndex++
 			continue
 		}
 
 		fmt.Fprintln(writter, line)
-
-		lineIndex++
 	}
 
 	return nil
