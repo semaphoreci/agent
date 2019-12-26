@@ -85,7 +85,7 @@ func (p *Process) StreamToStdout() {
 		copy(output, p.outputBuffer[0:l])
 		p.outputBuffer = p.outputBuffer[l:]
 
-		out := strings.Replace(string(output), "\r\n", "\n", -1)
+		out := string(output)
 
 		log.Printf("Stream to stdout: %#v", out)
 		p.OnStdoutCallback(out)
