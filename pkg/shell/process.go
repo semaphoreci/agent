@@ -74,16 +74,57 @@ func (p *Process) OnStdout(callback func(string)) {
 }
 
 func (p *Process) StreamToStdout() {
-	for len(p.outputBuffer) > 100 || time.Now().Sub(p.lastStream) > 100*time.Millisecond {
-		l := 100
+	//
+	// The output is buffered in the outputBuffer as it comes in from the TTY
+	// device.
+	//
+	// Ideally, we should strive to flush the output to the logfile as an event
+	// when there are enough data to be sent. "Enough data" in this context
+	// should satisfy the following criteria:
+	//
+	// - If there is more than 100 characters in the buffer
+	//
+	// - If there is less than 100 characters in the buffer, but they were in
+	//   the buffer for more than 100 milisecond. The reasoning here is that
+	//   it should take no more than 100 milliseconds for the TTY to flush its
+	//   output.
+	//
+	// - If the UTF-8 sequence is complete. Cutting the UTF-8 sequence in half
+	//   leads to undefined (?) characters in the UI.
+	//
 
-		if len(p.outputBuffer) < l {
-			l = len(p.outputBuffer)
+	for len(p.outputBuffer) > 100 || time.Now().Sub(p.lastStream) > 100*time.Millisecond {
+		cutLength := 100
+
+		if len(p.outputBuffer) < cutLength {
+			cutLength = len(p.outputBuffer)
 		}
 
-		output := make([]byte, l)
-		copy(output, p.outputBuffer[0:l])
-		p.outputBuffer = p.outputBuffer[l:]
+		//
+		// The unicode continuation sign is marked by the highest (8th) bit.
+		// If the bit is set, it means that the unicode character is not yet
+		// finished.
+		//
+		// In the bellow loop, we are cutting of the last 3 charactes in case
+		// they are marked as the unicode continuation characters.
+		//
+		// An unicode sequence can't be longer than 4 bytes
+		//
+		unicodeContinuationMask := uint(1 << 8)
+
+		for i := 0; i < 4; i++ {
+			if uint(p.outputBuffer[cutLength])&unicodeContinuationMask != unicodeContinuationMask {
+				break
+			}
+
+			cutLength--
+		}
+
+		// Flushing the output to the logfile starts here
+
+		output := make([]byte, cutLength)
+		copy(output, p.outputBuffer[0:cutLength])
+		p.outputBuffer = p.outputBuffer[cutLength:]
 
 		out := strings.Replace(string(output), "\r\n", "\n", -1)
 
