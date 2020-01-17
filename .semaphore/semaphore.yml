@@ -36,6 +36,8 @@ blocks:
 
       prologue:
         commands:
+          - sudo rm /etc/docker/daemon.json
+          - sudo service docker restart
           - sem-version go 1.11
           - checkout
           - go version
@@ -94,6 +96,10 @@ blocks:
         - name: "Unknown Command"
           commands:
             - make e2e TEST=shell/unknown_command
+
+        - name: "Broken Unicode"
+          commands:
+            - make e2e TEST=shell/broken_unicode
 
   - name: "Docker Executor E2E tests"
     dependencies:
@@ -217,6 +223,10 @@ blocks:
         - name: "Unknown Command"
           commands:
             - make e2e TEST=docker/unknown_command
+
+        - name: "Broken Unicode"
+          commands:
+            - make e2e TEST=docker/broken_unicode
 
 promotions:
   - name: Release

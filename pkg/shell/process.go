@@ -93,34 +93,35 @@ func (p *Process) StreamToStdout() {
 	//   leads to undefined (?) characters in the UI.
 	//
 
-	log.Println("Flushing to output started")
-	log.Println("Output buffer size", len(p.outputBuffer))
+	maxTimeSinceLastFlush := 100 * time.Millisecond
 
-	for len(p.outputBuffer) > 100 || time.Now().Sub(p.lastStream) > 100*time.Millisecond {
+	for len(p.outputBuffer) > 100 || time.Now().Sub(p.lastStream) > maxTimeSinceLastFlush {
 		cutLength := 100
 
 		if len(p.outputBuffer) < cutLength {
 			cutLength = len(p.outputBuffer)
 		}
 
-		//
-		// The unicode continuation sign is marked by the highest (8th) bit.
-		// If the bit is set, it means that the unicode character is not yet
-		// finished.
-		//
-		// In the bellow loop, we are cutting of the last 3 charactes in case
-		// they are marked as the unicode continuation characters.
-		//
-		// An unicode sequence can't be longer than 4 bytes
-		//
-		unicodeContinuationMask := uint(1 << 7)
+		if time.Now().Sub(p.lastStream) < maxTimeSinceLastFlush {
+			//
+			// The unicode continuation sign is marked by the highest (8th) bit.
+			// If the bit is set, it means that the unicode character is not yet
+			// finished.
+			//
+			// In the bellow loop, we are cutting of the last 3 charactes in case
+			// they are marked as the unicode continuation characters.
+			//
+			// An unicode sequence can't be longer than 4 bytes
+			//
+			unicodeContinuationMask := uint(1 << 7)
 
-		for i := 0; i < 4; i++ {
-			if uint(p.outputBuffer[cutLength-1])&unicodeContinuationMask != unicodeContinuationMask {
-				break
+			for i := 0; i < 4; i++ {
+				if uint(p.outputBuffer[cutLength-1])&unicodeContinuationMask != unicodeContinuationMask {
+					break
+				}
+
+				cutLength--
 			}
-
-			cutLength--
 		}
 
 		// Flushing the output to the logfile starts here
