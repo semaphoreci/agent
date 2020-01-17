@@ -110,10 +110,10 @@ func (p *Process) StreamToStdout() {
 		//
 		// An unicode sequence can't be longer than 4 bytes
 		//
-		unicodeContinuationMask := uint(1 << 8)
+		unicodeContinuationMask := uint(1 << 7)
 
 		for i := 0; i < 4; i++ {
-			if uint(p.outputBuffer[cutLength])&unicodeContinuationMask != unicodeContinuationMask {
+			if uint(p.outputBuffer[cutLength-1])&unicodeContinuationMask != unicodeContinuationMask {
 				break
 			}
 
