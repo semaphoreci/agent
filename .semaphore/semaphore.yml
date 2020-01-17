@@ -87,6 +87,10 @@ blocks:
           commands:
             - make e2e TEST=shell/ssh_jump_points
 
+        - name: "Unicode"
+          commands:
+            - make e2e TEST=shell/unicode
+
   - name: "Docker Executor E2E tests"
     dependencies:
       - "Tests"
@@ -201,6 +205,10 @@ blocks:
         - name: "Container custom name"
           commands:
             - make e2e TEST=docker/container_custom_name
+
+        - name: "Unicode"
+          commands:
+            - make e2e TEST=docker/unicode
 
 promotions:
   - name: Release
