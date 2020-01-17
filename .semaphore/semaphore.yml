@@ -91,6 +91,10 @@ blocks:
           commands:
             - make e2e TEST=shell/unicode
 
+        - name: "Unknown Command"
+          commands:
+            - make e2e TEST=shell/unknown_command
+
   - name: "Docker Executor E2E tests"
     dependencies:
       - "Tests"
@@ -209,6 +213,10 @@ blocks:
         - name: "Unicode"
           commands:
             - make e2e TEST=docker/unicode
+
+        - name: "Unknown Command"
+          commands:
+            - make e2e TEST=docker/unknown_command
 
 promotions:
   - name: Release

@@ -50,7 +50,7 @@ func NewProcess(cmd string, tempStoragePath string, shell io.Writer, tty *os.Fil
 		panic("Invalid TTY")
 	}
 
-	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d)` + "[\r\n]+")
+	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d+)` + "[\r\n]+")
 
 	return &Process{
 		Command:  cmd,
@@ -92,6 +92,9 @@ func (p *Process) StreamToStdout() {
 	// - If the UTF-8 sequence is complete. Cutting the UTF-8 sequence in half
 	//   leads to undefined (?) characters in the UI.
 	//
+
+	log.Println("Flushing to output started")
+	log.Println("Output buffer size", len(p.outputBuffer))
 
 	for len(p.outputBuffer) > 100 || time.Now().Sub(p.lastStream) > 100*time.Millisecond {
 		cutLength := 100
