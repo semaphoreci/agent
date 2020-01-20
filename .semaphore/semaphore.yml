@@ -27,8 +27,7 @@ blocks:
             - make test
 
   - name: "Shell Executor E2E tests"
-    dependencies:
-      - "Tests"
+    dependencies: []
     task:
       env_vars:
         - name: GO111MODULE
@@ -36,6 +35,8 @@ blocks:
 
       prologue:
         commands:
+          - sudo rm /etc/docker/daemon.json
+          - sudo service docker restart
           - sem-version go 1.11
           - checkout
           - go version
@@ -47,49 +48,27 @@ blocks:
           - docker exec -ti agent cat /tmp/agent_log
 
       jobs:
-        - name: Hello World
+        - name: Shell
           commands:
-            - make e2e TEST=shell/hello_world
+            - "make e2e TEST=shell/$TEST"
+          matrix:
+            - env_var: TEST
+              values:
+                - env_vars
+                - failed_job
+                - job_stopping
+                - file_injection
+                - file_injection_broken_file_mode
+                - stty_restoration
+                - epilogue_on_pass
+                - epilogue_on_fail
+                - ssh_jump_points
+                - unicode
+                - unknown_command
+                - broken_unicode
 
-        - name: Env Vars
-          commands:
-            - make e2e TEST=shell/env_vars
-
-        - name: Failed Job
-          commands:
-            - make e2e TEST=shell/failed_job
-
-        - name: Job Stopping
-          commands:
-            - make e2e TEST=shell/job_stopping
-
-        - name: File Injection
-          commands:
-            - make e2e TEST=shell/file_injection
-
-        - name: File Injection Broken File Mode
-          commands:
-            - make e2e TEST=shell/file_injection_broken_file_mode
-
-        - name: Stty Restoration
-          commands:
-            - make e2e TEST=shell/stty_restoration
-
-        - name: Epilogue On Pass
-          commands:
-            - make e2e TEST=shell/epilogue_on_pass
-
-        - name: Epilogue On Fail
-          commands:
-            - make e2e TEST=shell/epilogue_on_fail
-
-        - name: SSH Jump Point
-          commands:
-            - make e2e TEST=shell/ssh_jump_points
-
-  - name: "Docker Executor E2E tests"
-    dependencies:
-      - "Tests"
+  - name: "Docker Executor E2E"
+    dependencies: []
     task:
       secrets:
         - name: aws-ecr-payground
@@ -103,6 +82,8 @@ blocks:
 
       prologue:
         commands:
+          - sudo rm /etc/docker/daemon.json
+          - sudo service docker restart
           - sem-version go 1.11
           - checkout
           - go version
@@ -114,93 +95,37 @@ blocks:
           - docker exec -ti agent cat /tmp/agent_log
 
       jobs:
-        - name: Hello World
+        - name: Docker
           commands:
-            - make e2e TEST=docker/hello_world
-
-        - name: Env Vars
-          commands:
-            - make e2e TEST=docker/env_vars
-
-        - name: Failed Job
-          commands:
-            - make e2e TEST=docker/failed_job
-
-        - name: Job Stopping
-          commands:
-            - make e2e TEST=docker/job_stopping
-
-        - name: File Injection
-          commands:
-            - make e2e TEST=docker/file_injection
-
-        - name: File Injection Broken File Mode
-          commands:
-            - make e2e TEST=docker/file_injection_broken_file_mode
-
-        - name: Stty Restoration
-          commands:
-            - make e2e TEST=docker/stty_restoration
-
-        - name: Epilogue On Pass
-          commands:
-            - make e2e TEST=docker/epilogue_on_pass
-
-        - name: Epilogue On Fail
-          commands:
-            - make e2e TEST=docker/epilogue_on_fail
-
-        - name: Docker In Docker
-          commands:
-            - make e2e TEST=docker/docker_in_docker
-
-        - name: Container Env Vars
-          commands:
-            - make e2e TEST=docker/container_env_vars
-
-        - name: DockerHub Login
-          commands:
-            - make e2e TEST=docker/dockerhub_private_image
-
-        - name: DockerRegistry Login
-          commands:
-            - make e2e TEST=docker/docker_registry_private_image
-
-        - name: ECR Login
-          commands:
-            - make e2e TEST=docker/docker_private_image_ecr
-
-        - name: GCR Login
-          commands:
-            - make e2e TEST=docker/docker_private_image_gcr
-
-        - name: DockerHub Login Failed
-          commands:
-            - make e2e TEST=docker/dockerhub_private_image_bad_creds
-
-        - name: DockerRegistry Login Failed
-          commands:
-            - make e2e TEST=docker/docker_registry_private_image_bad_creds
-
-        - name: ECR Login Failed
-          commands:
-            - make e2e TEST=docker/docker_private_image_ecr_bad_creds
-
-        - name: GCR Login Failed
-          commands:
-            - make e2e TEST=docker/docker_private_image_gcr_bad_creds
-
-        - name: SSH Jump Point
-          commands:
-            - make e2e TEST=docker/ssh_jump_points
-
-        - name: "No Bash"
-          commands:
-            - make e2e TEST=docker/no_bash
-
-        - name: "Container custom name"
-          commands:
-            - make e2e TEST=docker/container_custom_name
+            - "make e2e TEST=docker/$TEST"
+          matrix:
+            - env_var: TEST
+              values:
+                - hello_world
+                - env_vars
+                - failed_job
+                - job_stopping
+                - file_injection
+                - file_injection_broken_file_mode
+                - stty_restoration
+                - epilogue_on_pass
+                - epilogue_on_fail
+                - docker_in_docker
+                - container_env_vars
+                - dockerhub_private_image
+                - docker_registry_private_image
+                - docker_private_image_ecr
+                - docker_private_image_gcr
+                - dockerhub_private_image_bad_creds
+                - docker_registry_private_image_bad_creds
+                - docker_private_image_ecr_bad_creds
+                - docker_private_image_gcr_bad_creds
+                - ssh_jump_points
+                - no_bash
+                - container_custom_name
+                - unicode
+                - unknown_command
+                - broken_unicode
 
 promotions:
   - name: Release
