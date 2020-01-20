@@ -35,8 +35,6 @@ blocks:
 
       prologue:
         commands:
-          - sudo rm /etc/docker/daemon.json
-          - sudo service docker restart
           - sem-version go 1.11
           - checkout
           - go version
@@ -82,8 +80,6 @@ blocks:
 
       prologue:
         commands:
-          - sudo rm /etc/docker/daemon.json
-          - sudo service docker restart
           - sem-version go 1.11
           - checkout
           - go version
