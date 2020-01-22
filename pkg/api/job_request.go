@@ -11,10 +11,12 @@ import (
 )
 
 type Container struct {
-	Name    string   `json:"name" yaml:"name"`
-	Image   string   `json:"image" yaml:"image"`
-	Command string   `json:"command" yaml:"command"`
-	EnvVars []EnvVar `json:"env_vars" yaml:"env_vars"`
+	Name       string   `json:"name" yaml:"name"`
+	Image      string   `json:"image" yaml:"image"`
+	Command    string   `json:"command" yaml:"command"`
+	Entrypoint string   `json:"entrypoint" yaml:"entrypoint"`
+	User       string   `json:"user" yaml:"user"`
+	EnvVars    []EnvVar `json:"env_vars" yaml:"env_vars"`
 }
 
 type ImagePullCredentials struct {

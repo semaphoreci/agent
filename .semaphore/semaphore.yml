@@ -108,6 +108,7 @@ blocks:
                 - epilogue_on_fail
                 - docker_in_docker
                 - container_env_vars
+                - container_options
                 - dockerhub_private_image
                 - docker_registry_private_image
                 - docker_private_image_ecr
