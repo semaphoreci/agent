@@ -45,6 +45,14 @@ func (f *DockerComposeFile) Service(container api.Container) string {
 		result += fmt.Sprintf("    command: %s\n", container.Command)
 	}
 
+	if container.User != "" {
+		result += fmt.Sprintf("    user: %s\n", container.User)
+	}
+
+	if container.Entrypoint != "" {
+		result += fmt.Sprintf("    entrypoint: %s\n", container.Entrypoint)
+	}
+
 	if len(container.EnvVars) > 0 {
 		result += "    environment:\n"
 

@@ -16,9 +16,11 @@ func Test__DockerComposeFileConstruction(t *testing.T) {
 				Image: "ruby:2.6",
 			},
 			api.Container{
-				Name:    "db",
-				Image:   "postgres:9.6",
-				Command: "postgres start",
+				Name:       "db",
+				Image:      "postgres:9.6",
+				Command:    "postgres start",
+				User:       "postgres",
+				Entrypoint: "/docker-entrypoint-initdb.d/init-user-db.sh",
 				EnvVars: []api.EnvVar{
 					api.EnvVar{
 						Name:  "FOO",
@@ -44,6 +46,8 @@ services:
   db:
     image: postgres:9.6
     command: postgres start
+    user: postgres
+    entrypoint: /docker-entrypoint-initdb.d/init-user-db.sh
     environment:
       - FOO=BAR
       - FAZ=ZEZ
