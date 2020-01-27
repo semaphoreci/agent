@@ -152,7 +152,7 @@ func (s *Server) AgentLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
-	log.Printf("New job arrived")
+	log.Printf("New job arrived. Agent version %s.", s.Version)
 
 	log.Printf("Reading content of the request")
 	body, err := ioutil.ReadAll(r.Body)
