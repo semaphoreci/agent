@@ -33,12 +33,13 @@ changelog:
     - '^test:'
     - Merge pull request
     - Merge branch
-brew:
-  github:
-    owner: semaphoreci
-    name: homebrew-tap
-  folder: Formula
-  homepage:  https://semaphoreci.com
-  description: Semaphore 2.0 agent.
-  test: |
-    system "#{bin}/agent version"
+
+brews:
+  - github:
+      owner: semaphoreci
+      name: homebrew-tap
+    folder: Formula
+    homepage:  https://semaphoreci.com
+    description: Semaphore 2.0 agent.
+    test: |
+      system "#{bin}/agent version"
