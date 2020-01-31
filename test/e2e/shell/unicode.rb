@@ -50,17 +50,17 @@ assert_job_log <<-LOG
   {"event":"cmd_finished", "timestamp":"*", "directive":"Injecting Files","exit_code":0,"finished_at":"*","started_at":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"echo 特定の伝説に拠る物語の由来については諸説存在し。特定の伝説に拠る物語の由来については諸説存在し。特定の伝説に拠る物語の由来については諸説存在し。"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"特定の伝説に拠る物語の由来については諸説存在し。特定の伝説に拠る"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"物語の由来については諸説存在し。特定の伝説に拠る物語の由来につい"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"ては諸説存在し。\\n"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"特定の伝説に拠る物語の由来については諸説存在し。特定の伝説に拠る物"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"語の由来については諸説存在し。特定の伝説に拠る物語の由来については"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"諸説存在し。\\n"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"echo 特定の伝説に拠る物語の由来については諸説存在し。特定の伝説に拠る物語の由来については諸説存在し。特定の伝説に拠る物語の由来については諸説存在し。","exit_code":0,"finished_at":"*","started_at":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"━━━━━━━━━━━━━━━━━━━━━━━━━━\\n"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"━━━━━━━━━━━━━━━━━━━━━━\\n"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━","exit_code":0,"finished_at":"*","started_at":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=passed"}
