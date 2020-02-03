@@ -33,9 +33,7 @@ type Process struct {
 	cmdFilePath     string
 
 	inputBuffer  []byte
-	outputBuffer []byte
-
-	lastStream time.Time
+	outputBuffer *OutputBuffer
 }
 
 func randomMagicMark() string {
@@ -65,7 +63,8 @@ func NewProcess(cmd string, tempStoragePath string, shell io.Writer, tty *os.Fil
 		commandEndRegex: commandEndRegex,
 		tempStoragePath: tempStoragePath,
 		cmdFilePath:     tempStoragePath + "/current-agent-cmd",
-		lastStream:      time.Now(),
+
+		outputBuffer: NewOutputBuffer(),
 	}
 }
 
@@ -74,74 +73,25 @@ func (p *Process) OnStdout(callback func(string)) {
 }
 
 func (p *Process) StreamToStdout() {
-	//
-	// The output is buffered in the outputBuffer as it comes in from the TTY
-	// device.
-	//
-	// Ideally, we should strive to flush the output to the logfile as an event
-	// when there are enough data to be sent. "Enough data" in this context
-	// should satisfy the following criteria:
-	//
-	// - If there is more than 100 characters in the buffer
-	//
-	// - If there is less than 100 characters in the buffer, but they were in
-	//   the buffer for more than 100 milisecond. The reasoning here is that
-	//   it should take no more than 100 milliseconds for the TTY to flush its
-	//   output.
-	//
-	// - If the UTF-8 sequence is complete. Cutting the UTF-8 sequence in half
-	//   leads to undefined (?) characters in the UI.
-	//
-
-	maxTimeSinceLastFlush := 100 * time.Millisecond
-
-	for len(p.outputBuffer) > 100 || time.Now().Sub(p.lastStream) > maxTimeSinceLastFlush {
-		cutLength := 100
-
-		if len(p.outputBuffer) < cutLength {
-			cutLength = len(p.outputBuffer)
+	for {
+		data, ok := p.outputBuffer.Flush()
+		if !ok {
+			break
 		}
 
-		if time.Now().Sub(p.lastStream) < maxTimeSinceLastFlush {
-			//
-			// The unicode continuation sign is marked by the highest (8th) bit.
-			// If the bit is set, it means that the unicode character is not yet
-			// finished.
-			//
-			// In the bellow loop, we are cutting of the last 3 charactes in case
-			// they are marked as the unicode continuation characters.
-			//
-			// An unicode sequence can't be longer than 4 bytes
-			//
-			unicodeContinuationMask := uint(1 << 7)
+		log.Printf("Stream to stdout: %#v", data)
 
-			for i := 0; i < 4; i++ {
-				if uint(p.outputBuffer[cutLength-1])&unicodeContinuationMask != unicodeContinuationMask {
-					break
-				}
-
-				cutLength--
-			}
-		}
-
-		// Flushing the output to the logfile starts here
-
-		output := make([]byte, cutLength)
-		copy(output, p.outputBuffer[0:cutLength])
-		p.outputBuffer = p.outputBuffer[cutLength:]
-
-		out := strings.Replace(string(output), "\r\n", "\n", -1)
-
-		log.Printf("Stream to stdout: %#v", out)
-		p.OnStdoutCallback(out)
-
-		p.lastStream = time.Now()
+		p.OnStdoutCallback(data)
 	}
 }
 
 func (p *Process) flushOutputBuffer() {
-	for len(p.outputBuffer) > 0 {
+	for !p.outputBuffer.IsEmpty() {
 		p.StreamToStdout()
+
+		if !p.outputBuffer.IsEmpty() {
+			time.Sleep(10 * time.Millisecond)
+		}
 	}
 }
 
@@ -154,8 +104,10 @@ func (p *Process) flushInputBufferTill(index int) {
 		return
 	}
 
-	p.outputBuffer = append(p.outputBuffer, p.inputBuffer[0:index]...)
+	data := p.inputBuffer[0:index]
 	p.inputBuffer = p.inputBuffer[index:]
+
+	p.outputBuffer.Append(data)
 }
 
 func (p *Process) Run() {
@@ -234,7 +186,7 @@ func (p *Process) readBufferSize() int {
 }
 
 //
-// Read state from shell into the outputBuffer
+// Read state from shell into the inputBuffer
 //
 func (p *Process) read() error {
 	buffer := make([]byte, p.readBufferSize())
