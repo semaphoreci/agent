@@ -26,36 +26,50 @@ import (
 //   leads to undefined (?) characters in the UI.
 //
 
-const OutputBufferMaxTimeSinceLastFlush = 100 * time.Millisecond
+const OutputBufferMaxTimeSinceLastAppend = 100 * time.Millisecond
 const OutputBufferDefaultCutLength = 100
 
 type OutputBuffer struct {
 	bytes []byte
 
-	lastFlush time.Time
+	lastAppend *time.Time
 }
 
 func NewOutputBuffer() *OutputBuffer {
-	return &OutputBuffer{
-		bytes:     []byte{},
-		lastFlush: time.Now(),
-	}
+	return &OutputBuffer{bytes: []byte{}}
 }
 
 func (b *OutputBuffer) Append(bytes []byte) {
+	now := time.Now()
+	b.lastAppend = &now
+
 	b.bytes = append(b.bytes, bytes...)
 }
 
 func (b *OutputBuffer) IsEmpty() bool {
-	log.Println(len(b.bytes))
-
 	return len(b.bytes) == 0
 }
 
 func (b *OutputBuffer) Flush() (string, bool) {
-	timeSinceLastflush := time.Now().Sub(b.lastFlush)
+	if b.IsEmpty() {
+		return "", false
+	}
 
-	if len(b.bytes) < OutputBufferDefaultCutLength && timeSinceLastflush < OutputBufferMaxTimeSinceLastFlush {
+	timeSinceLastAppend := 1 * time.Millisecond
+	if b.lastAppend != nil {
+		timeSinceLastAppend = time.Now().Sub(*b.lastAppend)
+	}
+
+	log.Printf("Flushing. %d bytes in the buffer", len(b.bytes))
+
+	// We don't want to flush too often.
+	//
+	// We either:
+	//
+	//   - wait till there is enough in the buffer
+	//   - wait till the dat sitting in the buffer is old enough
+
+	if len(b.bytes) < OutputBufferDefaultCutLength && timeSinceLastAppend < OutputBufferMaxTimeSinceLastAppend {
 		return "", false
 	}
 
@@ -88,8 +102,12 @@ func (b *OutputBuffer) Flush() (string, bool) {
 	//
 	// An unicode sequence can't be longer than 4 bytes
 	//
+	//
+	// If there is only broken bytes in the buffer, we don't want to wait
+	// indefinetily. We only run this check if the last insert was recent enough.
+	//
 
-	if timeSinceLastflush < OutputBufferMaxTimeSinceLastFlush {
+	if timeSinceLastAppend < OutputBufferMaxTimeSinceLastAppend {
 		for i := 0; i < 4; i++ {
 			if utf8.Valid(b.bytes[0:cutLength]) {
 				break
@@ -104,7 +122,6 @@ func (b *OutputBuffer) Flush() (string, bool) {
 	output := make([]byte, cutLength)
 	copy(output, b.bytes[0:cutLength])
 	b.bytes = b.bytes[cutLength:]
-	b.lastFlush = time.Now()
 
 	return strings.Replace(string(output), "\r\n", "\n", -1), true
 }
