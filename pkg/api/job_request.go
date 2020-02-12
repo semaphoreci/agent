@@ -31,6 +31,7 @@ type Compose struct {
 
 type Command struct {
 	Directive string `json:"directive" yaml:"directive"`
+	Alias     string `json:"alias" yaml:"alias"`
 }
 
 type EnvVar struct {

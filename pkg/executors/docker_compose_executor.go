@@ -511,13 +511,13 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar) int {
 	}
 
 	cmd := fmt.Sprintf("source %s", envPath)
-	exitCode = e.RunCommand(cmd, true)
+	exitCode = e.RunCommand(cmd, true, "")
 	if exitCode != 0 {
 		return exitCode
 	}
 
 	cmd = fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envPath)
-	exitCode = e.RunCommand(cmd, true)
+	exitCode = e.RunCommand(cmd, true, "")
 	if exitCode != 0 {
 		return exitCode
 	}
@@ -563,7 +563,7 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 		}
 
 		cmd := fmt.Sprintf("mkdir -p %s", path.Dir(destPath))
-		exitCode = e.RunCommand(cmd, true)
+		exitCode = e.RunCommand(cmd, true, "")
 		if exitCode != 0 {
 			output := fmt.Sprintf("Failed to create destination path %s", destPath)
 			e.Logger.LogCommandOutput(output + "\n")
@@ -571,7 +571,7 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 		}
 
 		cmd = fmt.Sprintf("cp %s %s", tmpPath, destPath)
-		exitCode = e.RunCommand(cmd, true)
+		exitCode = e.RunCommand(cmd, true, "")
 		if exitCode != 0 {
 			output := fmt.Sprintf("Failed to move to destination path %s %s", tmpPath, destPath)
 			e.Logger.LogCommandOutput(output + "\n")
@@ -579,7 +579,7 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 		}
 
 		cmd = fmt.Sprintf("chmod %s %s", f.Mode, destPath)
-		exitCode = e.RunCommand(cmd, true)
+		exitCode = e.RunCommand(cmd, true, "")
 		if exitCode != 0 {
 			output := fmt.Sprintf("Failed to set file mode to %s", f.Mode)
 			e.Logger.LogCommandOutput(output + "\n")
@@ -594,11 +594,20 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 	return exitCode
 }
 
-func (e *DockerComposeExecutor) RunCommand(command string, silent bool) int {
+func (e *DockerComposeExecutor) RunCommand(command string, silent bool, alias string) int {
+	directive := command
+	if alias != "" {
+		directive = alias
+	}
+
 	p := e.Shell.NewProcess(command)
 
 	if !silent {
-		e.Logger.LogCommandStarted(command)
+		e.Logger.LogCommandStarted(directive)
+
+		if alias != "" {
+			e.Logger.LogCommandOutput(fmt.Sprintf("Running: %s\n", command))
+		}
 	}
 
 	p.OnStdout(func(output string) {
@@ -610,7 +619,7 @@ func (e *DockerComposeExecutor) RunCommand(command string, silent bool) int {
 	p.Run()
 
 	if !silent {
-		e.Logger.LogCommandFinished(command, p.ExitCode, p.StartedAt, p.FinishedAt)
+		e.Logger.LogCommandFinished(directive, p.ExitCode, p.StartedAt, p.FinishedAt)
 	}
 
 	return p.ExitCode
