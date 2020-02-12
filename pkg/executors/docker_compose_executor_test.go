@@ -64,21 +64,21 @@ func startComposeExecutor() (*DockerComposeExecutor, *eventlogger.Logger, *event
 func Test__DockerComposeExecutor(t *testing.T) {
 	e, _, testLoggerBackend := startComposeExecutor()
 
-	e.RunCommand("echo 'here'", false)
+	e.RunCommand("echo 'here'", false, "")
 
 	multilineCmd := `
 	  if [ -d /etc ]; then
 	    echo 'etc exists, multiline huzzahh!'
 	  fi
 	`
-	e.RunCommand(multilineCmd, false)
+	e.RunCommand(multilineCmd, false, "")
 
 	envVars := []api.EnvVar{
 		api.EnvVar{Name: "A", Value: "Zm9vCg=="},
 	}
 
 	e.ExportEnvVars(envVars)
-	e.RunCommand("echo $A", false)
+	e.RunCommand("echo $A", false, "")
 
 	files := []api.File{
 		api.File{
@@ -89,9 +89,9 @@ func Test__DockerComposeExecutor(t *testing.T) {
 	}
 
 	e.InjectFiles(files)
-	e.RunCommand("cat /tmp/random-file.txt", false)
+	e.RunCommand("cat /tmp/random-file.txt", false, "")
 
-	e.RunCommand("echo $?", false)
+	e.RunCommand("echo $?", false, "")
 
 	e.Stop()
 	e.Cleanup()
@@ -138,8 +138,8 @@ func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
 	e, _, testLoggerBackend := startComposeExecutor()
 
 	go func() {
-		e.RunCommand("echo 'here'", false)
-		e.RunCommand("sleep 5", false)
+		e.RunCommand("echo 'here'", false, "")
+		e.RunCommand("sleep 5", false, "")
 	}()
 
 	time.Sleep(1 * time.Second)

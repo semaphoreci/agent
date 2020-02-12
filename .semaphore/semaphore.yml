@@ -52,6 +52,7 @@ blocks:
           matrix:
             - env_var: TEST
               values:
+                - command_aliases
                 - env_vars
                 - failed_job
                 - job_stopping
@@ -98,6 +99,7 @@ blocks:
             - env_var: TEST
               values:
                 - hello_world
+                - command_aliases
                 - env_vars
                 - failed_job
                 - job_stopping

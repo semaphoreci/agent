@@ -156,7 +156,7 @@ func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command) int {
 			return 1
 		}
 
-		lastExitCode = job.Executor.RunCommand(c.Directive, false)
+		lastExitCode = job.Executor.RunCommand(c.Directive, false, c.Alias)
 
 		if lastExitCode != 0 {
 			break
