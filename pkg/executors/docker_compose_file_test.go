@@ -40,11 +40,15 @@ func Test__DockerComposeFileConstruction(t *testing.T) {
 services:
   main:
     image: ruby:2.6
+    devices:
+      - "/dev/kvm:/dev/kvm"
     links:
       - db
 
   db:
     image: postgres:9.6
+    devices:
+      - "/dev/kvm:/dev/kvm"
     command: postgres start
     user: postgres
     entrypoint: /docker-entrypoint-initdb.d/init-user-db.sh
