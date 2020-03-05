@@ -125,6 +125,7 @@ blocks:
                 - unicode
                 - unknown_command
                 - broken_unicode
+                - check_dev_kvm
 
 promotions:
   - name: Release

@@ -20,6 +20,7 @@ func (f *DockerComposeFile) Construct() string {
 	dockerCompose := ""
 	dockerCompose += "version: \"2.0\"\n"
 	dockerCompose += "\n"
+
 	dockerCompose += "services:\n"
 
 	main, rest := f.configuration.Containers[0], f.configuration.Containers[1:]
@@ -40,6 +41,8 @@ func (f *DockerComposeFile) Service(container api.Container) string {
 	result := ""
 	result += fmt.Sprintf("  %s:\n", container.Name)
 	result += fmt.Sprintf("    image: %s\n", container.Image)
+	result += "    devices:\n"
+	result += "      - \"/dev/kvm:/dev/kvm\"\n"
 
 	if container.Command != "" {
 		result += fmt.Sprintf("    command: %s\n", container.Command)
