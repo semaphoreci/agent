@@ -43,7 +43,11 @@ func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logge
 
 func (e *DockerComposeExecutor) Prepare() int {
 	err := os.MkdirAll(e.tmpDirectory, os.ModePerm)
+	if err != nil {
+		return 1
+	}
 
+	err = e.executeHostCommands()
 	if err != nil {
 		return 1
 	}
@@ -55,6 +59,23 @@ func (e *DockerComposeExecutor) Prepare() int {
 	ioutil.WriteFile(e.dockerComposeManifestPath, []byte(compose), 0644)
 
 	return e.setUpSSHJumpPoint()
+}
+
+func (e *DockerComposeExecutor) executeHostCommands() error {
+	hostCommands := e.jobRequest.Compose.HostSetupCommands
+
+	for _, c := range hostCommands {
+		log.Println("Executing Host Command:", c.Directive)
+		cmd := exec.Command("bash", "-c", c.Directive)
+
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			log.Println("Error:", err)
+			return err
+		}
+		log.Println(out)
+	}
+	return nil
 }
 
 func (e *DockerComposeExecutor) setUpSSHJumpPoint() int {

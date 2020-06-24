@@ -27,6 +27,7 @@ type ImagePullCredentials struct {
 type Compose struct {
 	ImagePullCredentials []ImagePullCredentials `json:"image_pull_credentials" yaml:"image_pull_credentials"`
 	Containers           []Container            `json:"containers" yaml:"containers"`
+	HostSetupCommands    []Command              `json:"host_setup_commands" yaml:"host_setup_commands"`
 }
 
 type Command struct {

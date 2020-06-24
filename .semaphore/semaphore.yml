@@ -126,6 +126,7 @@ blocks:
                 - unknown_command
                 - broken_unicode
                 - check_dev_kvm
+                - host_setup_commands
 
 promotions:
   - name: Release
