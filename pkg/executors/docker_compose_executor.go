@@ -454,12 +454,30 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 
 	e.Logger.LogCommandStarted(directive)
 
+	//
+	// Docker-Compose doens't have the equivalent of image_pull_policy: IfNotPresent
+	// "docker-compose pull" pulls always.
+	//
+	// This is sub-optimal. We want to enable our customers to use cached images.
+	// However, we also need to make sure that everything is pulled down before
+	// we start the job.
+	//
+	// As a workaround, we are not using "docker-compose pull", but:
+	//
+	//    docker-compose run main true
+	//
+	// The "run" command will first pull the images, and only pull the ones that
+	// are not present locally.
+	//
+
 	cmd := exec.Command(
 		"docker-compose",
 		"--no-ansi",
 		"-f",
 		e.dockerComposeManifestPath,
-		"pull")
+		"run",
+		e.mainContainerName,
+		"true")
 
 	tty, err := pty.Start(cmd)
 	if err != nil {
