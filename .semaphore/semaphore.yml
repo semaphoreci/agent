@@ -127,6 +127,7 @@ blocks:
                 - broken_unicode
                 - check_dev_kvm
                 - host_setup_commands
+                - multiple_containers
 
 promotions:
   - name: Release
