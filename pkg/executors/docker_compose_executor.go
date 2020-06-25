@@ -69,11 +69,12 @@ func (e *DockerComposeExecutor) executeHostCommands() error {
 		cmd := exec.Command("bash", "-c", c.Directive)
 
 		out, err := cmd.CombinedOutput()
+		log.Println(out)
+
 		if err != nil {
 			log.Println("Error:", err)
 			return err
 		}
-		log.Println(out)
 	}
 	return nil
 }
