@@ -12,6 +12,7 @@ import (
 	"time"
 
 	pty "github.com/kr/pty"
+	watchman "github.com/renderedtext/go-watchman"
 	api "github.com/semaphoreci/agent/pkg/api"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	shell "github.com/semaphoreci/agent/pkg/shell"
@@ -453,6 +454,7 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	directive := "Pulling docker images..."
 	commandStartedAt := int(time.Now().Unix())
 
+	e.SubmitStats("semphoreci/android", "pull.rate", []string{"android"}, 1)
 	e.Logger.LogCommandStarted(directive)
 
 	//
@@ -502,13 +504,14 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 
 	if err := cmd.Wait(); err != nil {
 		log.Println("Docker pull failed", err)
+		e.SubmitStats("semphoreci/android", "error.rate", []string{"android"}, 1)
 		exitCode = 1
 	}
 
 	log.Println("Docker pull finished. Exit Code", exitCode)
 
 	commandFinishedAt := int(time.Now().Unix())
-
+	e.SubmitStats("semphoreci/android", "pull.time", []string{"android"}, (commandFinishedAt - commandStartedAt))
 	e.Logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 
 	return exitCode
@@ -682,4 +685,10 @@ func (e *DockerComposeExecutor) Stop() int {
 
 func (e *DockerComposeExecutor) Cleanup() int {
 	return 0
+}
+
+func (e *DockerComposeExecutor) SubmitStats(imageName, metricName string, tags []string, value int) {
+	if res := strings.Contains(e.jobRequest.Compose.Containers[0].Image, imageName); res {
+		watchman.SubmitWithTags(metricName, tags, value)
+	}
 }
