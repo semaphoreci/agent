@@ -453,8 +453,7 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	log.Printf("Pulling docker images")
 	directive := "Pulling docker images..."
 	commandStartedAt := int(time.Now().Unix())
-
-	e.SubmitStats("semphoreci/android", "pull.rate", []string{"android"}, 1)
+	e.SubmitDockerStats("compose.docker.pull.rate")
 	e.Logger.LogCommandStarted(directive)
 
 	//
@@ -504,14 +503,14 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 
 	if err := cmd.Wait(); err != nil {
 		log.Println("Docker pull failed", err)
-		e.SubmitStats("semphoreci/android", "error.rate", []string{"android"}, 1)
+		e.SubmitDockerStats("compose.docker.error.rate")
 		exitCode = 1
 	}
 
 	log.Println("Docker pull finished. Exit Code", exitCode)
 
 	commandFinishedAt := int(time.Now().Unix())
-	e.SubmitStats("semphoreci/android", "pull.time", []string{"android"}, (commandFinishedAt - commandStartedAt))
+	e.SubmitDockerPullTime(commandFinishedAt - commandStartedAt)
 	e.Logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 
 	return exitCode
@@ -687,8 +686,19 @@ func (e *DockerComposeExecutor) Cleanup() int {
 	return 0
 }
 
+func (e *DockerComposeExecutor) SubmitDockerStats(metricName string) {
+	e.SubmitStats("semphoreci/android", metricName, []string{"semaphoreci/android"}, 1)
+}
+
 func (e *DockerComposeExecutor) SubmitStats(imageName, metricName string, tags []string, value int) {
-	if res := strings.Contains(e.jobRequest.Compose.Containers[0].Image, imageName); res {
+	if strings.Contains(e.jobRequest.Compose.Containers[0].Image, imageName) {
 		watchman.SubmitWithTags(metricName, tags, value)
+	}
+}
+
+func (e *DockerComposeExecutor) SubmitDockerPullTime(duration int) {
+	if strings.Contains(e.jobRequest.Compose.Containers[0].Image, "semaphore/android") {
+		// only submiting android metrics.
+		watchman.SubmitWithTags("compose.docker.pull.duration", []string{"semaphoreci/android"}, duration)
 	}
 }
