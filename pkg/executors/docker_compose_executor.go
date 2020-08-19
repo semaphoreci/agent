@@ -687,7 +687,7 @@ func (e *DockerComposeExecutor) Cleanup() int {
 }
 
 func (e *DockerComposeExecutor) SubmitDockerStats(metricName string) {
-	e.SubmitStats("semphoreci/android", metricName, []string{"semaphoreci/android"}, 1)
+	e.SubmitStats("semaphoreci/android", metricName, []string{"semaphoreci/android"}, 1)
 }
 
 func (e *DockerComposeExecutor) SubmitStats(imageName, metricName string, tags []string, value int) {
