@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	watchman "github.com/renderedtext/go-watchman"
 	api "github.com/semaphoreci/agent/pkg/api"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	server "github.com/semaphoreci/agent/pkg/server"
@@ -52,11 +53,22 @@ func RunServer(logfile io.Writer) {
 	host := pflag.String("host", "0.0.0.0", "Host of the server")
 	tlsCertPath := pflag.String("tls-cert-path", "server.crt", "TLS Certificate path")
 	tlsKeyPath := pflag.String("tls-key-path", "server.key", "TLS Private key path")
+	statsdHost := pflag.String("statsd-host", "", "Metrics Host")
+	statsdPort := pflag.String("statsd-port", "", "Metrics port")
+	statsdNamespace := pflag.String("statsd-namespace", "agent.prod", "The prefix to be added to every StatsD metric")
 
 	pflag.Parse()
 
 	if *authTokenSecret == "" {
 		log.Fatal("Auth token is empty")
+	}
+
+	if *statsdHost != "" && *statsdPort != "" {
+		// Initialize watchman
+		err := watchman.Configure(*statsdHost, *statsdPort, *statsdNamespace)
+		if err != nil {
+			log.Printf("(err) Failed to configure statsd connection with watchman. Error: %s", err.Error())
+		}
 	}
 
 	server.NewServer(
