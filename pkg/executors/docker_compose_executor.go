@@ -697,7 +697,7 @@ func (e *DockerComposeExecutor) SubmitStats(imageName, metricName string, tags [
 }
 
 func (e *DockerComposeExecutor) SubmitDockerPullTime(duration int) {
-	if strings.Contains(e.jobRequest.Compose.Containers[0].Image, "semaphore/android") {
+	if strings.Contains(e.jobRequest.Compose.Containers[0].Image, "semaphoreci/android") {
 		// only submiting android metrics.
 		watchman.SubmitWithTags("compose.docker.pull.duration", []string{"semaphoreci/android"}, duration)
 	}
