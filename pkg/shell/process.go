@@ -8,9 +8,11 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"os/signal"
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -111,6 +113,10 @@ func (p *Process) flushInputBufferTill(index int) {
 }
 
 func (p *Process) Run() {
+
+	log.Println("Signals ===================================")
+	log.Println(signal.Ignored(syscall.SIGHUP))
+
 	instruction := p.constructShellInstruction()
 
 	p.StartedAt = int(time.Now().Unix())
@@ -194,7 +200,7 @@ func (p *Process) read() error {
 	log.Println("Reading started")
 	n, err := p.TTY.Read(buffer)
 	if err != nil {
-		log.Println("Error while reading from the tty")
+		log.Printf("Error while reading from the tty. Error: '%s'.", err.Error())
 		return err
 	}
 
