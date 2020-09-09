@@ -294,6 +294,12 @@ func (p *Process) scan() error {
 
 		err := p.read()
 		if err != nil {
+			// Reading failed. The most likely cause is that the bash process
+			// died. For example, running an `exit 1` command has killed it.
+
+			// Flushing all remaining data in the buffer and exiting.
+			p.flushOutputBuffer()
+
 			return err
 		}
 	}
