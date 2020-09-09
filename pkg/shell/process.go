@@ -3,23 +3,18 @@ package shell
 import (
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"math/rand"
-	"os"
-	"os/signal"
 	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 )
 
 type Process struct {
 	Command string
-	Shell   io.Writer
-	TTY     *os.File
+	Shell   *Shell
 
 	StartedAt  int
 	FinishedAt int
@@ -42,13 +37,9 @@ func randomMagicMark() string {
 	return fmt.Sprintf("949556c7-%d", time.Now().Unix())
 }
 
-func NewProcess(cmd string, tempStoragePath string, shell io.Writer, tty *os.File) *Process {
+func NewProcess(cmd string, tempStoragePath string, shell *Shell) *Process {
 	startMark := randomMagicMark() + "-start"
 	endMark := randomMagicMark() + "-end"
-
-	if tty == nil {
-		panic("Invalid TTY")
-	}
 
 	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d+)` + "[\r\n]+")
 
@@ -57,7 +48,6 @@ func NewProcess(cmd string, tempStoragePath string, shell io.Writer, tty *os.Fil
 		ExitCode: 1,
 
 		Shell: shell,
-		TTY:   tty,
 
 		startMark: startMark,
 		endMark:   endMark,
@@ -113,10 +103,6 @@ func (p *Process) flushInputBufferTill(index int) {
 }
 
 func (p *Process) Run() {
-
-	log.Println("Signals ===================================")
-	log.Println(signal.Ignored(syscall.SIGHUP))
-
 	instruction := p.constructShellInstruction()
 
 	p.StartedAt = int(time.Now().Unix())
@@ -130,7 +116,7 @@ func (p *Process) Run() {
 		return
 	}
 
-	p.send(instruction)
+	p.Shell.Write(instruction)
 	p.scan()
 }
 
@@ -168,12 +154,6 @@ func (p *Process) loadCommand() error {
 	return nil
 }
 
-func (p *Process) send(instruction string) {
-	log.Printf("Sending Instruction: %s", instruction)
-
-	p.Shell.Write([]byte(instruction + "\n"))
-}
-
 func (p *Process) readBufferSize() int {
 	if flag.Lookup("test.v") == nil {
 		return 100
@@ -198,7 +178,7 @@ func (p *Process) read() error {
 	buffer := make([]byte, p.readBufferSize())
 
 	log.Println("Reading started")
-	n, err := p.TTY.Read(buffer)
+	n, err := p.Shell.Read(&buffer)
 	if err != nil {
 		log.Printf("Error while reading from the tty. Error: '%s'.", err.Error())
 		return err

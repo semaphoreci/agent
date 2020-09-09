@@ -7,7 +7,8 @@ require_relative '../../e2e'
 # Running the following set of commands caused the Agent to freeze up.
 #
 #   sleep infinity &
-#   exit 1
+#   set -eo pipefail
+#   cat non_existant | sort
 #
 # These are regressions tests that verify that this is no longer a problem.
 #
@@ -22,7 +23,8 @@ start_job <<-JSON
 
     "commands": [
       { "directive": "sleep infinity &" },
-      { "directive": "exit 1" }
+      { "directive": "set -eo pipefail" },
+      { "directive": "cat non_existant | sort" }
     ],
 
     "epilogue_always_commands": [],
@@ -44,8 +46,11 @@ assert_job_log <<-LOG
   {"event":"cmd_finished", "timestamp":"*", "directive":"Injecting Files","exit_code":0,"finished_at":"*","started_at":"*"}
   {"event":"cmd_started",  "timestamp":"*", "directive":"sleep infinity &"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"sleep infinity &","exit_code":0,"finished_at":"*","started_at":"*"}
-  {"event":"cmd_started",  "timestamp":"*", "directive":"exit 1"}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"exit 1","exit_code":1,"finished_at":"*","started_at":"*"}
+  {"event":"cmd_started",  "timestamp":"*", "directive":"set -eo pipefail"}
+  {"event":"cmd_finished", "timestamp":"*", "directive":"set -eo pipefail","exit_code":0,"finished_at":"*","started_at":"*"}
+  {"event":"cmd_started",  "timestamp":"*", "directive":"cat non_existant | sort"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"cat: non_existant: No such file or directory\\n"}
+  {"event":"cmd_finished", "timestamp":"*", "directive":"cat non_existant | sort","exit_code":1,"finished_at":"*","started_at":"*"}
   {"event":"cmd_started",  "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=failed"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=failed","exit_code":1,"started_at":"*","finished_at":"*"}
   {"event":"job_finished", "timestamp":"*", "result":"failed"}

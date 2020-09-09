@@ -65,6 +65,9 @@ blocks:
                 - unicode
                 - unknown_command
                 - broken_unicode
+                - killing_root_bash
+                - set_e
+                - set_pipefail
 
   - name: "Docker Executor E2E"
     dependencies: []

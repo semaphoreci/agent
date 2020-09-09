@@ -16,12 +16,16 @@ type Shell struct {
 	BootCommand *exec.Cmd
 	StoragePath string
 	TTY         *os.File
+	ExitSignal  chan string
 }
 
 func NewShell(bootCommand *exec.Cmd, storagePath string) (*Shell, error) {
+	exitChannel := make(chan string, 1)
+
 	return &Shell{
 		BootCommand: bootCommand,
 		StoragePath: storagePath,
+		ExitSignal:  exitChannel,
 	}, nil
 }
 
@@ -36,9 +40,79 @@ func (s *Shell) Start() error {
 
 	s.TTY = tty
 
+	s.handleAbruptShellCloses()
+
 	time.Sleep(1000)
 
 	return s.silencePromptAndDisablePS1()
+}
+
+func (s *Shell) handleAbruptShellCloses() {
+	//
+	// If the Shell is abrupty closed, we are cleaning up, and sending out an
+	// exit signal.
+	//
+	// Abrupt closes can be caused by:
+	//
+	//  - running exit 1 command
+	//  - setting up set -e
+	//  - setting up set -pipefail
+	//  - killing the shell with kill <pid>
+	//
+	go func() {
+		err := s.BootCommand.Wait()
+
+		msg := "no exit message"
+		if err != nil {
+			msg = err.Error()
+		}
+
+		log.Printf("Shell unexpectedly closed with %s. Closing associated TTY.", msg)
+		s.TTY.Close()
+
+		log.Printf("Publishing an exit signal.")
+		s.ExitSignal <- msg
+	}()
+}
+
+func (s *Shell) Read(buffer *([]byte)) (int, error) {
+	done := make(chan bool, 1)
+
+	var n int
+	var err error
+
+	go func() {
+		n, err = s.TTY.Read(*buffer)
+		done <- true
+	}()
+
+	select {
+	case <-done:
+		return n, err
+	case <-s.ExitSignal:
+		return 0, fmt.Errorf("Shell Closed")
+	}
+}
+
+func (s *Shell) Write(instruction string) (int, error) {
+	log.Printf("Sending Instruction: %s", instruction)
+
+	done := make(chan bool, 1)
+
+	var n int
+	var err error
+
+	go func() {
+		n, err = s.TTY.Write([]byte(instruction + "\n"))
+		done <- true
+	}()
+
+	select {
+	case <-done:
+		return n, err
+	case <-s.ExitSignal:
+		return 0, fmt.Errorf("Shell Closed")
+	}
 }
 
 func (s *Shell) silencePromptAndDisablePS1() error {
@@ -88,7 +162,7 @@ func (s *Shell) silencePromptAndDisablePS1() error {
 }
 
 func (s *Shell) NewProcess(command string) *Process {
-	return NewProcess(command, s.StoragePath, s.TTY, s.TTY)
+	return NewProcess(command, s.StoragePath, s)
 }
 
 func (s *Shell) Close() error {
