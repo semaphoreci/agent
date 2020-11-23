@@ -262,7 +262,7 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForDockerHub(envVars []api
 			return 1
 		}
 
-		envs = append(envs, fmt.Sprintf("%s=%s", name, ShellQuote(string(value))))
+		envs = append(envs, fmt.Sprintf("%s=%s", name, string(value)))
 	}
 
 	loginCmd := `echo $DOCKERHUB_PASSWORD | docker login --username $DOCKERHUB_USERNAME --password-stdin`
@@ -299,7 +299,7 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForGenericDocker(envVars [
 			return 1
 		}
 
-		envs = append(envs, fmt.Sprintf("%s=%s", name, ShellQuote(string(value))))
+		envs = append(envs, fmt.Sprintf("%s=%s", name, string(value)))
 	}
 
 	loginCmd := `docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD" $DOCKER_URL`
@@ -336,7 +336,7 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForECR(envVars []api.EnvVa
 			return 1
 		}
 
-		envs = append(envs, fmt.Sprintf("%s=%s", name, ShellQuote(string(value))))
+		envs = append(envs, fmt.Sprintf("%s=%s", name, string(value)))
 	}
 
 	loginCmd := `$(aws ecr get-login --no-include-email --region $AWS_REGION)`
@@ -426,7 +426,7 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForGCR(envVars []api.EnvVa
 			return 1
 		}
 
-		envs = append(envs, fmt.Sprintf("%s=%s", name, ShellQuote(string(value))))
+		envs = append(envs, fmt.Sprintf("%s=%s", name, string(value)))
 	}
 
 	loginCmd := `cat /tmp/gcr/keyfile.json | docker login -u _json_key --password-stdin https://$GCR_HOSTNAME`

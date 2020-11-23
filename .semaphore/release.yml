@@ -14,11 +14,11 @@ blocks:
         - name: sem-robot-ghtoken
       prologue:
         commands:
-          - sem-version go 1.11
+          - sem-version go 1.13
           - "export GOPATH=~/go"
           - "export PATH=/home/semaphore/go/bin:$PATH"
           - checkout
       jobs:
-      - name: Sem Agent
-        commands:
-          - curl -sL https://git.io/goreleaser | bash -s -- --rm-dist
+        - name: Sem Agent
+          commands:
+            - curl -sL https://git.io/goreleaser | bash -s -- --rm-dist
