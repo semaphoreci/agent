@@ -18,6 +18,7 @@ blocks:
           - go version
           - go get
           - go build
+          - go get github.com/lib/pq
       jobs:
         - name: Unit Tests
           commands:
