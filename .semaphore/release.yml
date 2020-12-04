@@ -1,24 +1,24 @@
-version: "v1.0"
+version: v1.0
 name: Release
 agent:
   machine:
     type: e1-standard-4
     os_image: ubuntu1804
 blocks:
-  - name: "Release"
+  - name: Release
     task:
       env_vars:
         - name: GO111MODULE
-          value: "on"
+          value: 'on'
       secrets:
         - name: sem-robot-ghtoken
       prologue:
         commands:
           - sem-version go 1.13
-          - "export GOPATH=~/go"
-          - "export PATH=/home/semaphore/go/bin:$PATH"
+          - export GOPATH=~/go
+          - 'export PATH=/home/semaphore/go/bin:$PATH'
           - checkout
       jobs:
         - name: Sem Agent
           commands:
-            - curl -sL https://git.io/goreleaser | bash -s -- --rm-dist
+            - 'curl -sL https://git.io/goreleaser | bash -s -- --rm-dist'
