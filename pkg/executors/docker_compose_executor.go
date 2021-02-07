@@ -687,7 +687,7 @@ func (e *DockerComposeExecutor) Cleanup() int {
 }
 
 func (e *DockerComposeExecutor) SubmitDockerStats(metricName string) {
-	e.SubmitStats("semaphoreci/android", metricName, []string{"semaphoreci/android"}, 1)
+	e.SubmitStats("registry.semaphoreci.com/android", metricName, []string{"semaphoreci/android"}, 1)
 }
 
 func (e *DockerComposeExecutor) SubmitStats(imageName, metricName string, tags []string, value int) {
@@ -697,7 +697,7 @@ func (e *DockerComposeExecutor) SubmitStats(imageName, metricName string, tags [
 }
 
 func (e *DockerComposeExecutor) SubmitDockerPullTime(duration int) {
-	if strings.Contains(e.jobRequest.Compose.Containers[0].Image, "semaphoreci/android") {
+	if strings.Contains(e.jobRequest.Compose.Containers[0].Image, "registry.semaphoreci.com/android") {
 		// only submiting android metrics.
 		watchman.SubmitWithTags("compose.docker.pull.duration", []string{"semaphoreci/android"}, duration)
 	}
