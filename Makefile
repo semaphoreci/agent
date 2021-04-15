@@ -1,3 +1,5 @@
+.PHONY: e2e
+
 AGENT_PORT_IN_TESTS=30000
 AGENT_SSH_PORT_IN_TESTS=2222
 
@@ -25,26 +27,8 @@ build:
 	go build -o build/agent main.go
 .PHONY: build
 
-docker.build: build
-	-docker stop agent
-	-docker rm agent
-	docker build -t agent -f Dockerfile.test .
-.PHONY: docker.build
-
-docker.run: docker.build
-	-docker stop agent
-	docker run --privileged --device /dev/ptmx -v /tmp/agent-temp-directory/:/tmp/agent-temp-directory -v /var/run/docker.sock:/var/run/docker.sock -p $(AGENT_PORT_IN_TESTS):8000 -p $(AGENT_SSH_PORT_IN_TESTS):22 --name agent -tdi agent bash -c "service ssh restart && nohup ./agent serve --auth-token-secret 'TzRVcspTmxhM9fUkdi1T/0kVXNETCi8UdZ8dLM8va4E' & sleep infinity"
-	sleep 2
-.PHONY: docker.run
-
-docker.clean:
-	-docker stop $$(docker ps -q)
-	-docker rm $$(docker ps -qa)
-.PHONY: docker.clean
-
-e2e: docker.clean docker.run
+e2e: build
 	ruby test/e2e/$(TEST).rb
-.PHONY: e2e
 
 release.major:
 	git fetch --tags

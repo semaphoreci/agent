@@ -1,6 +1,18 @@
 # rubocop:disable all
 
+$AGENT_PORT_IN_TESTS = 30000
+
+# based on secret passed to the running server
+$TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.gLEycyHdyRRzUpauBxdDFmxT5KoOApFO5MHuvWPgFtY"
+
 class ApiMode
+  def boot_up_agent
+    system "docker stop $(docker ps -q)"
+    system "docker rm $(docker ps -qa)"
+    system "docker build -t agent -f Dockerfile.test ."
+    system "docker run --privileged --device /dev/ptmx -v /tmp/agent-temp-directory/:/tmp/agent-temp-directory -v /var/run/docker.sock:/var/run/docker.sock -p #{$AGENT_PORT_IN_TESTS}:8000 -p #{$AGENT_SSH_PORT_IN_TESTS}:22 --name agent -tdi agent bash -c \"service ssh restart && nohup ./agent serve --auth-token-secret 'TzRVcspTmxhM9fUkdi1T/0kVXNETCi8UdZ8dLM8va4E' & sleep infinity\""
+  end
+
   def start_job(request)
     r = Tempfile.new
     r.write(request)

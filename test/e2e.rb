@@ -12,11 +12,6 @@ require_relative "./e2e_support/listener_mode"
 
 $JOB_ID = `uuidgen`.strip
 
-# based on secret passed to the running server
-$TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.gLEycyHdyRRzUpauBxdDFmxT5KoOApFO5MHuvWPgFtY"
-
-$AGENT_PORT_IN_TESTS = 30000
-
 $strategy = nil
 
 case ENV["TEST_MODE"]
@@ -24,6 +19,8 @@ when "api"    then $strategy = ApiMode.new
 when "listen" then $strategy = ListenerMode.new
 else raise "Testing Mode not set"
 end
+
+$strategy.boot_up_agent
 
 def start_job(request)
   $strategy.start_job(request)
