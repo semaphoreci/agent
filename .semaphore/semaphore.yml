@@ -50,6 +50,10 @@ blocks:
           commands:
             - "make e2e TEST=shell/$TEST"
           matrix:
+            - env_var: TEST_MODE
+              values:
+                - api
+                - listen
             - env_var: TEST
               values:
                 - command_aliases
@@ -99,6 +103,10 @@ blocks:
           commands:
             - "make e2e TEST=docker/$TEST"
           matrix:
+            - env_var: TEST_MODE
+              values:
+                - api
+                - listen
             - env_var: TEST
               values:
                 - hello_world

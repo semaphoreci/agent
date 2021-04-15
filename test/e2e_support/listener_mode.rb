@@ -1,0 +1,2 @@
+class ListenerMode
+end
