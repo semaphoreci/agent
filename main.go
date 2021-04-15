@@ -51,7 +51,9 @@ func OpenLogfile() io.Writer {
 }
 
 func RunListener(logfile io.Writer) {
-	listener.Start(logfile)
+	go listener.Start(logfile)
+
+	select {}
 }
 
 func RunServer(logfile io.Writer) {
