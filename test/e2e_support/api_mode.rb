@@ -11,6 +11,15 @@ class ApiMode
     system "docker rm $(docker ps -qa)"
     system "docker build -t agent -f Dockerfile.test ."
     system "docker run --privileged --device /dev/ptmx -v /tmp/agent-temp-directory/:/tmp/agent-temp-directory -v /var/run/docker.sock:/var/run/docker.sock -p #{$AGENT_PORT_IN_TESTS}:8000 -p #{$AGENT_SSH_PORT_IN_TESTS}:22 --name agent -tdi agent bash -c \"service ssh restart && nohup ./agent serve --auth-token-secret 'TzRVcspTmxhM9fUkdi1T/0kVXNETCi8UdZ8dLM8va4E' & sleep infinity\""
+
+    pingable = nil
+    until pingable
+      puts "Waiting for agent to start"
+
+      `curl -H "Authorization: Bearer #{$TOKEN}" --fail -X GET -k "https://0.0.0.0:30000/is_alive"`
+
+      pingable = ($?.exitstatus == 0)
+    end
   end
 
   def start_job(request)
