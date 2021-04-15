@@ -11,6 +11,7 @@ import (
 	watchman "github.com/renderedtext/go-watchman"
 	api "github.com/semaphoreci/agent/pkg/api"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
+	listener "github.com/semaphoreci/agent/pkg/listener"
 	server "github.com/semaphoreci/agent/pkg/server"
 	pflag "github.com/spf13/pflag"
 )
@@ -28,6 +29,8 @@ func main() {
 	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
 
 	switch action {
+	case "start":
+		RunListener(logfile)
 	case "serve":
 		RunServer(logfile)
 	case "run":
@@ -45,6 +48,10 @@ func OpenLogfile() io.Writer {
 	}
 
 	return io.MultiWriter(f, os.Stdout)
+}
+
+func RunListener(logfile io.Writer) {
+	listener.Start(logfile)
 }
 
 func RunServer(logfile io.Writer) {
