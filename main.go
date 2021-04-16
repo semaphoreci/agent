@@ -51,7 +51,15 @@ func OpenLogfile() io.Writer {
 }
 
 func RunListener(logfile io.Writer) {
-	go listener.Start(logfile)
+	endpoint := pflag.String("endpoint", "", "Endpoint where agents are registered")
+
+	pflag.Parse()
+
+	config := listener.Config{
+		Endpoint: *endpoint,
+	}
+
+	go listener.Start(config, logfile)
 
 	select {}
 }

@@ -1,17 +1,25 @@
 package listener
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"net/http"
 )
 
 type Listener struct {
 	HearthBeater *HearthBeater
 	JobProcessor *JobProcessor
+	Config       Config
 }
 
-func Start(logger io.Writer) (*Listener, error) {
-	listener := &Listener{}
+type Config struct {
+	Endpoint string
+}
+
+func Start(config Config, logger io.Writer) (*Listener, error) {
+	listener := &Listener{Config: config}
 	listener.DisplayHelloMessage()
 
 	fmt.Println("* Starting Agent")
@@ -58,5 +66,17 @@ func (l *Listener) DisplayHelloMessage() {
 }
 
 func (l *Listener) Register() error {
+	resp, err := http.Post("http://"+l.Config.Endpoint+"/register", "application/json", bytes.NewBuffer([]byte{}))
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil
+	}
+
+	fmt.Println(body)
 	return nil
 }
