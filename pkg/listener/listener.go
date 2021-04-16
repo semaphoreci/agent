@@ -30,7 +30,8 @@ func Start(config Config, logger io.Writer) (*Listener, error) {
 	}
 
 	fmt.Println("* Starting to Send HearthBeats")
-	hearthbeater, err := StartHeartBeater()
+	hbEndpoint := "http://" + listener.Config.Endpoint + "/hearthbeat"
+	hearthbeater, err := StartHeartBeater(hbEndpoint)
 	if err != nil {
 		return listener, err
 	}
@@ -77,6 +78,7 @@ func (l *Listener) Register() error {
 		return nil
 	}
 
-	fmt.Println(body)
+	fmt.Println(string(body))
+
 	return nil
 }

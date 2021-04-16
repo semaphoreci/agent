@@ -30,6 +30,9 @@ build:
 e2e: build
 	ruby test/e2e/$(TEST).rb
 
+e2e.listen.mode.logs:
+	docker-compose -f test/e2e_support/docker-compose-listen.yml logs
+
 release.major:
 	git fetch --tags
 	latest=$$(git tag | sort --version-sort | tail -n 1); new=$$(echo $$latest | cut -c 2- | awk -F '.' '{ print "v" $$1+1 ".0.0" }');          echo $$new; git tag $$new; git push origin $$new
