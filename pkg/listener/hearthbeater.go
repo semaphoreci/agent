@@ -38,7 +38,7 @@ func (h *HearthBeater) Start() {
 }
 
 func (h *HearthBeater) Pulse() {
-	resp, err := http.Post(h.Endpoint, "application/json", bytes.NewBuffer([]byte{}))
+	resp, err := http.Post(h.Endpoint, "application/json", bytes.NewBuffer([]byte("{}")))
 	if err != nil {
 		fmt.Println("Hearthbear failed")
 		return

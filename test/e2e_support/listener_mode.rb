@@ -14,7 +14,9 @@ class ListenerMode
   end
 
   def start_job(request)
-    false
+    File.write("/tmp/j1", request.to_json)
+
+    system "curl -X POST -H 'Content-Type: application/json' -d @/tmp/j1 #{HUB_ENDPOINT}/private/schedule_job"
   end
 
   def wait_for_command_to_start(cmd)
@@ -25,6 +27,10 @@ class ListenerMode
   def wait_for_job_to_finish
     sleep 10
     false
+  end
+
+  def assert_job_log(expected_log)
+    abort "(fail) No logs"
   end
 
   private

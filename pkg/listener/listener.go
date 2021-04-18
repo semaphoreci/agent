@@ -37,7 +37,8 @@ func Start(config Config, logger io.Writer) (*Listener, error) {
 	}
 
 	fmt.Println("* Starting to poll for jobs")
-	jobProcessor, err := StartJobProcessor()
+	jobEndpoint := "http://" + listener.Config.Endpoint + "/acquire"
+	jobProcessor, err := StartJobProcessor(jobEndpoint)
 	if err != nil {
 		return listener, err
 	}
@@ -67,7 +68,7 @@ func (l *Listener) DisplayHelloMessage() {
 }
 
 func (l *Listener) Register() error {
-	resp, err := http.Post("http://"+l.Config.Endpoint+"/register", "application/json", bytes.NewBuffer([]byte{}))
+	resp, err := http.Post("http://"+l.Config.Endpoint+"/register", "application/json", bytes.NewBuffer([]byte("{}")))
 	if err != nil {
 		return err
 	}
@@ -75,7 +76,7 @@ func (l *Listener) Register() error {
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	fmt.Println(string(body))
