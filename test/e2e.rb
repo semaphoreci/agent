@@ -41,3 +41,11 @@ end
 def assert_job_log(expected_log)
   $strategy.assert_job_log(expected_log)
 end
+
+def finished_callback_url
+  $strategy.finished_callback_url
+end
+
+def teardown_callback_url
+  $strategy.teardown_callback_url
+end

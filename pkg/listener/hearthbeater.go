@@ -34,7 +34,6 @@ func (h *HearthBeater) Start() {
 			}
 		}
 	}()
-
 }
 
 func (h *HearthBeater) Pulse() {

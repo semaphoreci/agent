@@ -37,8 +37,12 @@ func Start(config Config, logger io.Writer) (*Listener, error) {
 	}
 
 	fmt.Println("* Starting to poll for jobs")
-	jobEndpoint := "http://" + listener.Config.Endpoint + "/acquire"
-	jobProcessor, err := StartJobProcessor(jobEndpoint)
+	endpoints := &JobProcessorEndpoints{
+		AcquireJob: "http://" + listener.Config.Endpoint + "/acquire",
+		StreamLogs: "http://" + listener.Config.Endpoint + "/stream",
+	}
+
+	jobProcessor, err := StartJobProcessor(endpoints)
 	if err != nil {
 		return listener, err
 	}

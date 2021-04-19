@@ -78,6 +78,14 @@ class ApiMode
     end
   end
 
+  def finished_callback_url
+    "https://httpbin.org/status/200"
+  end
+
+  def teardown_callback_url
+    "https://httpbin.org/status/200"
+  end
+
   def assert_job_log(expected_log)
     puts "========================="
     puts "Asserting Job Logs"

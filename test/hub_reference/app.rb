@@ -7,6 +7,9 @@ set :bind, "0.0.0.0"
 
 $registered = false
 $jobs = []
+$finished = {}
+$teardown = {}
+$logs = ""
 
 before do
   begin
@@ -38,6 +41,25 @@ post "/acquire" do
   end
 end
 
+post "/jobs/:id/callbacks/finished" do
+  $finished[params["id"]] = true
+end
+
+post "/jobs/:id/callbacks/teardown" do
+  $teardown[params["id"]] = true
+end
+
+post "/stream" do
+  request.body.rewind
+  events = request.body.read
+
+  $logs += events
+
+  puts $logs
+
+  status 200
+end
+
 #
 # Private APIs. Only needed to contoll the flow
 # of e2e tests in the Agent.
@@ -51,8 +73,20 @@ get "/private/is_registered" do
   $registered ? "yes" : "no"
 end
 
+get "/private/jobs/:id/logs" do
+  $logs
+end
+
 post "/private/schedule_job" do
   puts "Scheduled job #{@json_body["id"]}"
 
   $jobs << @json_body
+end
+
+get "/private/jobs/:id/is_finished" do
+  if $finished[params["id"]]
+    "yes"
+  else
+    "no"
+  end
 end
