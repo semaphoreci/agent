@@ -161,7 +161,8 @@ func (e *DockerComposeExecutor) startBashSession() int {
 
 	cmd := exec.Command(
 		"docker-compose",
-		"--no-ansi",
+		"--ansi",
+		"never",
 		"-f",
 		e.dockerComposeManifestPath,
 		"run",
@@ -474,7 +475,8 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 
 	cmd := exec.Command(
 		"docker-compose",
-		"--no-ansi",
+		"--ansi",
+		"never",
 		"-f",
 		e.dockerComposeManifestPath,
 		"run",

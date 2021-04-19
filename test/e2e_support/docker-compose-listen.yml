@@ -16,6 +16,7 @@ services:
 
     devices:
       - /dev/ptmx
+      - /dev/kvm
 
     volumes:
       - /tmp/agent-temp-directory:/tmp/agent-temp-directory
