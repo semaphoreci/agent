@@ -20,8 +20,20 @@ class ListenerMode
   end
 
   def wait_for_command_to_start(cmd)
-    sleep 3
-    false
+    puts "========================="
+    puts "Waiting for command to start '#{cmd}'"
+
+    Timeout.timeout(60 * 2) do
+      loop do
+        `curl -s #{HUB_ENDPOINT}/private/jobs/#{$JOB_ID}/logs | grep "#{cmd}"`
+
+        if $?.exitstatus == 0
+          break
+        else
+          sleep 1
+        end
+      end
+    end
   end
 
   def wait_for_job_to_finish
@@ -30,9 +42,9 @@ class ListenerMode
     loop do
       print "."
 
-      response = `curl -s --fail -X GET -k "#{HUB_ENDPOINT}/private/jobs/#{$JOB_ID}/is_finished"`
+      response = `curl -s --fail -X GET -k "#{HUB_ENDPOINT}/jobs/#{$JOB_ID}/status"`.strip
 
-      if response == "yes"
+      if response == "finished"
         return
       else
         sleep 1
@@ -45,16 +57,18 @@ class ListenerMode
   end
 
   def stop_job
-    output = `curl -H --fail -X POST -k "#{HUB_ENDPOINT}/private/schedule_stop/#{$JOB_ID}"`
+    puts "Stopping job"
 
-    abort "Failed to stob job: #{output}" if $?.exitstatus != 0
+    system "curl -H --fail -X POST -k --data '' #{HUB_ENDPOINT}/private/schedule_stop/#{$JOB_ID}"
+
+    puts 5
   end
 
   def assert_job_log(expected_log)
     puts "========================="
     puts "Asserting Job Logs"
 
-    sleep 3
+    sleep 10
 
     actual_log = `curl -s #{HUB_ENDPOINT}/private/jobs/#{$JOB_ID}/logs`
 

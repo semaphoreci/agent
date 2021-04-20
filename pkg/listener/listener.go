@@ -15,7 +15,8 @@ type Listener struct {
 }
 
 type Config struct {
-	Endpoint string
+	Endpoint           string
+	RegisterRetryLimit int
 }
 
 func Start(config Config, logger io.Writer) (*Listener, error) {
@@ -37,12 +38,7 @@ func Start(config Config, logger io.Writer) (*Listener, error) {
 	}
 
 	fmt.Println("* Starting to poll for jobs")
-	endpoints := &JobProcessorEndpoints{
-		AcquireJob: "http://" + listener.Config.Endpoint + "/acquire",
-		StreamLogs: "http://" + listener.Config.Endpoint + "/stream",
-	}
-
-	jobProcessor, err := StartJobProcessor(endpoints)
+	jobProcessor, err := StartJobProcessor(listener.Config.Endpoint)
 	if err != nil {
 		return listener, err
 	}
@@ -72,18 +68,26 @@ func (l *Listener) DisplayHelloMessage() {
 }
 
 func (l *Listener) Register() error {
-	resp, err := http.Post("http://"+l.Config.Endpoint+"/register", "application/json", bytes.NewBuffer([]byte("{}")))
-	if err != nil {
-		return err
+	payload := bytes.NewBuffer([]byte("{}"))
+	url := fmt.Sprintf("http://%s/register", l.Config.Endpoint)
+
+	for i := 0; i < l.Config.RegisterRetryLimit; i++ {
+		resp, err := http.Post(url, "application/json", payload)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+
+		defer resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+
+		fmt.Println(body)
+		return nil
 	}
 
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(string(body))
-
-	return nil
+	return fmt.Errorf("failed to register agent")
 }

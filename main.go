@@ -56,7 +56,8 @@ func RunListener(logfile io.Writer) {
 	pflag.Parse()
 
 	config := listener.Config{
-		Endpoint: *endpoint,
+		Endpoint:           *endpoint,
+		RegisterRetryLimit: 30,
 	}
 
 	go listener.Start(config, logfile)

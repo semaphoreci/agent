@@ -3,11 +3,13 @@
 require "sinatra"
 require "json"
 
+$stdout.sync = true
+
 set :bind, "0.0.0.0"
 
 $registered = false
 $jobs = []
-$stop_requests = {}
+$job_states = {}
 $finished = {}
 $teardown = {}
 $logs = ""
@@ -36,27 +38,36 @@ end
 
 post "/acquire" do
   if $jobs.size > 0
-    $jobs.shift
+    job = $jobs.shift
+    puts "ABBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+    puts JSON.parse(job)["id"]
+    $job_states[JSON.parse(job)["id"]] = "started"
+    job
   else
     status 404
   end
 end
 
+get "/jobs/:id/status" do
+  $job_states[params["id"]]
+end
+
 post "/jobs/:id/callbacks/finished" do
-  $finished[params["id"]] = true
+  $job_states[params["id"]] = "finished"
 end
 
 post "/jobs/:id/callbacks/teardown" do
   $teardown[params["id"]] = true
 end
 
-post "/stream" do
+post "/jobs/:id/logs" do
   request.body.rewind
   events = request.body.read
 
   $logs += events
 
-  puts $logs
+  puts "incomming"
+  puts events
 
   status 200
 end
@@ -85,15 +96,8 @@ post "/private/schedule_job" do
 end
 
 post "/private/schedule_stop/:id" do
+  puts "CCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
   puts "Scheduled stop #{params["id"]}"
 
-  $stop_requests[params["id"]] = true
-end
-
-get "/private/jobs/:id/is_finished" do
-  if $finished[params["id"]]
-    "yes"
-  else
-    "no"
-  end
+  $job_states[params["id"]] = "stopping"
 end
