@@ -44,6 +44,12 @@ class ListenerMode
     puts
   end
 
+  def stop_job
+    output = `curl -H --fail -X POST -k "#{HUB_ENDPOINT}/private/schedule_stop/#{$JOB_ID}"`
+
+    abort "Failed to stob job: #{output}" if $?.exitstatus != 0
+  end
+
   def assert_job_log(expected_log)
     puts "========================="
     puts "Asserting Job Logs"

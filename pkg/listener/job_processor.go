@@ -43,6 +43,7 @@ func (p *JobProcessor) Start() {
 		job, err := jobs.NewJob(request)
 
 		go p.StreamLogs(job)
+		go p.PollForJobStop(job)
 
 		job.Run()
 	}
@@ -91,6 +92,32 @@ func (p *JobProcessor) StreamLogsBatch(lastEventStreamed int, job *jobs.Job) (in
 
 func (p *JobProcessor) AcquireJob() (*api.JobRequest, error) {
 	resp, err := http.Post(p.Endpoints.AcquireJob, "application/json", bytes.NewBuffer([]byte("{}")))
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == 404 {
+		return nil, fmt.Errorf("no job")
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	fmt.Println(string(body))
+
+	request, err := api.NewRequestFromJSON(body)
+	if err != nil {
+		return nil, err
+	}
+
+	return request, nil
+}
+
+func (p *JobProcessor) PollForJobStop() error {
+	resp, err := http.Post(p.Endpoints., "application/json", bytes.NewBuffer([]byte("{}")))
 	if err != nil {
 		return nil, err
 	}

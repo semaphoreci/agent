@@ -7,6 +7,7 @@ set :bind, "0.0.0.0"
 
 $registered = false
 $jobs = []
+$stop_requests = {}
 $finished = {}
 $teardown = {}
 $logs = ""
@@ -81,6 +82,12 @@ post "/private/schedule_job" do
   puts "Scheduled job #{@json_body["id"]}"
 
   $jobs << @json_body
+end
+
+post "/private/schedule_stop/:id" do
+  puts "Scheduled stop #{params["id"]}"
+
+  $stop_requests[params["id"]] = true
 end
 
 get "/private/jobs/:id/is_finished" do
