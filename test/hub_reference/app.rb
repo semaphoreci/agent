@@ -28,18 +28,17 @@ end
 # connect to Semaphore 2.0
 #
 
-post "/register" do
+post "/api/v1/self_hosted_agents/register" do
   $registered = true
 end
 
-post "/hearthbeat" do
+post "/api/v1/self_hosted_agents/hearthbeat" do
   $hearthbeat = true
 end
 
-post "/acquire" do
+post "/api/v1/self_hosted_agents/acquire" do
   if $jobs.size > 0
     job = $jobs.shift
-    puts "ABBBBBBBBBBBBBBBBBBBBBBBBBBBB"
     puts JSON.parse(job)["id"]
     $job_states[JSON.parse(job)["id"]] = "started"
     job

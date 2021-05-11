@@ -1,26 +1,31 @@
 package listener
 
 import (
-	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"net/http"
+
+	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
 )
 
 type Listener struct {
 	HearthBeater *HearthBeater
 	JobProcessor *JobProcessor
 	Config       Config
+	Client       *selfhostedapi.Api
 }
 
 type Config struct {
 	Endpoint           string
 	RegisterRetryLimit int
+	Token string
 }
 
 func Start(config Config, logger io.Writer) (*Listener, error) {
-	listener := &Listener{Config: config}
+	listener := &Listener{
+		Config: config,
+		Client: selfhostedapi.New(config.Endpoint, config.Token),
+	}
+
 	listener.DisplayHelloMessage()
 
 	fmt.Println("* Starting Agent")
@@ -31,7 +36,7 @@ func Start(config Config, logger io.Writer) (*Listener, error) {
 	}
 
 	fmt.Println("* Starting to Send HearthBeats")
-	hbEndpoint := "http://" + listener.Config.Endpoint + "/hearthbeat"
+	hbEndpoint := "http://" + listener.Config.Endpoint + "/api/v1/self_hosted_agents/hearthbeat"
 	hearthbeater, err := StartHeartBeater(hbEndpoint)
 	if err != nil {
 		return listener, err
@@ -59,8 +64,8 @@ func (l *Listener) DisplayHelloMessage() {
 	fmt.Println("          00000000000    0000000000   ")
 	fmt.Println("   11     00000000    11   000000000  ")
 	fmt.Println(" 111111   000000   1111111   000000   ")
-	fmt.Println("111111111    0   111111111     00     ")
-	fmt.Println("  1111111111   1111111111             ")
+	fmt.Println("111111111   00   111111111     00     ")
+	fmt.Println("  111111111    1111111111             ")
 	fmt.Println("    1111111111111111111               ")
 	fmt.Println("      111111111111111                 ")
 	fmt.Println("         111111111                    ")
@@ -68,24 +73,16 @@ func (l *Listener) DisplayHelloMessage() {
 }
 
 func (l *Listener) Register() error {
-	payload := bytes.NewBuffer([]byte("{}"))
-	url := fmt.Sprintf("http://%s/register", l.Config.Endpoint)
+	req := &selfhostedapi.RegisterRequest{}
 
 	for i := 0; i < l.Config.RegisterRetryLimit; i++ {
-		resp, err := http.Post(url, "application/json", payload)
+		resp, err := l.Client.Register(req)
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
 
-		defer resp.Body.Close()
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-
-		fmt.Println(body)
+		fmt.Println(resp)
 		return nil
 	}
 
