@@ -17,13 +17,14 @@ type Listener struct {
 type Config struct {
 	Endpoint           string
 	RegisterRetryLimit int
-	Token string
+	Token              string
+	Scheme             string
 }
 
 func Start(config Config, logger io.Writer) (*Listener, error) {
 	listener := &Listener{
 		Config: config,
-		Client: selfhostedapi.New(config.Endpoint, config.Token),
+		Client: selfhostedapi.New(config.Scheme, config.Endpoint, config.Token),
 	}
 
 	listener.DisplayHelloMessage()

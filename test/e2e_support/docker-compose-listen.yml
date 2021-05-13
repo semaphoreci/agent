@@ -6,7 +6,7 @@ services:
       context: ../..
       dockerfile: Dockerfile.test
 
-    command: "./agent start --endpoint hub:4567"
+    command: "./agent start --endpoint hub:4567 --token 321h1l2jkh1jk42341 --no-https"
 
     ports:
       - "30000:8000"

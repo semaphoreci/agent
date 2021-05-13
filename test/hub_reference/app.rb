@@ -30,6 +30,10 @@ end
 
 post "/api/v1/self_hosted_agents/register" do
   $registered = true
+
+  {
+    "access_token" => "dsjfaklsd123412341",
+  }.to_json
 end
 
 post "/api/v1/self_hosted_agents/hearthbeat" do

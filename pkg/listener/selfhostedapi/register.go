@@ -9,13 +9,16 @@ import (
 )
 
 type RegisterRequest struct {
+	Name string `json:"name"`
+	OS   string `json:"os"`
 }
 
 type RegisterResponse struct {
+	AccessToken string `json:"access_token"`
 }
 
 func (a *Api) RegisterPath() string {
-	return fmt.Sprintf("%s/api/v1/self_hosted_agents/register", a.Endpoint)
+	return fmt.Sprintf("%s://%s/api/v1/self_hosted_agents/register", a.Scheme, a.Endpoint)
 }
 
 func (a *Api) Register(req *RegisterRequest) (*RegisterResponse, error) {

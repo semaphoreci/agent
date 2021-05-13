@@ -52,12 +52,21 @@ func OpenLogfile() io.Writer {
 
 func RunListener(logfile io.Writer) {
 	endpoint := pflag.String("endpoint", "", "Endpoint where agents are registered")
+	token := pflag.String("token", "", "Registration token")
+	noHttps := pflag.Bool("no-https", false, "Use http for communication")
 
 	pflag.Parse()
+
+	scheme := "https"
+	if *noHttps {
+		scheme = "http"
+	}
 
 	config := listener.Config{
 		Endpoint:           *endpoint,
 		RegisterRetryLimit: 30,
+		Token:              *token,
+		Scheme:             scheme,
 	}
 
 	go listener.Start(config, logfile)
