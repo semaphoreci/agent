@@ -1,8 +1,11 @@
 package listener
 
 import (
+	"crypto/rand"
 	"fmt"
 	"io"
+	"os"
+	"time"
 
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
 )
@@ -73,13 +76,35 @@ func (l *Listener) DisplayHelloMessage() {
 	fmt.Println("                                      ")
 }
 
+func (l *Listener) Name() string {
+	hostname, err := os.Hostname()
+	if err != nil {
+		panic(err)
+	}
+
+	randBytes := make([]byte, 10)
+
+	_, err = rand.Read(randBytes)
+	if err != nil {
+		panic(err)
+	}
+
+	randSuffix := fmt.Sprintf("%x", randBytes)
+
+	return "sh-" + hostname + "-" + randSuffix
+}
+
 func (l *Listener) Register() error {
-	req := &selfhostedapi.RegisterRequest{}
+	req := &selfhostedapi.RegisterRequest{
+		Name: l.Name(),
+		OS: "Ubuntu",
+	}
 
 	for i := 0; i < l.Config.RegisterRetryLimit; i++ {
 		resp, err := l.Client.Register(req)
 		if err != nil {
 			fmt.Println(err)
+			time.Sleep(1 * time.Second)
 			continue
 		}
 

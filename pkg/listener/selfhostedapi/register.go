@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 )
 
@@ -47,6 +48,7 @@ func (a *Api) Register(req *RegisterRequest) (*RegisterResponse, error) {
 
 	response := &RegisterResponse{}
 	if err := json.Unmarshal(body, response); err != nil {
+		log.Println(string(body))
 		return nil, err
 	}
 
