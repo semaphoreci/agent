@@ -1,5 +1,4 @@
 .PHONY: e2e
-
 AGENT_PORT_IN_TESTS=30000
 AGENT_SSH_PORT_IN_TESTS=2222
 
@@ -31,7 +30,7 @@ e2e: build
 	ruby test/e2e/$(TEST).rb
 
 e2e.listen.mode.logs:
-	docker-compose -f test/e2e_support/docker-compose-listen.yml logs
+	docker-compose -f test/e2e_support/docker-compose-listen.yml logs -f
 
 release.major:
 	git fetch --tags

@@ -6,12 +6,12 @@ import (
 	"net/http"
 )
 
-func (a *Api) LogsPath() string {
-	return fmt.Sprintf("%s://%s/api/v1/self_hosted_agents/logs", a.Scheme, a.Endpoint)
+func (a *Api) LogsPath(jobID string) string {
+	return a.BasePath() + fmt.Sprintf("/jobs/%s/logs", jobID)
 }
 
-func (a *Api) Logs(batch *bytes.Buffer) error {
-	r, err := http.NewRequest("POST", a.LogsPath(), batch)
+func (a *Api) Logs(jobID string, batch *bytes.Buffer) error {
+	r, err := http.NewRequest("POST", a.LogsPath(jobID), batch)
 	if err != nil {
 		return err
 	}
@@ -24,7 +24,7 @@ func (a *Api) Logs(batch *bytes.Buffer) error {
 	}
 
 	if resp.StatusCode != http.StatusAccepted {
-		return fmt.Errorf("failed to submit logs")
+		return fmt.Errorf("failed to submit logs, got HTTP %d", resp.StatusCode)
 	}
 
 	return nil

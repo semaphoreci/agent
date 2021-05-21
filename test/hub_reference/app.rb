@@ -6,19 +6,23 @@ require "json"
 $stdout.sync = true
 
 set :bind, "0.0.0.0"
+set :logging, false
 
 $registered = false
 $jobs = []
+$payloads = {}
 $job_states = {}
 $finished = {}
 $teardown = {}
 $logs = ""
 
 before do
+  logger.level = 0
+
   begin
     request.body.rewind
 
-    @json_body = JSON.parse(request.body.read)
+    @json_request = JSON.parse(request.body.read)
   rescue StandardError => e
   end
 end
@@ -29,6 +33,7 @@ end
 #
 
 post "/api/v1/self_hosted_agents/register" do
+  puts "[SYNC] Registration received"
   $registered = true
 
   {
@@ -36,34 +41,39 @@ post "/api/v1/self_hosted_agents/register" do
   }.to_json
 end
 
-post "/api/v1/self_hosted_agents/hearthbeat" do
-  $hearthbeat = true
+post "/api/v1/self_hosted_agents/sync" do
+  puts "[SYNC] Request #{@json_request.to_json}"
+
+  response = case @json_request["state"]
+            when "waiting-for-jobs"
+              if $jobs.size > 0
+                job = $jobs.shift
+
+                {"action" => "run-job", "job_id" => job["id"]}
+              else
+                {"action" => "continue"}
+              end
+            when "running-job"
+              {"action" => "continue"}
+            when "finished-job"
+              {"action" => "continue"}
+            else
+              raise "unknown state"
+            end
+
+  puts "[SYNC] Response #{response.to_json}"
+  response.to_json
 end
 
-post "/api/v1/self_hosted_agents/acquire" do
-  if $jobs.size > 0
-    job = $jobs.shift
-    puts JSON.parse(job)["id"]
-    $job_states[JSON.parse(job)["id"]] = "started"
-    job
-  else
-    status 404
-  end
+get "/api/v1/self_hosted_agents/jobs/:id" do
+  $payloads[params["id"]].to_json
 end
 
-get "/jobs/:id/status" do
+get "/api/v1/self_hosted_agents/jobs/:id/status" do
   $job_states[params["id"]]
 end
 
-post "/jobs/:id/callbacks/finished" do
-  $job_states[params["id"]] = "finished"
-end
-
-post "/jobs/:id/callbacks/teardown" do
-  $teardown[params["id"]] = true
-end
-
-post "/jobs/:id/logs" do
+post "/api/v1/self_hosted_agents/jobs/:id/logs" do
   request.body.rewind
   events = request.body.read
 
@@ -72,7 +82,16 @@ post "/jobs/:id/logs" do
   puts "incomming"
   puts events
 
-  status 200
+  status 202
+end
+
+post "/jobs/:id/callbacks/finished" do
+  puts "[CALLBACK] Finished job #{params["id"]}"
+  $job_states[params["id"]] = "finished"
+end
+
+post "/jobs/:id/callbacks/teardown" do
+  $teardown[params["id"]] = true
 end
 
 #
@@ -89,13 +108,21 @@ get "/private/is_registered" do
 end
 
 get "/private/jobs/:id/logs" do
+  puts "Fetching logs"
+  puts $logs
+
   $logs
 end
 
 post "/private/schedule_job" do
-  puts "Scheduled job #{@json_body["id"]}"
+  job = JSON.parse(@json_request)
+  puts "[PRIVATE] Scheduling job #{job["id"]}"
 
-  $jobs << @json_body
+  puts "Scheduled job #{job["id"]}"
+
+  $jobs << job
+  $payloads[job["id"]] = job
+  $job_states[job["id"]] = "running"
 end
 
 post "/private/schedule_stop/:id" do

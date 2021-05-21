@@ -28,3 +28,6 @@ services:
 
     ports:
       - "4567:4567"
+
+    volumes:
+      - ../hub_reference:/app

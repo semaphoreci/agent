@@ -5,8 +5,7 @@ class ListenerMode
   HUB_ENDPOINT = "http://localhost:4567"
 
   def boot_up_agent
-    system "docker stop $(docker ps -q)"
-    system "docker rm $(docker ps -qa)"
+    system "docker-compose -f test/e2e_support/docker-compose-listen.yml stop"
     system "docker-compose -f test/e2e_support/docker-compose-listen.yml build"
     system "docker-compose -f test/e2e_support/docker-compose-listen.yml up -d"
 
@@ -37,12 +36,12 @@ class ListenerMode
   end
 
   def wait_for_job_to_finish
-    puts "Waiting for job to finish "
+    puts ""
+    puts "Waiting for job to finish"
 
     loop do
-      print "."
-
-      response = `curl -s --fail -X GET -k "#{HUB_ENDPOINT}/jobs/#{$JOB_ID}/status"`.strip
+      response = `curl -s --fail -X GET -k "#{HUB_ENDPOINT}/api/v1/self_hosted_agents/jobs/#{$JOB_ID}/status"`.strip
+      puts "Job state #{response}"
 
       if response == "finished"
         return
@@ -70,7 +69,7 @@ class ListenerMode
 
     sleep 10
 
-    actual_log = `curl -s #{HUB_ENDPOINT}/private/jobs/#{$JOB_ID}/logs`
+    actual_log = `curl --fail -s #{HUB_ENDPOINT}/private/jobs/#{$JOB_ID}/logs`
 
     puts "-----------------------------------"
     puts actual_log

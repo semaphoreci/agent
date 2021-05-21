@@ -3,7 +3,6 @@ package selfhostedapi
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -19,7 +18,7 @@ type RegisterResponse struct {
 }
 
 func (a *Api) RegisterPath() string {
-	return fmt.Sprintf("%s://%s/api/v1/self_hosted_agents/register", a.Scheme, a.Endpoint)
+	return a.BasePath() + "/register"
 }
 
 func (a *Api) Register(req *RegisterRequest) (*RegisterResponse, error) {

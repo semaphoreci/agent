@@ -33,7 +33,7 @@ type SyncResponse struct {
 }
 
 func (a *Api) SyncPath() string {
-	return fmt.Sprintf("%s://%s/api/v1/self_hosted_agents/sync", a.Scheme, a.Endpoint)
+	return a.BasePath() + "/sync"
 }
 
 func (a *Api) Sync(req *SyncRequest) (*SyncResponse, error) {
@@ -53,12 +53,16 @@ func (a *Api) Sync(req *SyncRequest) (*SyncResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to sync with upstream, got HTTP %d", resp.StatusCode)
+	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
 	response := &SyncResponse{}
 	if err := json.Unmarshal(body, response); err != nil {

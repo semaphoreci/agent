@@ -23,6 +23,7 @@ type Job struct {
 
 	JobLogArchived bool
 	Stopped        bool
+	Finished       bool
 
 	//
 	// The Teardown phase can be entered either after:
@@ -103,6 +104,8 @@ func (job *Job) Run() {
 			job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnFailCommands)
 		}
 	}
+
+	job.Finished = true
 
 	job.Teardown(result)
 }
