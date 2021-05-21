@@ -39,20 +39,19 @@ func Start(config Config, logger io.Writer) (*Listener, error) {
 		return listener, err
 	}
 
-	fmt.Println("* Starting to Send HearthBeats")
-	hbEndpoint := "http://" + listener.Config.Endpoint + "/api/v1/self_hosted_agents/hearthbeat"
-	hearthbeater, err := StartHeartBeater(hbEndpoint)
-	if err != nil {
-		return listener, err
-	}
+	// fmt.Println("* Starting to Send HearthBeats")
+	// hbEndpoint := "http://" + listener.Config.Endpoint + "/api/v1/self_hosted_agents/hearthbeat"
+	// hearthbeater, err := StartHeartBeater(hbEndpoint)
+	// if err != nil {
+	// 	return listener, err
+	// }
 
 	fmt.Println("* Starting to poll for jobs")
-	jobProcessor, err := StartJobProcessor(listener.Config.Endpoint)
+	jobProcessor, err := StartJobProcessor(listener.Client)
 	if err != nil {
 		return listener, err
 	}
 
-	listener.HearthBeater = hearthbeater
 	listener.JobProcessor = jobProcessor
 
 	fmt.Println("* Acquiring job...")
@@ -97,7 +96,7 @@ func (l *Listener) Name() string {
 func (l *Listener) Register() error {
 	req := &selfhostedapi.RegisterRequest{
 		Name: l.Name(),
-		OS: "Ubuntu",
+		OS:   "Ubuntu",
 	}
 
 	for i := 0; i < l.Config.RegisterRetryLimit; i++ {
@@ -108,7 +107,8 @@ func (l *Listener) Register() error {
 			continue
 		}
 
-		fmt.Println(resp)
+		l.Client.SetAccessToken(resp.AccessToken)
+
 		return nil
 	}
 

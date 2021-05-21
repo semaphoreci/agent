@@ -33,7 +33,7 @@ func (a *Api) Register(req *RegisterRequest) (*RegisterResponse, error) {
 		return nil, err
 	}
 
-	a.authorize(r, a.Token)
+	a.authorize(r, a.RegisterToken)
 
 	resp, err := a.client.Do(r)
 	if err != nil {
