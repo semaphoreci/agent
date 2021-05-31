@@ -37,10 +37,10 @@ e2e.listen.mode.logs:
 # This environment is ideal for testing self-hosted agents without the fear
 # that some runaway command will mess up your dev environment.
 #
-docker.bash:
+empty.ubuntu.machine:
 	docker run --rm -v $(PWD):/app -ti agent-self-hosted /bin/bash
 
-docker.bash.build:
+empty.ubuntu.machine.build:
 	docker build -f Dockerfile.self_hosted -t agent-self-hosted .
 
 release.major:
