@@ -23,7 +23,7 @@ func (a *Api) Logs(jobID string, batch *bytes.Buffer) error {
 		return err
 	}
 
-	if resp.StatusCode != http.StatusAccepted {
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to submit logs, got HTTP %d", resp.StatusCode)
 	}
 

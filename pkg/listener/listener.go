@@ -107,7 +107,7 @@ func (l *Listener) Register() error {
 			continue
 		}
 
-		l.Client.SetAccessToken(resp.AccessToken)
+		l.Client.SetAccessToken(resp.Token)
 
 		return nil
 	}

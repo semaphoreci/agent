@@ -25,7 +25,7 @@ func New(scheme string, endpoint string, token string) *Api {
 }
 
 func (a *Api) authorize(req *http.Request, token string) {
-	req.Header.Set("Authorization", "Token "+a.RegisterToken)
+	req.Header.Set("Authorization", "Token "+token)
 }
 
 func (a *Api) SetAccessToken(token string) {
@@ -33,5 +33,5 @@ func (a *Api) SetAccessToken(token string) {
 }
 
 func (a *Api) BasePath() string {
-	return fmt.Sprintf("%s://%s/api/v1/self_hosted_agents/", a.Scheme, a.Endpoint)
+	return fmt.Sprintf("%s://%s/api/v1/self_hosted_agents", a.Scheme, a.Endpoint)
 }

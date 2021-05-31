@@ -89,7 +89,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 
 	jobRequest, err := p.ApiClient.GetJob(p.CurrentJobID)
 	if err != nil {
-		panic("aaa")
+		panic(err)
 	}
 
 	job, err := jobs.NewJob(jobRequest)

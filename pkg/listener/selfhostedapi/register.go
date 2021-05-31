@@ -14,7 +14,8 @@ type RegisterRequest struct {
 }
 
 type RegisterResponse struct {
-	AccessToken string `json:"access_token"`
+	Name  string `json:"name"`
+	Token string `json:"token"`
 }
 
 func (a *Api) RegisterPath() string {

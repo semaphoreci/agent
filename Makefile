@@ -32,6 +32,17 @@ e2e: build
 e2e.listen.mode.logs:
 	docker-compose -f test/e2e_support/docker-compose-listen.yml logs -f
 
+#
+# An ubuntu environment that has the ./build/agent CLI mounted.
+# This environment is ideal for testing self-hosted agents without the fear
+# that some runaway command will mess up your dev environment.
+#
+docker.bash:
+	docker run --rm -v $(PWD):/app -ti agent-self-hosted /bin/bash
+
+docker.bash.build:
+	docker build -f Dockerfile.self_hosted -t agent-self-hosted .
+
 release.major:
 	git fetch --tags
 	latest=$$(git tag | sort --version-sort | tail -n 1); new=$$(echo $$latest | cut -c 2- | awk -F '.' '{ print "v" $$1+1 ".0.0" }');          echo $$new; git tag $$new; git push origin $$new
