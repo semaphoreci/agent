@@ -80,6 +80,11 @@ func (p *JobProcessor) Sync() {
 
 	case selfhostedapi.AgentActionShutdown:
 		os.Exit(1)
+
+	case selfhostedapi.AgentActionWaitForJobs:
+		p.CurrentJobID = ""
+		p.CurrentJob = nil
+		p.State = selfhostedapi.AgentStateWaitingForJobs
 	}
 }
 
