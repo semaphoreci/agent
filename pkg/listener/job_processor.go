@@ -71,11 +71,11 @@ func (p *JobProcessor) Sync() {
 		return
 
 	case selfhostedapi.AgentActionRunJob:
-		p.RunJob(response.JobID)
+		go p.RunJob(response.JobID)
 		return
 
 	case selfhostedapi.AgentActionStopJob:
-		p.StopJob(response.JobID)
+		go p.StopJob(response.JobID)
 		return
 
 	case selfhostedapi.AgentActionShutdown:
@@ -129,6 +129,7 @@ func (p *JobProcessor) StreamLogs(job *jobs.Job) {
 
 			if p.CurrentJob.Finished {
 				p.State = selfhostedapi.AgentStateFinishedJob
+				p.CurrentJob.JobLogArchived = true
 				return
 			}
 		}

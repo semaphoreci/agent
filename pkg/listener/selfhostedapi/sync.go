@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 )
 
@@ -42,6 +43,8 @@ func (a *Api) Sync(req *SyncRequest) (*SyncResponse, error) {
 		return nil, err
 	}
 
+	log.Printf("SYNC request (state: %s, job: %s)", req.State, req.JobID)
+
 	r, err := http.NewRequest("POST", a.SyncPath(), bytes.NewBuffer(b))
 	if err != nil {
 		return nil, err
@@ -68,6 +71,8 @@ func (a *Api) Sync(req *SyncRequest) (*SyncResponse, error) {
 	if err := json.Unmarshal(body, response); err != nil {
 		return nil, err
 	}
+
+	log.Printf("SYNC response (action: %s, job: %s)", response.Action, response.JobID)
 
 	return response, nil
 }

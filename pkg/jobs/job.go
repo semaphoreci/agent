@@ -88,7 +88,7 @@ func (job *Job) Run() {
 		log.Printf("Exporting job result")
 
 		job.RunCommandsUntilFirstFailure([]api.Command{
-			api.Command{
+			{
 				Directive: fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%s", result),
 			},
 		})
