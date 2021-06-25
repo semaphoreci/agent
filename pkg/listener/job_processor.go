@@ -25,6 +25,8 @@ func StartJobProcessor(apiClient *selfhostedapi.Api) (*JobProcessor, error) {
 
 	go p.Start()
 
+	p.SetupInteruptHandler()
+
 	return p, nil
 }
 
@@ -188,7 +190,7 @@ func (p *JobProcessor) StreamLogsBatch(lastEventStreamed int) (int, error) {
 	return events, nil
 }
 
-func (p *JobProcessor) SetupCloseHandler() {
+func (p *JobProcessor) SetupInteruptHandler() {
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -198,6 +200,9 @@ func (p *JobProcessor) SetupCloseHandler() {
 }
 
 func (p *JobProcessor) Shutdown(reason string, code int) {
+	fmt.Println()
+	fmt.Println()
+	fmt.Println()
 	fmt.Println(reason)
 	fmt.Println("Shutting down... Good bye!")
 	os.Exit(code)
