@@ -38,10 +38,22 @@ e2e.listen.mode.logs:
 # that some runaway command will mess up your dev environment.
 #
 empty.ubuntu.machine:
-	docker run --rm -v $(PWD):/app -ti agent-self-hosted /bin/bash
+	docker run --rm -v $(PWD):/app -ti empty-ubuntu-self-hosted-agent /bin/bash
 
 empty.ubuntu.machine.build:
-	docker build -f Dockerfile.self_hosted -t agent-self-hosted .
+	docker build -f Dockerfile.empty_ubuntu -t empty-ubuntu-self-hosted-agent .
+
+#
+# Docker Release
+#
+docker.build:
+	$(MAKE) build
+	docker build -f Dockerfile.self_hosted -t semaphoreci/agent:latest .
+
+docker.push:
+	docker tag semaphoreci/agent:latest semaphoreci/agent:$$(git rev-parse HEAD)
+	docker push semaphoreci/agent:$$(git rev-parse HEAD)
+	docker push semaphoreci/agent:latest
 
 release.major:
 	git fetch --tags

@@ -3,10 +3,12 @@ package listener
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/semaphoreci/agent/pkg/api"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
@@ -92,7 +94,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 	p.CurrentJobID = jobID
 	p.State = selfhostedapi.AgentStateRunningJob
 
-	jobRequest, err := p.ApiClient.GetJob(p.CurrentJobID)
+	jobRequest, err := p.getJobWithRetries(p.CurrentJobID)
 	if err != nil {
 		panic(err)
 	}
@@ -106,6 +108,27 @@ func (p *JobProcessor) RunJob(jobID string) {
 
 	go p.StreamLogs(job)
 	go job.Run()
+}
+
+func (p *JobProcessor) getJobWithRetries(jobID string) (*api.JobRequest, error) {
+	retries := 10
+
+	for {
+		log.Printf("Getting job %s", jobID)
+
+		jobRequest, err := p.ApiClient.GetJob(jobID)
+		if err == nil {
+			return jobRequest, err
+		}
+
+		if retries > 0 {
+			retries--
+			time.Sleep(3 * time.Second)
+			continue
+		}
+
+		return nil, err
+	}
 }
 
 func (p *JobProcessor) StopJob(jobID string) {
