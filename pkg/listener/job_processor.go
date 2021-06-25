@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/semaphoreci/agent/pkg/api"
@@ -16,10 +18,9 @@ import (
 
 func StartJobProcessor(apiClient *selfhostedapi.Api) (*JobProcessor, error) {
 	p := &JobProcessor{
-		ApiClient:             apiClient,
-		LastSuccesfulSync:     time.Now(),
-		ConsecutiveSyncErrors: 0,
-		State: selfhostedapi.AgentStateWaitingForJobs,
+		ApiClient:         apiClient,
+		LastSuccesfulSync: time.Now(),
+		State:             selfhostedapi.AgentStateWaitingForJobs,
 	}
 
 	go p.Start()
@@ -28,16 +29,19 @@ func StartJobProcessor(apiClient *selfhostedapi.Api) (*JobProcessor, error) {
 }
 
 type JobProcessor struct {
-	ApiClient             *selfhostedapi.Api
-	State                 selfhostedapi.AgentState
-	CurrentJobID          string
-	CurrentJob            *jobs.Job
-	ConsecutiveSyncErrors int
-	LastSyncErrorAt       *time.Time
-	LastSuccesfulSync     time.Time
+	ApiClient         *selfhostedapi.Api
+	State             selfhostedapi.AgentState
+	CurrentJobID      string
+	CurrentJob        *jobs.Job
+	LastSyncErrorAt   *time.Time
+	LastSuccesfulSync time.Time
 }
 
 func (p *JobProcessor) Start() {
+	p.SyncLoop()
+}
+
+func (p *JobProcessor) SyncLoop() {
 	for {
 		p.Sync()
 		time.Sleep(5 * time.Second)
@@ -45,28 +49,31 @@ func (p *JobProcessor) Start() {
 }
 
 func (p *JobProcessor) Sync() {
-	request := &selfhostedapi.SyncRequest{
-		State: p.State,
-		JobID: p.CurrentJobID,
-	}
+	request := &selfhostedapi.SyncRequest{State: p.State, JobID: p.CurrentJobID}
 
 	response, err := p.ApiClient.Sync(request)
 	if err != nil {
-		fmt.Println("[SYNC ERR] Failed to sync with API.")
-		fmt.Println("[SYNC ERR] " + err.Error())
-
-		now := time.Now()
-
-		p.ConsecutiveSyncErrors += 1
-		p.LastSyncErrorAt = &now
-
-		if p.ConsecutiveSyncErrors > 10 && time.Now().Add(-10*time.Minute).After(p.LastSuccesfulSync) {
-			panic("AAAA")
-		}
-
+		p.HandleSyncError(err)
 		return
 	}
 
+	p.ProcessSyncResponse(response)
+}
+
+func (p *JobProcessor) HandleSyncError(err error) {
+	fmt.Println("[SYNC ERR] Failed to sync with API.")
+	fmt.Println("[SYNC ERR] " + err.Error())
+
+	now := time.Now()
+
+	p.LastSyncErrorAt = &now
+
+	if time.Now().Add(-10 * time.Minute).After(p.LastSuccesfulSync) {
+		p.Shutdown("Unable to sync with Semaphore for over 10 minutes.", 1)
+	}
+}
+
+func (p *JobProcessor) ProcessSyncResponse(response *selfhostedapi.SyncResponse) {
 	switch response.Action {
 	case selfhostedapi.AgentActionContinue:
 		// continue what I'm doing, no action needed
@@ -81,7 +88,7 @@ func (p *JobProcessor) Sync() {
 		return
 
 	case selfhostedapi.AgentActionShutdown:
-		os.Exit(1)
+		p.Shutdown("Agent Shutdown requested by Semaphore", 0)
 
 	case selfhostedapi.AgentActionWaitForJobs:
 		p.CurrentJobID = ""
@@ -179,4 +186,19 @@ func (p *JobProcessor) StreamLogsBatch(lastEventStreamed int) (int, error) {
 	}
 
 	return events, nil
+}
+
+func (p *JobProcessor) SetupCloseHandler() {
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		p.Shutdown("Ctrl+C pressed in Terminal", 0)
+	}()
+}
+
+func (p *JobProcessor) Shutdown(reason string, code int) {
+	fmt.Println(reason)
+	fmt.Println("Shutting down... Good bye!")
+	os.Exit(code)
 }
