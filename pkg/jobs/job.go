@@ -44,7 +44,7 @@ func NewJob(request *api.JobRequest) (*Job, error) {
 		request.Executor = executors.ExecutorTypeShell
 	}
 
-	logger, err := eventlogger.Default()
+	logger, err := eventlogger.DefaultHttp(request.ID, request.LogToken)
 	if err != nil {
 		return nil, err
 	}

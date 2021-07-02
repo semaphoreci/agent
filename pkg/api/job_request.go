@@ -71,6 +71,7 @@ type JobRequest struct {
 	EnvVars   []EnvVar  `json:"env_vars" yaml:"env_vars"`
 	Files     []File    `json:"files" yaml:"file"`
 	Callbacks Callbacks `json:"callbacks" yaml:"callbacks"`
+	LogToken  string    `json:"log_token" yaml:"log_token"`
 }
 
 func NewRequestFromJSON(content []byte) (*JobRequest, error) {
