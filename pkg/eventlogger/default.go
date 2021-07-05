@@ -1,6 +1,25 @@
 package eventlogger
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+
+	"github.com/semaphoreci/agent/pkg/api"
+)
+
+const LoggerTypeFile = "file"
+const LoggerTypeHTTP = "http"
+
+func CreateLogger(request *api.JobRequest) (*Logger, error) {
+	switch request.Logger.Type {
+	case LoggerTypeFile:
+		return Default()
+	case LoggerTypeHTTP:
+		return DefaultHttp(request)
+	default:
+		return nil, fmt.Errorf("unknown logger type")
+	}
+}
 
 func Default() (*Logger, error) {
 	backend, err := NewFileBackend("/tmp/job_log.json")
@@ -21,8 +40,12 @@ func Default() (*Logger, error) {
 	return logger, nil
 }
 
-func DefaultHttp(jobId, token string) (*Logger, error) {
-	backend, err := NewHttpBackend(fmt.Sprintf("http://localhost:8080/api/v1/logs/%s", jobId), token, 10)
+func DefaultHttp(request *api.JobRequest) (*Logger, error) {
+	if request.Logger.Url == "" {
+		return nil, errors.New("HTTP logger needs a URL")
+	}
+
+	backend, err := NewHttpBackend(fmt.Sprintf("%s/%s", request.Logger.Url, request.ID), request.Logger.Token, 10)
 	if err != nil {
 		return nil, err
 	}
