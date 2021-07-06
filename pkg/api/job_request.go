@@ -52,9 +52,9 @@ type Callbacks struct {
 }
 
 type Logger struct {
-	Type  string `json:"type" yaml:"type"`
-	Url   string `json:"url" yaml:"url"`
-	Token string `json:"token" yaml:"token"`
+	Method string `json:"method" yaml:"method"`
+	Url    string `json:"url" yaml:"url"`
+	Token  string `json:"token" yaml:"token"`
 }
 
 type PublicKey string

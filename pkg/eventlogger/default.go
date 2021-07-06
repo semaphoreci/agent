@@ -7,14 +7,14 @@ import (
 	"github.com/semaphoreci/agent/pkg/api"
 )
 
-const LoggerTypeFile = "file"
-const LoggerTypeHTTP = "http"
+const LoggerMethodPull = "pull"
+const LoggerMethodPush = "push"
 
 func CreateLogger(request *api.JobRequest) (*Logger, error) {
-	switch request.Logger.Type {
-	case LoggerTypeFile:
+	switch request.Logger.Method {
+	case LoggerMethodPull:
 		return Default()
-	case LoggerTypeHTTP:
+	case LoggerMethodPush:
 		return DefaultHttp(request)
 	default:
 		return nil, fmt.Errorf("unknown logger type")

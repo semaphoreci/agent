@@ -44,8 +44,8 @@ func NewJob(request *api.JobRequest) (*Job, error) {
 		request.Executor = executors.ExecutorTypeShell
 	}
 
-	if request.Logger.Type == "" {
-		request.Logger.Type = eventlogger.LoggerTypeFile
+	if request.Logger.Method == "" {
+		request.Logger.Method = eventlogger.LoggerMethodPull
 	}
 
 	logger, err := eventlogger.CreateLogger(request)
