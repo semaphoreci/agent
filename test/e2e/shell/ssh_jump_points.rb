@@ -56,7 +56,8 @@ start_job <<-JSON
     "callbacks": {
       "finished": "#{finished_callback_url}",
       "teardown_finished": "#{teardown_callback_url}"
-    }
+    },
+    "logger": #{$LOGGER}
   }
 JSON
 

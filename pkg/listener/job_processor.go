@@ -1,17 +1,14 @@
 package listener
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/semaphoreci/agent/pkg/api"
-	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
 )
@@ -115,7 +112,6 @@ func (p *JobProcessor) RunJob(jobID string) {
 
 	p.CurrentJob = job
 
-	go p.StreamLogs(job)
 	go job.Run()
 }
 
@@ -145,49 +141,6 @@ func (p *JobProcessor) StopJob(jobID string) {
 	p.State = selfhostedapi.AgentStateStoppingJob
 
 	p.CurrentJob.Stop()
-}
-
-func (p *JobProcessor) StreamLogs(job *jobs.Job) {
-	lastEventStreamed := 0
-	ticker := time.NewTicker(1 * time.Second)
-
-	go func() {
-		for {
-			<-ticker.C
-
-			events, err := p.StreamLogsBatch(lastEventStreamed)
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
-
-			fmt.Println("Logs streamed")
-			lastEventStreamed += events
-
-			if p.CurrentJob.Finished {
-				p.State = selfhostedapi.AgentStateFinishedJob
-				p.CurrentJob.JobLogArchived = true
-				return
-			}
-		}
-	}()
-}
-
-func (p *JobProcessor) StreamLogsBatch(lastEventStreamed int) (int, error) {
-	buf := new(bytes.Buffer)
-
-	logFile := p.CurrentJob.Logger.Backend.(*eventlogger.FileBackend)
-	logFile.Stream(lastEventStreamed, buf)
-
-	events := len(strings.Split(buf.String(), "\n\n")) - 1
-
-	err := p.ApiClient.Logs(p.CurrentJobID, buf)
-	if err != nil {
-		fmt.Println(err)
-		return 0, err
-	}
-
-	return events, nil
 }
 
 func (p *JobProcessor) SetupInteruptHandler() {

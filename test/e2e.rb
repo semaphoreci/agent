@@ -11,13 +11,19 @@ require_relative "./e2e_support/api_mode"
 require_relative "./e2e_support/listener_mode"
 
 $JOB_ID = `uuidgen`.strip
+$LOGGER = ""
 
 $strategy = nil
 
 case ENV["TEST_MODE"]
-when "api"    then $strategy = ApiMode.new
-when "listen" then $strategy = ListenerMode.new
-else raise "Testing Mode not set"
+when "api" then
+  $strategy = ApiMode.new
+  $LOGGER = '{ "method": "pull" }'
+when "listen" then
+  $strategy = ListenerMode.new
+  $LOGGER = '{ "method": "push", "url": "http://hub:4567/api/v1/logs", "token": "jwtToken" }'
+else
+  raise "Testing Mode not set"
 end
 
 $strategy.boot_up_agent

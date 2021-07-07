@@ -14,7 +14,7 @@ $payloads = {}
 $job_states = {}
 $finished = {}
 $teardown = {}
-$logs = ""
+$logs = []
 
 before do
   logger.level = 0
@@ -73,16 +73,14 @@ get "/api/v1/self_hosted_agents/jobs/:id/status" do
   $job_states[params["id"]]
 end
 
-post "/api/v1/self_hosted_agents/jobs/:id/logs" do
+post "/api/v1/logs/:id" do
   request.body.rewind
-  events = request.body.read
+  payload = JSON.parse(request.body.read)
+  events = payload["events"]
 
+  puts "Received #{events.length()} log events"
   $logs += events
-
-  puts "incomming"
-  puts events
-
-  status 202
+  status 200
 end
 
 post "/jobs/:id/callbacks/finished" do
@@ -109,9 +107,9 @@ end
 
 get "/private/jobs/:id/logs" do
   puts "Fetching logs"
-  puts $logs
-
-  $logs
+  events = $logs.map { |event| event.to_json }
+  puts events.join("\n")
+  events.join("\n")
 end
 
 post "/private/schedule_job" do

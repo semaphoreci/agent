@@ -23,7 +23,7 @@ test:
 
 build:
 	rm -rf build
-	go build -o build/agent main.go
+	env GOOS=linux GOARCH=386 go build -o build/agent main.go
 .PHONY: build
 
 e2e: build

@@ -185,24 +185,26 @@ func (job *Job) Teardown(result string) {
 	job.SendFinishedCallback(result)
 	job.Logger.LogJobFinished(result)
 
-	log.Printf("Waiting for archivator")
+	if job.Request.Logger.Method == eventlogger.LoggerMethodPull {
+		log.Printf("Waiting for archivator")
 
-	for {
-		if job.JobLogArchived {
-			break
-		} else {
-			time.Sleep(1000 * time.Millisecond)
+		for {
+			if job.JobLogArchived {
+				break
+			} else {
+				time.Sleep(1000 * time.Millisecond)
+			}
 		}
+
+		log.Printf("Archivator finished")
 	}
-
-	job.SendTeardownFinishedCallback()
-
-	log.Printf("Archivator finished")
 
 	err := job.Logger.Close()
 	if err != nil {
 		log.Printf("Event Logger error %+v", err)
 	}
+
+	job.SendTeardownFinishedCallback()
 
 	log.Printf("Job Teardown Finished")
 }
