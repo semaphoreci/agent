@@ -65,6 +65,7 @@ func (l *HttpBackend) send() (*http.Response, error) {
 		return nil, err
 	}
 
+	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", l.token))
 	response, err := l.client.Do(request)
 	if err != nil {
