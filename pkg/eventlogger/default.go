@@ -9,6 +9,7 @@ import (
 
 const LoggerMethodPull = "pull"
 const LoggerMethodPush = "push"
+const LoggerDefaultBufferSize = 10
 
 func CreateLogger(request *api.JobRequest) (*Logger, error) {
 	switch request.Logger.Method {
@@ -45,7 +46,12 @@ func DefaultHttp(request *api.JobRequest) (*Logger, error) {
 		return nil, errors.New("HTTP logger needs a URL")
 	}
 
-	backend, err := NewHttpBackend(fmt.Sprintf("%s/%s", request.Logger.Url, request.ID), request.Logger.Token, 10)
+	if request.Logger.BufferSize <= 0 {
+		request.Logger.BufferSize = LoggerDefaultBufferSize
+	}
+
+	url := fmt.Sprintf("%s/%s", request.Logger.Url, request.ID)
+	backend, err := NewHttpBackend(url, request.Logger.Token, request.Logger.BufferSize)
 	if err != nil {
 		return nil, err
 	}

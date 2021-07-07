@@ -54,6 +54,13 @@ post "/api/v1/self_hosted_agents/sync" do
                 {"action" => "continue"}
               end
             when "running-job"
+              job_id = @json_request["job_id"]
+              if $job_states[job_id] == "stopping"
+                {"action" => "stop-job"}
+              else
+                {"action" => "continue"}
+              end
+            when "stopping-job"
               {"action" => "continue"}
             when "finished-job"
               {"action" => "continue"}
@@ -124,7 +131,6 @@ post "/private/schedule_job" do
 end
 
 post "/private/schedule_stop/:id" do
-  puts "CCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
   puts "Scheduled stop #{params["id"]}"
 
   $job_states[params["id"]] = "stopping"
