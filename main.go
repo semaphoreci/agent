@@ -123,5 +123,5 @@ func RunSingleJob() {
 
 	job.JobLogArchived = true
 
-	job.Run()
+	job.Run(nil)
 }

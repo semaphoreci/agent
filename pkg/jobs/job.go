@@ -70,7 +70,7 @@ func NewJob(request *api.JobRequest) (*Job, error) {
 	}, nil
 }
 
-func (job *Job) Run() {
+func (job *Job) Run(finishedCallback func()) {
 	log.Printf("Job Started")
 	executorRunning := false
 	result := JOB_FAILED
@@ -109,9 +109,12 @@ func (job *Job) Run() {
 		}
 	}
 
+	job.Teardown(result)
 	job.Finished = true
 
-	job.Teardown(result)
+	if finishedCallback != nil {
+		finishedCallback()
+	}
 }
 
 func (job *Job) PrepareEnvironment() int {

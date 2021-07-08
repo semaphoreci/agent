@@ -112,7 +112,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 
 	p.CurrentJob = job
 
-	go job.Run()
+	go job.Run(p.JobFinished)
 }
 
 func (p *JobProcessor) getJobWithRetries(jobID string) (*api.JobRequest, error) {
@@ -141,6 +141,11 @@ func (p *JobProcessor) StopJob(jobID string) {
 	p.State = selfhostedapi.AgentStateStoppingJob
 
 	p.CurrentJob.Stop()
+}
+
+func (p *JobProcessor) JobFinished() {
+	p.CurrentJobID = ""
+	p.State = selfhostedapi.AgentStateWaitingForJobs
 }
 
 func (p *JobProcessor) SetupInteruptHandler() {
