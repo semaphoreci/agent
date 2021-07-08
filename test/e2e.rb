@@ -21,7 +21,15 @@ when "api" then
   $LOGGER = '{ "method": "pull" }'
 when "listen" then
   $strategy = ListenerMode.new
-  $LOGGER = '{ "method": "push", "url": "http://hub:4567/api/v1/logs", "token": "jwtToken", "buffer_size": 2 }'
+  $LOGGER = <<-JSON
+  {
+    "method": "push",
+    "url": "http://hub:4567/api/v1/logs/#{$JOB_ID}",
+    "token": "jwtToken",
+    "buffer_size": 2
+  }
+  JSON
+
 else
   raise "Testing Mode not set"
 end

@@ -50,8 +50,7 @@ func DefaultHttp(request *api.JobRequest) (*Logger, error) {
 		request.Logger.BufferSize = LoggerDefaultBufferSize
 	}
 
-	url := fmt.Sprintf("%s/%s", request.Logger.Url, request.ID)
-	backend, err := NewHttpBackend(url, request.Logger.Token, request.Logger.BufferSize)
+	backend, err := NewHttpBackend(request.Logger.Url, request.Logger.Token, request.Logger.BufferSize)
 	if err != nil {
 		return nil, err
 	}
