@@ -15,7 +15,7 @@ start_job <<-JSON
           "name": "main",
           "image": "ruby:2.6",
           "env_vars": [
-            { "name": "FOO", "value": "#{`echo "bar" | base64`}" }
+            { "name": "FOO", "value": "#{`echo "bar" | base64 | tr -d '\n'`}" }
           ]
         }
       ]

@@ -20,9 +20,9 @@ start_job <<-JSON
       "image_pull_credentials": [
         {
           "env_vars": [
-            { "name": "DOCKER_CREDENTIAL_TYPE", "value": "#{Base64.encode64("DockerHub")}" },
-            { "name": "DOCKERHUB_USERNAME", "value": "#{Base64.encode64("lasagna")}" },
-            { "name": "DOCKERHUB_PASSWORD", "value": "#{Base64.encode64("spaghetti")}" }
+            { "name": "DOCKER_CREDENTIAL_TYPE", "value": "#{Base64.strict_encode64("DockerHub")}" },
+            { "name": "DOCKERHUB_USERNAME", "value": "#{Base64.strict_encode64("lasagna")}" },
+            { "name": "DOCKERHUB_PASSWORD", "value": "#{Base64.strict_encode64("spaghetti")}" }
           ]
         }
       ]

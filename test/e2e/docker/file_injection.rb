@@ -21,9 +21,9 @@ start_job <<-JSON
     "env_vars": [],
 
     "files": [
-      { "path": "test.txt", "content": "#{`echo "hello" | base64`}", "mode": "0644" },
-      { "path": "/a/b/c",   "content": "#{`echo "hello" | base64`}", "mode": "0644" },
-      { "path": "/tmp/a",   "content": "#{`echo "hello" | base64`}", "mode": "+x" }
+      { "path": "test.txt", "content": "#{`echo "hello" | base64 | tr -d '\n'`}", "mode": "0644" },
+      { "path": "/a/b/c",   "content": "#{`echo "hello" | base64 | tr -d '\n'`}", "mode": "0644" },
+      { "path": "/tmp/a",   "content": "#{`echo "hello" | base64 | tr -d '\n'`}", "mode": "+x" }
     ],
 
     "commands": [

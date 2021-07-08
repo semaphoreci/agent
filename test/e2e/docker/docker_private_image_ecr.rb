@@ -20,10 +20,10 @@ start_job <<-JSON
       "image_pull_credentials": [
         {
           "env_vars": [
-            { "name": "DOCKER_CREDENTIAL_TYPE", "value": "#{Base64.encode64("AWS_ECR")}" },
-            { "name": "AWS_REGION", "value": "#{Base64.encode64(ENV['AWS_REGION'])}" },
-            { "name": "AWS_ACCESS_KEY_ID", "value": "#{Base64.encode64(ENV['AWS_ACCESS_KEY_ID'])}" },
-            { "name": "AWS_SECRET_ACCESS_KEY", "value": "#{Base64.encode64(ENV['AWS_SECRET_ACCESS_KEY'])}" }
+            { "name": "DOCKER_CREDENTIAL_TYPE", "value": "#{Base64.strict_encode64("AWS_ECR")}" },
+            { "name": "AWS_REGION", "value": "#{Base64.strict_encode64(ENV['AWS_REGION'])}" },
+            { "name": "AWS_ACCESS_KEY_ID", "value": "#{Base64.strict_encode64(ENV['AWS_ACCESS_KEY_ID'])}" },
+            { "name": "AWS_SECRET_ACCESS_KEY", "value": "#{Base64.strict_encode64(ENV['AWS_SECRET_ACCESS_KEY'])}" }
           ]
         }
       ]

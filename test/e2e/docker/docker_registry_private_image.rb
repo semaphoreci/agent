@@ -20,10 +20,10 @@ start_job <<-JSON
       "image_pull_credentials": [
         {
           "env_vars": [
-            { "name": "DOCKER_CREDENTIAL_TYPE", "value": "#{Base64.encode64("GenericDocker")}" },
-            { "name": "DOCKER_URL", "value": "#{Base64.encode64(ENV['DOCKER_URL'])}" },
-            { "name": "DOCKER_USERNAME", "value": "#{Base64.encode64(ENV['DOCKER_USERNAME'])}" },
-            { "name": "DOCKER_PASSWORD", "value": "#{Base64.encode64(ENV['DOCKER_PASSWORD'])}" }
+            { "name": "DOCKER_CREDENTIAL_TYPE", "value": "#{Base64.strict_encode64("GenericDocker")}" },
+            { "name": "DOCKER_URL", "value": "#{Base64.strict_encode64(ENV['DOCKER_URL'])}" },
+            { "name": "DOCKER_USERNAME", "value": "#{Base64.strict_encode64(ENV['DOCKER_USERNAME'])}" },
+            { "name": "DOCKER_PASSWORD", "value": "#{Base64.strict_encode64(ENV['DOCKER_PASSWORD'])}" }
           ]
         }
       ]

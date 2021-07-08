@@ -21,7 +21,7 @@ start_job <<-JSON
     "env_vars": [],
 
     "files": [
-      { "path": "test.txt", "content": "#{`echo "hello" | base64`}", "mode": "obviously broken" }
+      { "path": "test.txt", "content": "#{`echo "hello" | base64 | tr -d '\n'`}", "mode": "obviously broken" }
     ],
 
     "commands": [
