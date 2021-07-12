@@ -82,8 +82,7 @@ end
 
 post "/api/v1/logs/:id" do
   request.body.rewind
-  payload = JSON.parse(request.body.read)
-  events = payload["events"]
+  events = request.body.read.split("\n")
 
   puts "Received #{events.length()} log events"
   $logs += events
@@ -114,9 +113,8 @@ end
 
 get "/private/jobs/:id/logs" do
   puts "Fetching logs"
-  events = $logs.map { |event| event.to_json }
-  puts events.join("\n")
-  events.join("\n")
+  puts $logs.join("\n")
+  $logs.join("\n")
 end
 
 post "/private/schedule_job" do

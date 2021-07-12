@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 type HttpBackend struct {
@@ -15,10 +16,6 @@ type HttpBackend struct {
 	buffer     []interface{}
 	bufferSize int
 	startFrom  int
-}
-
-type LogRequest struct {
-	Events []interface{} `json:"events"`
 }
 
 func NewHttpBackend(url, token string, bufferSize int) (*HttpBackend, error) {
@@ -58,14 +55,19 @@ func (l *HttpBackend) Write(event interface{}) error {
 }
 
 func (l *HttpBackend) send() (*http.Response, error) {
-	payload := LogRequest{Events: l.buffer}
-	jsonString, _ := json.Marshal(payload)
-	request, err := http.NewRequest("POST", fmt.Sprintf("%s?start_from=%d", l.url, l.startFrom), bytes.NewBuffer(jsonString))
+	events := []string{}
+	for _, event := range l.buffer {
+		eventAsString, _ := json.Marshal(event)
+		events = append(events, string(eventAsString))
+	}
+
+	payload := []byte(strings.Join(events, "\n"))
+	request, err := http.NewRequest("POST", fmt.Sprintf("%s?start_from=%d", l.url, l.startFrom), bytes.NewBuffer(payload))
 	if err != nil {
 		return nil, err
 	}
 
-	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Content-Type", "text/plain")
 	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", l.token))
 	response, err := l.client.Do(request)
 	if err != nil {
