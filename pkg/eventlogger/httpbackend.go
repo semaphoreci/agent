@@ -2,95 +2,113 @@ package eventlogger
 
 import (
 	"bytes"
-	"encoding/json"
-	"errors"
 	"fmt"
+	"log"
 	"net/http"
-	"strings"
+	"time"
 )
 
 type HttpBackend struct {
-	client     *http.Client
-	url        string
-	token      string
-	buffer     []interface{}
-	bufferSize int
-	startFrom  int
+	client      *http.Client
+	url         string
+	token       string
+	fileBackend FileBackend
+	startFrom   int
+	streamChan  chan bool
 }
 
-func NewHttpBackend(url, token string, bufferSize int) (*HttpBackend, error) {
-	if bufferSize <= 0 {
-		return nil, errors.New("bufferSize needs to be greater than 0")
+func NewHttpBackend(url, token string) (*HttpBackend, error) {
+	fileBackend, err := NewFileBackend("/tmp/job_log.json")
+	if err != nil {
+		return nil, err
 	}
 
-	return &HttpBackend{
-		client:     &http.Client{},
-		url:        url,
-		token:      token,
-		bufferSize: bufferSize,
-		buffer:     []interface{}{},
-		startFrom:  0,
-	}, nil
+	httpBackend := HttpBackend{
+		client:      &http.Client{},
+		url:         url,
+		token:       token,
+		fileBackend: *fileBackend,
+		startFrom:   0,
+	}
+
+	httpBackend.startStreaming()
+
+	return &httpBackend, nil
 }
 
 func (l *HttpBackend) Open() error {
-	// does nothing
-	return nil
+	return l.fileBackend.Open()
 }
 
 func (l *HttpBackend) Write(event interface{}) error {
-	l.buffer = append(l.buffer, event)
-	if len(l.buffer) < l.bufferSize {
-		return nil
-	}
-
-	_, err := l.send()
-	if err != nil {
-		return err
-	}
-
-	l.startFrom = l.startFrom + len(l.buffer)
-	l.buffer = l.buffer[:0]
-	return nil
+	return l.fileBackend.Write(event)
 }
 
-func (l *HttpBackend) send() (*http.Response, error) {
-	events := []string{}
-	for _, event := range l.buffer {
-		eventAsString, _ := json.Marshal(event)
-		events = append(events, string(eventAsString))
+func (l *HttpBackend) startStreaming() {
+	log.Printf("Start streaming logs to %s", l.url)
+
+	ticker := time.NewTicker(time.Second)
+	l.streamChan = make(chan bool)
+
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				l.streamLogs()
+			case <-l.streamChan:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+}
+
+func (l *HttpBackend) stopStreaming() {
+	if l.streamChan != nil {
+		close(l.streamChan)
 	}
 
-	payload := []byte(strings.Join(events, "\n"))
-	request, err := http.NewRequest("POST", fmt.Sprintf("%s?start_from=%d", l.url, l.startFrom), bytes.NewBuffer(payload))
+	log.Printf("Stopped streaming logs to %s", l.url)
+}
+
+func (l *HttpBackend) streamLogs() {
+	buffer := bytes.NewBuffer([]byte{})
+	nextStartFrom, err := l.fileBackend.Stream(l.startFrom, buffer)
 	if err != nil {
-		return nil, err
+		log.Printf("Error reading logs from file: %v", err)
+		return
+	}
+
+	if l.startFrom == nextStartFrom {
+		// no logs to stream
+		return
+	}
+
+	url := fmt.Sprintf("%s?start_from=%d", l.url, l.startFrom)
+	request, err := http.NewRequest("POST", url, buffer)
+	if err != nil {
+		log.Printf("Error creating streaming log request to %s: %v", url, err)
+		return
 	}
 
 	request.Header.Set("Content-Type", "text/plain")
 	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", l.token))
 	response, err := l.client.Do(request)
 	if err != nil {
-		return nil, err
+		log.Printf("Error streaming logs to %s: %v", url, err)
+		return
 	}
 
 	if response.StatusCode != 200 {
-		return nil, fmt.Errorf("got %s response", response.Status)
-	} else {
-		return response, nil
+		log.Printf("Log streaming request got %s response", response.Status)
+		return
 	}
+
+	l.startFrom = nextStartFrom
 }
 
 func (l *HttpBackend) Close() error {
-	if len(l.buffer) > 0 {
-		_, err := l.send()
-		if err != nil {
-			return err
-		}
-
-		l.buffer = l.buffer[:0]
-		l.startFrom = len(l.buffer)
-	}
-
-	return nil
+	l.stopStreaming()
+	l.streamLogs()
+	return l.fileBackend.Close()
 }

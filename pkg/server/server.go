@@ -124,7 +124,7 @@ func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{"message": "%s"}`, "Failed to open logfile")
 	}
 
-	err = logFile.Stream(startFromLine, w)
+	_, err = logFile.Stream(startFromLine, w)
 	if err != nil {
 		log.Printf("Error while streaming logs")
 

@@ -44,11 +44,12 @@ func (l *FileBackend) Close() error {
 	return nil
 }
 
-func (l *FileBackend) Stream(startLine int, writter io.Writer) error {
+func (l *FileBackend) Stream(startLine int, writer io.Writer) (int, error) {
 	fd, err := os.OpenFile(l.path, os.O_RDONLY, os.ModePerm)
 	if err != nil {
-		return err
+		return startLine, err
 	}
+
 	defer fd.Close()
 
 	reader := bufio.NewReader(fd)
@@ -58,7 +59,7 @@ func (l *FileBackend) Stream(startLine int, writter io.Writer) error {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err != io.EOF {
-				return err
+				return lineIndex, err
 			}
 
 			break
@@ -67,10 +68,11 @@ func (l *FileBackend) Stream(startLine int, writter io.Writer) error {
 		if lineIndex < startLine {
 			lineIndex++
 			continue
+		} else {
+			lineIndex++
+			fmt.Fprintln(writer, line)
 		}
-
-		fmt.Fprintln(writter, line)
 	}
 
-	return nil
+	return lineIndex, nil
 }
