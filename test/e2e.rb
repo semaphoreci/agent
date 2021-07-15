@@ -25,8 +25,7 @@ when "listen" then
   {
     "method": "push",
     "url": "http://hub:4567/api/v1/logs/#{$JOB_ID}",
-    "token": "jwtToken",
-    "buffer_size": 2
+    "token": "jwtToken"
   }
   JSON
 
