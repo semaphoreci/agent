@@ -2,7 +2,6 @@ package listener
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,6 +10,7 @@ import (
 	"github.com/semaphoreci/agent/pkg/api"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
+	log "github.com/sirupsen/logrus"
 )
 
 func StartJobProcessor(apiClient *selfhostedapi.Api) (*JobProcessor, error) {
@@ -102,11 +102,13 @@ func (p *JobProcessor) RunJob(jobID string) {
 
 	jobRequest, err := p.getJobWithRetries(p.CurrentJobID)
 	if err != nil {
+		// TODO
 		panic(err)
 	}
 
 	job, err := jobs.NewJob(jobRequest)
 	if err != nil {
+		// TODO
 		panic("bbb")
 	}
 
@@ -119,7 +121,7 @@ func (p *JobProcessor) getJobWithRetries(jobID string) (*api.JobRequest, error) 
 	retries := 10
 
 	for {
-		log.Printf("Getting job %s", jobID)
+		log.Infof("Getting job %s", jobID)
 
 		jobRequest, err := p.ApiClient.GetJob(jobID)
 		if err == nil {

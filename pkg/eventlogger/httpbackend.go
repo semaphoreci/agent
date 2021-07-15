@@ -3,9 +3,10 @@ package eventlogger
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type HttpBackend struct {
@@ -45,7 +46,7 @@ func (l *HttpBackend) Write(event interface{}) error {
 }
 
 func (l *HttpBackend) startStreaming() {
-	log.Printf("Start streaming logs to %s", l.url)
+	log.Debugf("Logs will be streamed to %s", l.url)
 
 	ticker := time.NewTicker(time.Second)
 	l.streamChan = make(chan bool)
@@ -68,14 +69,14 @@ func (l *HttpBackend) stopStreaming() {
 		close(l.streamChan)
 	}
 
-	log.Printf("Stopped streaming logs to %s", l.url)
+	log.Debug("Stopped streaming logs")
 }
 
 func (l *HttpBackend) streamLogs() {
 	buffer := bytes.NewBuffer([]byte{})
 	nextStartFrom, err := l.fileBackend.Stream(l.startFrom, buffer)
 	if err != nil {
-		log.Printf("Error reading logs from file: %v", err)
+		log.Errorf("Error reading logs from file: %v", err)
 		return
 	}
 
@@ -87,7 +88,7 @@ func (l *HttpBackend) streamLogs() {
 	url := fmt.Sprintf("%s?start_from=%d", l.url, l.startFrom)
 	request, err := http.NewRequest("POST", url, buffer)
 	if err != nil {
-		log.Printf("Error creating streaming log request to %s: %v", url, err)
+		log.Errorf("Error creating streaming log request to %s: %v", url, err)
 		return
 	}
 
@@ -95,12 +96,12 @@ func (l *HttpBackend) streamLogs() {
 	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", l.token))
 	response, err := l.client.Do(request)
 	if err != nil {
-		log.Printf("Error streaming logs to %s: %v", url, err)
+		log.Errorf("Error streaming logs to %s: %v", url, err)
 		return
 	}
 
 	if response.StatusCode != 200 {
-		log.Printf("Log streaming request got %s response", response.Status)
+		log.Errorf("Request to %s failed: %s", url, response.Status)
 		return
 	}
 

@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type FileBackend struct {
@@ -35,7 +36,7 @@ func (l *FileBackend) Write(event interface{}) error {
 	l.file.Write([]byte(jsonString))
 	l.file.Write([]byte("\n"))
 
-	log.Printf("%s", jsonString)
+	log.Debugf("%s", jsonString)
 
 	return nil
 }

@@ -3,7 +3,6 @@ package executors
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os/exec"
 	"path"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	shell "github.com/semaphoreci/agent/pkg/shell"
+	log "github.com/sirupsen/logrus"
 )
 
 type ShellExecutor struct {
@@ -231,14 +231,14 @@ func (e *ShellExecutor) RunCommand(command string, silent bool, alias string) in
 }
 
 func (e *ShellExecutor) Stop() int {
-	log.Println("Starting the process killing procedure")
+	log.Debug("Starting the process killing procedure")
 
 	err := e.Shell.Close()
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	log.Printf("Process killing finished without errors")
+	log.Debug("Process killing finished without errors")
 
 	return 0
 }

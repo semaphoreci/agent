@@ -3,16 +3,17 @@ package main
 import (
 	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"os"
 	"time"
 
 	watchman "github.com/renderedtext/go-watchman"
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	listener "github.com/semaphoreci/agent/pkg/listener"
 	server "github.com/semaphoreci/agent/pkg/server"
+	log "github.com/sirupsen/logrus"
 	pflag "github.com/spf13/pflag"
 )
 
@@ -26,7 +27,8 @@ func main() {
 
 	logfile := OpenLogfile()
 	log.SetOutput(logfile)
-	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
+	log.SetFormatter(new(eventlogger.CustomFormatter))
+	log.SetLevel(getLogLevel())
 
 	switch action {
 	case "start":
@@ -48,6 +50,20 @@ func OpenLogfile() io.Writer {
 	}
 
 	return io.MultiWriter(f, os.Stdout)
+}
+
+func getLogLevel() log.Level {
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel != "" {
+		level, err := log.ParseLevel(logLevel)
+		if err != nil {
+			log.Fatalf("Log level %s not supported", logLevel)
+		}
+
+		return level
+	} else {
+		return log.InfoLevel
+	}
 }
 
 func RunListener(logfile io.Writer) {
