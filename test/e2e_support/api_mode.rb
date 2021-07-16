@@ -1,6 +1,7 @@
 # rubocop:disable all
 
 $AGENT_PORT_IN_TESTS = 30000
+$AGENT_SSH_PORT_IN_TESTS = 2222
 
 # based on secret passed to the running server
 $TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.gLEycyHdyRRzUpauBxdDFmxT5KoOApFO5MHuvWPgFtY"
