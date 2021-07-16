@@ -18,6 +18,9 @@ func StartJobProcessor(apiClient *selfhostedapi.Api) (*JobProcessor, error) {
 		ApiClient:         apiClient,
 		LastSuccesfulSync: time.Now(),
 		State:             selfhostedapi.AgentStateWaitingForJobs,
+
+		SyncInterval:            5 * time.Second,
+		DisconnectRetryAttempts: 100,
 	}
 
 	go p.Start()
@@ -32,19 +35,26 @@ type JobProcessor struct {
 	State                   selfhostedapi.AgentState
 	CurrentJobID            string
 	CurrentJob              *jobs.Job
+	SyncInterval            time.Duration
 	LastSyncErrorAt         *time.Time
 	LastSuccesfulSync       time.Time
 	DisconnectRetryAttempts int
+
+	StopSync bool
 }
 
 func (p *JobProcessor) Start() {
-	p.SyncLoop()
+	go p.SyncLoop()
 }
 
 func (p *JobProcessor) SyncLoop() {
 	for {
+		if p.StopSync {
+			break
+		}
+
 		p.Sync()
-		time.Sleep(5 * time.Second)
+		time.Sleep(p.SyncInterval)
 	}
 }
 
@@ -159,18 +169,19 @@ func (p *JobProcessor) SetupInteruptHandler() {
 }
 
 func (p *JobProcessor) disconnect() {
+	p.StopSync = true
 	fmt.Println("Diconnecting the Agent from Semaphore")
 
 	success := false
 
 	for i := 0; i < p.DisconnectRetryAttempts; i++ {
-		resp, err := p.ApiClient.Disconnect()
+		_, err := p.ApiClient.Disconnect()
 
 		if err == nil {
 			success = true
 			break
 		} else {
-			fmt.Printf("Disconnect Error. Response: %s, Error: %s\n", resp, err.Error())
+			fmt.Printf("Disconnect Error. %s", err.Error())
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -184,6 +195,7 @@ func (p *JobProcessor) disconnect() {
 }
 
 func (p *JobProcessor) Shutdown(reason string, code int) {
+	fmt.Println()
 	p.disconnect()
 
 	fmt.Println()

@@ -1,6 +1,7 @@
 package selfhostedapi
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 )
@@ -26,6 +27,10 @@ func (a *Api) Disconnect() (string, error) {
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
+	}
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("error while disconnecting, status: %d, body: %s", resp.StatusCode, string(body))
 	}
 
 	return string(body), nil
