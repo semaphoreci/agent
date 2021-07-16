@@ -111,13 +111,11 @@ func (p *JobProcessor) RunJob(jobID string) {
 
 	jobRequest, err := p.getJobWithRetries(p.CurrentJobID)
 	if err != nil {
-		// TODO
 		panic(err)
 	}
 
 	job, err := jobs.NewJob(jobRequest)
 	if err != nil {
-		// TODO
 		panic("bbb")
 	}
 

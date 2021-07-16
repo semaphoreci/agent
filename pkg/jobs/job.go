@@ -58,6 +58,8 @@ func NewJob(request *api.JobRequest) (*Job, error) {
 		return nil, err
 	}
 
+	log.Debugf("Job Request %+v", request)
+
 	return &Job{
 		Request:        request,
 		Executor:       executor,
