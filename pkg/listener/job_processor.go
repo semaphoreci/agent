@@ -28,12 +28,13 @@ func StartJobProcessor(apiClient *selfhostedapi.Api) (*JobProcessor, error) {
 }
 
 type JobProcessor struct {
-	ApiClient         *selfhostedapi.Api
-	State             selfhostedapi.AgentState
-	CurrentJobID      string
-	CurrentJob        *jobs.Job
-	LastSyncErrorAt   *time.Time
-	LastSuccesfulSync time.Time
+	ApiClient               *selfhostedapi.Api
+	State                   selfhostedapi.AgentState
+	CurrentJobID            string
+	CurrentJob              *jobs.Job
+	LastSyncErrorAt         *time.Time
+	LastSuccesfulSync       time.Time
+	DisconnectRetryAttempts int
 }
 
 func (p *JobProcessor) Start() {
@@ -157,7 +158,34 @@ func (p *JobProcessor) SetupInteruptHandler() {
 	}()
 }
 
+func (p *JobProcessor) disconnect() {
+	fmt.Println("Diconnecting the Agent from Semaphore")
+
+	success := false
+
+	for i := 0; i < p.DisconnectRetryAttempts; i++ {
+		resp, err := p.ApiClient.Disconnect()
+
+		if err == nil {
+			success = true
+			break
+		} else {
+			fmt.Printf("Disconnect Error. Response: %s, Error: %s\n", resp, err.Error())
+			time.Sleep(1 * time.Second)
+			continue
+		}
+	}
+
+	if success {
+		fmt.Println("Disconnected.")
+	} else {
+		fmt.Printf("Failed to disconnect from Semaphore even after %d tries\n", p.DisconnectRetryAttempts)
+	}
+}
+
 func (p *JobProcessor) Shutdown(reason string, code int) {
+	p.disconnect()
+
 	fmt.Println()
 	fmt.Println()
 	fmt.Println()
