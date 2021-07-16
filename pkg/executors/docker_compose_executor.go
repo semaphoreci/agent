@@ -509,7 +509,7 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 		exitCode = 1
 	}
 
-	log.Info("Docker pull finished. Exit Code: %d", exitCode)
+	log.Infof("Docker pull finished. Exit Code: %d", exitCode)
 
 	commandFinishedAt := int(time.Now().Unix())
 	e.SubmitDockerPullTime(commandFinishedAt - commandStartedAt)

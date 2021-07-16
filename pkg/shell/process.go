@@ -223,7 +223,7 @@ func (p *Process) waitForStartMarker() error {
 		}
 	}
 
-	log.Debugf("Start marker found", p.startMark)
+	log.Debugf("Start marker found %s", p.startMark)
 
 	return nil
 }
@@ -288,7 +288,7 @@ func (p *Process) scan() error {
 	p.flushOutputBuffer()
 
 	log.Debug("Command output finished")
-	log.Debugf("Parsing exit code %d", exitCode)
+	log.Debugf("Parsing exit code %s", exitCode)
 
 	code, err := strconv.Atoi(exitCode)
 	if err != nil {

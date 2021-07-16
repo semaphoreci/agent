@@ -34,7 +34,7 @@ func (s *Shell) Start() error {
 
 	tty, err := pty.Start(s.BootCommand)
 	if err != nil {
-		log.Error("Failed to start stateful shell: %v", err)
+		log.Errorf("Failed to start stateful shell: %v", err)
 		return err
 	}
 
@@ -95,7 +95,7 @@ func (s *Shell) Read(buffer *([]byte)) (int, error) {
 }
 
 func (s *Shell) Write(instruction string) (int, error) {
-	log.Debug("Sending Instruction: %s", instruction)
+	log.Debugf("Sending Instruction: %s", instruction)
 
 	done := make(chan bool, 1)
 
@@ -147,7 +147,7 @@ func (s *Shell) silencePromptAndDisablePS1() error {
 	for stdoutScanner.Scan() {
 		text := stdoutScanner.Text()
 
-		log.Debug("(tty) %s\n", text)
+		log.Debugf("(tty) %s\n", text)
 
 		if strings.Contains(text, "executable file not found") {
 			return fmt.Errorf(text)
