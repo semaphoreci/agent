@@ -39,12 +39,12 @@ type Job struct {
 
 func NewJob(request *api.JobRequest) (*Job, error) {
 	if request.Executor == "" {
-		log.Info("No executor specified - using [%s]", executors.ExecutorTypeShell)
+		log.Infof("No executor specified - using %s executor", executors.ExecutorTypeShell)
 		request.Executor = executors.ExecutorTypeShell
 	}
 
 	if request.Logger.Method == "" {
-		log.Info("No logger method specified - using [%s]", eventlogger.LoggerMethodPull)
+		log.Infof("No logger method specified - using %s logger method", eventlogger.LoggerMethodPull)
 		request.Logger.Method = eventlogger.LoggerMethodPull
 	}
 

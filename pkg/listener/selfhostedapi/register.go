@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
-	"log"
 	"net/http"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type RegisterRequest struct {
@@ -48,7 +49,7 @@ func (a *Api) Register(req *RegisterRequest) (*RegisterResponse, error) {
 
 	response := &RegisterResponse{}
 	if err := json.Unmarshal(body, response); err != nil {
-		log.Println(string(body))
+		log.Debug(string(body))
 		return nil, err
 	}
 

@@ -40,7 +40,7 @@ func (e *ShellExecutor) setUpSSHJumpPoint() int {
 	err := InjectEntriesToAuthorizedKeys(e.jobRequest.SSHPublicKeys)
 
 	if err != nil {
-		log.Printf("Failed to inject authorized keys: %+v", err)
+		log.Errorf("Failed to inject authorized keys: %+v", err)
 		return 1
 	}
 
@@ -56,7 +56,7 @@ func (e *ShellExecutor) setUpSSHJumpPoint() int {
 
 	err = SetUpSSHJumpPoint(script)
 	if err != nil {
-		log.Printf("Failed to set up SSH jump point: %+v", err)
+		log.Errorf("Failed to set up SSH jump point: %+v", err)
 		return 1
 	}
 
@@ -68,7 +68,7 @@ func (e *ShellExecutor) Start() int {
 
 	shell, err := shell.NewShell(cmd, e.tmpDirectory)
 	if err != nil {
-		log.Println(shell)
+		log.Debug(shell)
 		return 1
 	}
 
@@ -76,7 +76,7 @@ func (e *ShellExecutor) Start() int {
 
 	err = e.Shell.Start()
 	if err != nil {
-		log.Println(err)
+		log.Error(err)
 		return 1
 	}
 
@@ -235,7 +235,7 @@ func (e *ShellExecutor) Stop() int {
 
 	err := e.Shell.Close()
 	if err != nil {
-		fmt.Println(err)
+		log.Error(err)
 	}
 
 	log.Debug("Process killing finished without errors")

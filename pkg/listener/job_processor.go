@@ -1,7 +1,6 @@
 package listener
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -60,8 +59,7 @@ func (p *JobProcessor) Sync() {
 }
 
 func (p *JobProcessor) HandleSyncError(err error) {
-	fmt.Println("[SYNC ERR] Failed to sync with API.")
-	fmt.Println("[SYNC ERR] " + err.Error())
+	log.Errorf("[SYNC ERR] Failed to sync with API: %v", err)
 
 	now := time.Now()
 
@@ -160,10 +158,10 @@ func (p *JobProcessor) SetupInteruptHandler() {
 }
 
 func (p *JobProcessor) Shutdown(reason string, code int) {
-	fmt.Println()
-	fmt.Println()
-	fmt.Println()
-	fmt.Println(reason)
-	fmt.Println("Shutting down... Good bye!")
+	log.Println()
+	log.Println()
+	log.Println()
+	log.Info(reason)
+	log.Info("Shutting down... Good bye!")
 	os.Exit(code)
 }

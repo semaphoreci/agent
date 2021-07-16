@@ -110,7 +110,7 @@ func RunServer(logfile io.Writer) {
 		// Initialize watchman
 		err := watchman.Configure(*statsdHost, *statsdPort, *statsdNamespace)
 		if err != nil {
-			log.Printf("(err) Failed to configure statsd connection with watchman. Error: %s", err.Error())
+			log.Errorf("Failed to configure statsd connection with watchman. Error: %s", err.Error())
 		}
 	}
 

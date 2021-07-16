@@ -496,7 +496,7 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 			break
 		}
 
-		log.Println("(tty) ", line)
+		log.Debug("(tty) ", line)
 
 		e.Logger.LogCommandOutput(line + "\n")
 	}
@@ -504,12 +504,12 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	exitCode := 0
 
 	if err := cmd.Wait(); err != nil {
-		log.Println("Docker pull failed", err)
+		log.Errorf("Docker pull failed: %v", err)
 		e.SubmitDockerStats("compose.docker.error.rate")
 		exitCode = 1
 	}
 
-	log.Println("Docker pull finished. Exit Code", exitCode)
+	log.Info("Docker pull finished. Exit Code: %d", exitCode)
 
 	commandFinishedAt := int(time.Now().Unix())
 	e.SubmitDockerPullTime(commandFinishedAt - commandStartedAt)
@@ -670,7 +670,7 @@ func (e *DockerComposeExecutor) RunCommand(command string, silent bool, alias st
 }
 
 func (e *DockerComposeExecutor) Stop() int {
-	log.Println("Starting the process killing procedure")
+	log.Debug("Starting the process killing procedure")
 
 	err := e.Shell.Close()
 	if err != nil {
