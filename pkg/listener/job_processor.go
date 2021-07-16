@@ -9,6 +9,7 @@ import (
 	"github.com/semaphoreci/agent/pkg/api"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
+	"github.com/semaphoreci/agent/pkg/utils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -168,27 +169,17 @@ func (p *JobProcessor) SetupInteruptHandler() {
 
 func (p *JobProcessor) disconnect() {
 	p.StopSync = true
-	log.Info("Diconnecting the Agent from Semaphore")
+	log.Info("Disconnecting the Agent from Semaphore")
 
-	success := false
-
-	for i := 0; i < p.DisconnectRetryAttempts; i++ {
+	err := utils.RetryWithConstantWait("Disconnect", p.DisconnectRetryAttempts, time.Second, func() error {
 		_, err := p.ApiClient.Disconnect()
+		return err
+	})
 
-		if err == nil {
-			success = true
-			break
-		} else {
-			log.Errorf("Disconnect Error. %s", err.Error())
-			time.Sleep(1 * time.Second)
-			continue
-		}
-	}
-
-	if success {
-		log.Info("Disconnected.")
+	if err != nil {
+		log.Errorf("Failed to disconnect from Semaphore even after %d tries: %v", p.DisconnectRetryAttempts, err)
 	} else {
-		log.Errorf("Failed to disconnect from Semaphore even after %d tries\n", p.DisconnectRetryAttempts)
+		log.Info("Disconnected.")
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/semaphoreci/agent/pkg/utils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -32,7 +33,7 @@ func NewHttpBackend(url, token string) (*HttpBackend, error) {
 		startFrom:   0,
 	}
 
-	httpBackend.startStreaming()
+	httpBackend.startPushingLogs()
 
 	return &httpBackend, nil
 }
@@ -45,8 +46,8 @@ func (l *HttpBackend) Write(event interface{}) error {
 	return l.fileBackend.Write(event)
 }
 
-func (l *HttpBackend) startStreaming() {
-	log.Debugf("Logs will be streamed to %s", l.url)
+func (l *HttpBackend) startPushingLogs() {
+	log.Debugf("Logs will be pushed to %s", l.url)
 
 	ticker := time.NewTicker(time.Second)
 	l.streamChan = make(chan bool)
@@ -55,7 +56,12 @@ func (l *HttpBackend) startStreaming() {
 		for {
 			select {
 			case <-ticker.C:
-				l.streamLogs()
+				err := l.pushLogs()
+				if err != nil {
+					log.Errorf("Error pushing logs: %v", err)
+					// we don't retry the request here because a new one will happen in 1s,
+					// so we only retry these requests on Close()
+				}
 			case <-l.streamChan:
 				ticker.Stop()
 				return
@@ -72,44 +78,51 @@ func (l *HttpBackend) stopStreaming() {
 	log.Debug("Stopped streaming logs")
 }
 
-func (l *HttpBackend) streamLogs() {
+func (l *HttpBackend) pushLogs() error {
 	buffer := bytes.NewBuffer([]byte{})
 	nextStartFrom, err := l.fileBackend.Stream(l.startFrom, buffer)
 	if err != nil {
-		log.Errorf("Error reading logs from file: %v", err)
-		return
+		return err
 	}
 
 	if l.startFrom == nextStartFrom {
 		// no logs to stream
-		return
+		return nil
 	}
 
 	url := fmt.Sprintf("%s?start_from=%d", l.url, l.startFrom)
 	request, err := http.NewRequest("POST", url, buffer)
 	if err != nil {
-		log.Errorf("Error creating streaming log request to %s: %v", url, err)
-		return
+		return err
 	}
 
 	request.Header.Set("Content-Type", "text/plain")
 	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", l.token))
 	response, err := l.client.Do(request)
 	if err != nil {
-		log.Errorf("Error streaming logs to %s: %v", url, err)
-		return
+		return err
 	}
 
 	if response.StatusCode != 200 {
-		log.Errorf("Request to %s failed: %s", url, response.Status)
-		return
+		return fmt.Errorf("request to %s failed: %s", url, response.Status)
 	}
 
 	l.startFrom = nextStartFrom
+	return nil
 }
 
 func (l *HttpBackend) Close() error {
 	l.stopStreaming()
-	l.streamLogs()
+
+	err := utils.RetryWithConstantWait("Push logs", 5, time.Second, func() error {
+		return l.pushLogs()
+	})
+
+	if err != nil {
+		log.Errorf("Could not push all logs to %s: %v", l.url, err)
+	} else {
+		log.Infof("All logs successfully pushed to %s", l.url)
+	}
+
 	return l.fileBackend.Close()
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
+	"github.com/semaphoreci/agent/pkg/utils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -98,18 +99,19 @@ func (l *Listener) Register() error {
 		OS:   "Ubuntu",
 	}
 
-	for i := 0; i < l.Config.RegisterRetryLimit; i++ {
+	err := utils.RetryWithConstantWait("Register", l.Config.RegisterRetryLimit, time.Second, func() error {
 		resp, err := l.Client.Register(req)
 		if err != nil {
-			log.Error(err)
-			time.Sleep(1 * time.Second)
-			continue
+			return err
+		} else {
+			l.Client.SetAccessToken(resp.Token)
+			return nil
 		}
+	})
 
-		l.Client.SetAccessToken(resp.Token)
-
-		return nil
+	if err != nil {
+		return fmt.Errorf("failed to register agent: %v", err)
 	}
 
-	return fmt.Errorf("failed to register agent")
+	return nil
 }
