@@ -2,10 +2,11 @@ package listener
 
 import (
 	"bytes"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func StartHeartBeater(endpoint string) (*HearthBeater, error) {
@@ -39,16 +40,16 @@ func (h *HearthBeater) Start() {
 func (h *HearthBeater) Pulse() {
 	resp, err := http.Post(h.Endpoint, "application/json", bytes.NewBuffer([]byte("{}")))
 	if err != nil {
-		fmt.Println("Hearthbear failed")
+		log.Errorf("Heartbeat failed: %v", err)
 		return
 	}
 
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Hearthbear failed")
+		log.Errorf("Heartbeat failed: %v", err)
 		return
 	}
 
-	fmt.Println(string(body))
+	log.Debug(string(body))
 }

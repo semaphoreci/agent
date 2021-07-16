@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type AgentState string
@@ -43,7 +44,7 @@ func (a *Api) Sync(req *SyncRequest) (*SyncResponse, error) {
 		return nil, err
 	}
 
-	log.Printf("SYNC request (state: %s, job: %s)", req.State, req.JobID)
+	log.Infof("SYNC request (state: %s, job: %s)", req.State, req.JobID)
 
 	r, err := http.NewRequest("POST", a.SyncPath(), bytes.NewBuffer(b))
 	if err != nil {
@@ -72,7 +73,7 @@ func (a *Api) Sync(req *SyncRequest) (*SyncResponse, error) {
 		return nil, err
 	}
 
-	log.Printf("SYNC response (action: %s, job: %s)", response.Action, response.JobID)
+	log.Infof("SYNC response (action: %s, job: %s)", response.Action, response.JobID)
 
 	return response, nil
 }

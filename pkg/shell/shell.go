@@ -3,13 +3,13 @@ package shell
 import (
 	"bufio"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
 
 	pty "github.com/kr/pty"
+	log "github.com/sirupsen/logrus"
 )
 
 type Shell struct {
@@ -30,11 +30,11 @@ func NewShell(bootCommand *exec.Cmd, storagePath string) (*Shell, error) {
 }
 
 func (s *Shell) Start() error {
-	log.Printf("Starting stateful shell")
+	log.Debug("Starting stateful shell")
 
 	tty, err := pty.Start(s.BootCommand)
 	if err != nil {
-		log.Printf("Failed to start stateful shell")
+		log.Errorf("Failed to start stateful shell: %v", err)
 		return err
 	}
 
@@ -67,10 +67,10 @@ func (s *Shell) handleAbruptShellCloses() {
 			msg = err.Error()
 		}
 
-		log.Printf("Shell unexpectedly closed with %s. Closing associated TTY.", msg)
+		log.Errorf("Shell unexpectedly closed with %s. Closing associated TTY.", msg)
 		s.TTY.Close()
 
-		log.Printf("Publishing an exit signal.")
+		log.Info("Publishing an exit signal.")
 		s.ExitSignal <- msg
 	}()
 }
@@ -95,7 +95,7 @@ func (s *Shell) Read(buffer *([]byte)) (int, error) {
 }
 
 func (s *Shell) Write(instruction string) (int, error) {
-	log.Printf("Sending Instruction: %s", instruction)
+	log.Debugf("Sending Instruction: %s", instruction)
 
 	done := make(chan bool, 1)
 
@@ -142,12 +142,12 @@ func (s *Shell) silencePromptAndDisablePS1() error {
 
 	// We wait until marker is displayed in the output
 
-	log.Println("Waiting for initialization")
+	log.Debug("Waiting for initialization")
 
 	for stdoutScanner.Scan() {
 		text := stdoutScanner.Text()
 
-		log.Printf("(tty) %s\n", text)
+		log.Debugf("(tty) %s\n", text)
 
 		if strings.Contains(text, "executable file not found") {
 			return fmt.Errorf(text)
@@ -168,13 +168,13 @@ func (s *Shell) NewProcess(command string) *Process {
 func (s *Shell) Close() error {
 	err := s.TTY.Close()
 	if err != nil {
-		log.Printf("Closing the TTY returned an error")
+		log.Errorf("Closing the TTY returned an error: %v", err)
 		return err
 	}
 
 	err = s.BootCommand.Process.Kill()
 	if err != nil {
-		log.Printf("Process killing procedure returned an erorr %+v\n", err)
+		log.Errorf("Process killing procedure returned an error %+v", err)
 		return err
 	}
 

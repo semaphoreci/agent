@@ -3,13 +3,13 @@ package jobs
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	executors "github.com/semaphoreci/agent/pkg/executors"
 	pester "github.com/sethgrid/pester"
+	log "github.com/sirupsen/logrus"
 )
 
 const JOB_PASSED = "passed"
@@ -38,13 +38,13 @@ type Job struct {
 }
 
 func NewJob(request *api.JobRequest) (*Job, error) {
-	log.Printf("Constructing an executor for the job")
-
 	if request.Executor == "" {
+		log.Infof("No executor specified - using %s executor", executors.ExecutorTypeShell)
 		request.Executor = executors.ExecutorTypeShell
 	}
 
 	if request.Logger.Method == "" {
+		log.Infof("No logger method specified - using %s logger method", eventlogger.LoggerMethodPull)
 		request.Logger.Method = eventlogger.LoggerMethodPull
 	}
 
@@ -58,8 +58,7 @@ func NewJob(request *api.JobRequest) (*Job, error) {
 		return nil, err
 	}
 
-	log.Printf("Job Request %+v\n", request)
-	log.Printf("Constructed job")
+	log.Debugf("Job Request %+v", request)
 
 	return &Job{
 		Request:        request,
@@ -71,7 +70,7 @@ func NewJob(request *api.JobRequest) (*Job, error) {
 }
 
 func (job *Job) Run(finishedCallback func()) {
-	log.Printf("Job Started")
+	log.Infof("Running job %s", job.Request.ID)
 	executorRunning := false
 	result := JOB_FAILED
 
@@ -81,15 +80,19 @@ func (job *Job) Run(finishedCallback func()) {
 	if exitCode == 0 {
 		executorRunning = true
 	} else {
-		log.Printf("Executor failed to boot up")
+		log.Error("Executor failed to boot up")
 	}
 
 	if executorRunning {
 		result = job.RunRegularCommands()
 
-		log.Printf("Regular Commands Finished. Result: %s", result)
+		if result == JOB_PASSED {
+			log.Info("Regular commands finished successfully")
+		} else {
+			log.Info("Regular commands finished with failure")
+		}
 
-		log.Printf("Exporting job result")
+		log.Debug("Exporting job result")
 
 		job.RunCommandsUntilFirstFailure([]api.Command{
 			{
@@ -97,14 +100,14 @@ func (job *Job) Run(finishedCallback func()) {
 			},
 		})
 
-		log.Printf("Starting Epilogue Always Commands.")
+		log.Info("Starting epilogue always commands")
 		job.RunCommandsUntilFirstFailure(job.Request.EpilogueAlwaysCommands)
 
 		if result == JOB_PASSED {
-			log.Printf("Starting Epilogue On Pass Commands.")
+			log.Info("Starting epilogue on pass commands")
 			job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnPassCommands)
 		} else {
-			log.Printf("Starting Epilogue On Fail Commands.")
+			log.Info("Starting epilogue on fail commands")
 			job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnFailCommands)
 		}
 	}
@@ -120,13 +123,13 @@ func (job *Job) Run(finishedCallback func()) {
 func (job *Job) PrepareEnvironment() int {
 	exitCode := job.Executor.Prepare()
 	if exitCode != 0 {
-		log.Printf("Failed to prepare executor")
+		log.Error("Failed to prepare executor")
 		return exitCode
 	}
 
 	exitCode = job.Executor.Start()
 	if exitCode != 0 {
-		log.Printf("Failed to start executor")
+		log.Error("Failed to start executor")
 		return exitCode
 	}
 
@@ -136,14 +139,14 @@ func (job *Job) PrepareEnvironment() int {
 func (job *Job) RunRegularCommands() string {
 	exitCode := job.Executor.ExportEnvVars(job.Request.EnvVars)
 	if exitCode != 0 {
-		log.Printf("Failed to export env vars")
+		log.Error("Failed to export env vars")
 
 		return JOB_FAILED
 	}
 
 	exitCode = job.Executor.InjectFiles(job.Request.Files)
 	if exitCode != 0 {
-		log.Printf("Failed to inject files")
+		log.Error("Failed to inject files")
 
 		return JOB_FAILED
 	}
@@ -178,18 +181,16 @@ func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command) int {
 
 func (job *Job) Teardown(result string) {
 	if !job.TeardownLock.TryLock() {
-		log.Printf("[warning] Duplicate attempts to enter the Teardown phase")
+		log.Warning("Duplicate attempts to enter the Teardown phase")
 		return
 	}
 
-	log.Printf("Job Teardown Started")
-
-	log.Printf("Sending finished callback.")
+	log.Debug("Sending finished callback")
 	job.SendFinishedCallback(result)
 	job.Logger.LogJobFinished(result)
 
 	if job.Request.Logger.Method == eventlogger.LoggerMethodPull {
-		log.Printf("Waiting for archivator")
+		log.Debug("Waiting for archivator")
 
 		for {
 			if job.JobLogArchived {
@@ -199,31 +200,29 @@ func (job *Job) Teardown(result string) {
 			}
 		}
 
-		log.Printf("Archivator finished")
+		log.Debug("Archivator finished")
 	}
 
 	err := job.Logger.Close()
 	if err != nil {
-		log.Printf("Event Logger error %+v", err)
+		log.Errorf("Error closing logger: %+v", err)
 	}
 
 	job.SendTeardownFinishedCallback()
 
-	log.Printf("Job Teardown Finished")
+	log.Info("Job teardown finished")
 }
 
 func (j *Job) Stop() {
-	log.Printf("Stopping job")
+	log.Info("Stopping job")
 
 	j.Stopped = true
 
-	log.Printf("Invoking process stopping")
+	log.Debug("Invoking process stopping")
 
 	PreventPanicPropagation(func() {
 		j.Executor.Stop()
 	})
-
-	log.Printf("Process stopping finished. Entering the Teardown phase.")
 
 	j.Teardown("stopped")
 }
@@ -239,7 +238,7 @@ func (job *Job) SendTeardownFinishedCallback() error {
 }
 
 func (job *Job) SendCallback(url string, payload string) error {
-	log.Printf("Sending callback: %s with %+v\n", url, payload)
+	log.Debugf("Sending callback: %s with %+v", url, payload)
 
 	client := pester.New()
 	client.MaxRetries = 100
@@ -247,7 +246,7 @@ func (job *Job) SendCallback(url string, payload string) error {
 
 	resp, err := client.Post(url, "application/json", bytes.NewBuffer([]byte(payload)))
 
-	log.Printf("%+v\n", resp)
+	log.Debugf("Callback response: %+v", resp)
 
 	return err
 }

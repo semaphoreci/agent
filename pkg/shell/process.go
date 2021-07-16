@@ -4,12 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Process struct {
@@ -71,7 +72,7 @@ func (p *Process) StreamToStdout() {
 			break
 		}
 
-		log.Printf("Stream to stdout: %#v", data)
+		log.Debugf("Stream to stdout: %#v", data)
 
 		p.OnStdoutCallback(data)
 	}
@@ -112,7 +113,7 @@ func (p *Process) Run() {
 
 	err := p.loadCommand()
 	if err != nil {
-		log.Printf("err: %v", err)
+		log.Errorf("Err: %v", err)
 		return
 	}
 
@@ -177,21 +178,21 @@ func (p *Process) readBufferSize() int {
 func (p *Process) read() error {
 	buffer := make([]byte, p.readBufferSize())
 
-	log.Println("Reading started")
+	log.Debug("Reading started")
 	n, err := p.Shell.Read(&buffer)
 	if err != nil {
-		log.Printf("Error while reading from the tty. Error: '%s'.", err.Error())
+		log.Errorf("Error while reading from the tty. Error: '%s'.", err.Error())
 		return err
 	}
 
 	p.inputBuffer = append(p.inputBuffer, buffer[0:n]...)
-	log.Printf("reading data from shell. Input buffer: %#v", string(p.inputBuffer))
+	log.Debugf("reading data from shell. Input buffer: %#v", string(p.inputBuffer))
 
 	return nil
 }
 
 func (p *Process) waitForStartMarker() error {
-	log.Println("Waiting for start marker", p.startMark)
+	log.Debugf("Waiting for start marker %s", p.startMark)
 
 	//
 	// Fill the output buffer, until the start marker appears
@@ -222,7 +223,7 @@ func (p *Process) waitForStartMarker() error {
 		}
 	}
 
-	log.Println("Start marker found", p.startMark)
+	log.Debugf("Start marker found %s", p.startMark)
 
 	return nil
 }
@@ -232,7 +233,7 @@ func (p *Process) endMarkerHeaderIndex() int {
 }
 
 func (p *Process) scan() error {
-	log.Println("Scan started")
+	log.Debug("Scan started")
 
 	err := p.waitForStartMarker()
 	if err != nil {
@@ -248,10 +249,10 @@ func (p *Process) scan() error {
 				p.flushInputBufferTill(index)
 			}
 
-			log.Println("Start of end marker detected, entering buffering mode.")
+			log.Debug("Start of end marker detected, entering buffering mode.")
 
 			if match := p.commandEndRegex.FindStringSubmatch(string(p.inputBuffer)); len(match) == 2 {
-				log.Println("End marker detected. Exit code: ", match[1])
+				log.Debug("End marker detected. Exit code: ", match[1])
 
 				exitCode = match[1]
 				break
@@ -286,17 +287,17 @@ func (p *Process) scan() error {
 
 	p.flushOutputBuffer()
 
-	log.Println("Command output finished")
-	log.Println("Parsing exit code", exitCode)
+	log.Debug("Command output finished")
+	log.Debugf("Parsing exit code %s", exitCode)
 
 	code, err := strconv.Atoi(exitCode)
 	if err != nil {
-		log.Printf("Error while parsing exit code, err: %v", err)
+		log.Errorf("Error while parsing exit code, err: %v", err)
 
 		return err
 	}
 
-	log.Printf("Parsing exit code fininished %d", code)
+	log.Debugf("Parsing exit code finished %d", code)
 	p.ExitCode = code
 
 	return nil

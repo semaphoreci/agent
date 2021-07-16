@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -16,6 +15,7 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	shell "github.com/semaphoreci/agent/pkg/shell"
+	log "github.com/sirupsen/logrus"
 )
 
 type DockerComposeExecutor struct {
@@ -54,8 +54,8 @@ func (e *DockerComposeExecutor) Prepare() int {
 	}
 
 	compose := ConstructDockerComposeFile(e.dockerConfiguration)
-	log.Println("Compose File:")
-	log.Println(compose)
+	log.Debug("Compose File:")
+	log.Debug(compose)
 
 	ioutil.WriteFile(e.dockerComposeManifestPath, []byte(compose), 0644)
 
@@ -66,14 +66,14 @@ func (e *DockerComposeExecutor) executeHostCommands() error {
 	hostCommands := e.jobRequest.Compose.HostSetupCommands
 
 	for _, c := range hostCommands {
-		log.Println("Executing Host Command:", c.Directive)
+		log.Debug("Executing Host Command:", c.Directive)
 		cmd := exec.Command("bash", "-c", c.Directive)
 
 		out, err := cmd.CombinedOutput()
-		log.Println(string(out))
+		log.Debug(string(out))
 
 		if err != nil {
-			log.Println("Error:", err)
+			log.Errorf("Error: %v", err)
 			return err
 		}
 	}
@@ -84,7 +84,7 @@ func (e *DockerComposeExecutor) setUpSSHJumpPoint() int {
 	err := InjectEntriesToAuthorizedKeys(e.jobRequest.SSHPublicKeys)
 
 	if err != nil {
-		log.Printf("Failed to inject authorized keys: %+v", err)
+		log.Errorf("Failed to inject authorized keys: %+v", err)
 		return 1
 	}
 
@@ -117,7 +117,7 @@ func (e *DockerComposeExecutor) setUpSSHJumpPoint() int {
 
 	err = SetUpSSHJumpPoint(script)
 	if err != nil {
-		log.Printf("Failed to set up SSH jump point: %+v", err)
+		log.Errorf("Failed to set up SSH jump point: %+v", err)
 		return 1
 	}
 
@@ -127,13 +127,13 @@ func (e *DockerComposeExecutor) setUpSSHJumpPoint() int {
 func (e *DockerComposeExecutor) Start() int {
 	exitCode := e.injectImagePullSecrets()
 	if exitCode != 0 {
-		log.Printf("[SHELL] Failed to set up image pull secrets")
+		log.Error("[SHELL] Failed to set up image pull secrets")
 		return exitCode
 	}
 
 	exitCode = e.pullDockerImages()
 	if exitCode != 0 {
-		log.Printf("Failed to pull images")
+		log.Error("Failed to pull images")
 		return exitCode
 	}
 
@@ -157,7 +157,7 @@ func (e *DockerComposeExecutor) startBashSession() int {
 
 	e.Logger.LogCommandOutput("Starting a new bash session.\n")
 
-	log.Printf("Starting stateful shell")
+	log.Debug("Starting stateful shell")
 
 	cmd := exec.Command(
 		"docker-compose",
@@ -178,7 +178,7 @@ func (e *DockerComposeExecutor) startBashSession() int {
 
 	shell, err := shell.NewShell(cmd, e.tmpDirectory)
 	if err != nil {
-		log.Printf("Failed to start stateful shell err: %+v", err)
+		log.Errorf("Failed to start stateful shell err: %+v", err)
 
 		e.Logger.LogCommandOutput("Failed to start the docker image\n")
 		e.Logger.LogCommandOutput(err.Error())
@@ -189,7 +189,7 @@ func (e *DockerComposeExecutor) startBashSession() int {
 
 	err = shell.Start()
 	if err != nil {
-		log.Printf("Failed to start stateful shell err: %+v", err)
+		log.Errorf("Failed to start stateful shell err: %+v", err)
 
 		e.Logger.LogCommandOutput("Failed to start the docker image\n")
 		e.Logger.LogCommandOutput(err.Error())
@@ -451,7 +451,7 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForGCR(envVars []api.EnvVa
 }
 
 func (e *DockerComposeExecutor) pullDockerImages() int {
-	log.Printf("Pulling docker images")
+	log.Debug("Pulling docker images")
 	directive := "Pulling docker images..."
 	commandStartedAt := int(time.Now().Unix())
 	e.SubmitDockerStats("compose.docker.pull.rate")
@@ -485,7 +485,7 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 
 	tty, err := pty.Start(cmd)
 	if err != nil {
-		log.Printf("Failed to initialize docker pull, err: %+v", err)
+		log.Errorf("Failed to initialize docker pull, err: %+v", err)
 		return 1
 	}
 
@@ -496,7 +496,7 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 			break
 		}
 
-		log.Println("(tty) ", line)
+		log.Debug("(tty) ", line)
 
 		e.Logger.LogCommandOutput(line + "\n")
 	}
@@ -504,12 +504,12 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	exitCode := 0
 
 	if err := cmd.Wait(); err != nil {
-		log.Println("Docker pull failed", err)
+		log.Errorf("Docker pull failed: %v", err)
 		e.SubmitDockerStats("compose.docker.error.rate")
 		exitCode = 1
 	}
 
-	log.Println("Docker pull finished. Exit Code", exitCode)
+	log.Infof("Docker pull finished. Exit Code: %d", exitCode)
 
 	commandFinishedAt := int(time.Now().Unix())
 	e.SubmitDockerPullTime(commandFinishedAt - commandStartedAt)
@@ -670,16 +670,16 @@ func (e *DockerComposeExecutor) RunCommand(command string, silent bool, alias st
 }
 
 func (e *DockerComposeExecutor) Stop() int {
-	log.Println("Starting the process killing procedure")
+	log.Debug("Starting the process killing procedure")
 
 	err := e.Shell.Close()
 	if err != nil {
-		log.Printf("Process killing procedure returned an erorr %+v\n", err)
+		log.Errorf("Process killing procedure returned an error %+v\n", err)
 
 		return 0
 	}
 
-	log.Printf("Process killing finished without errors")
+	log.Debug("Process killing finished without errors")
 
 	return 0
 }

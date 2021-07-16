@@ -3,7 +3,6 @@ package executors
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os/exec"
 	"path"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	shell "github.com/semaphoreci/agent/pkg/shell"
+	log "github.com/sirupsen/logrus"
 )
 
 type ShellExecutor struct {
@@ -40,7 +40,7 @@ func (e *ShellExecutor) setUpSSHJumpPoint() int {
 	err := InjectEntriesToAuthorizedKeys(e.jobRequest.SSHPublicKeys)
 
 	if err != nil {
-		log.Printf("Failed to inject authorized keys: %+v", err)
+		log.Errorf("Failed to inject authorized keys: %+v", err)
 		return 1
 	}
 
@@ -56,7 +56,7 @@ func (e *ShellExecutor) setUpSSHJumpPoint() int {
 
 	err = SetUpSSHJumpPoint(script)
 	if err != nil {
-		log.Printf("Failed to set up SSH jump point: %+v", err)
+		log.Errorf("Failed to set up SSH jump point: %+v", err)
 		return 1
 	}
 
@@ -68,7 +68,7 @@ func (e *ShellExecutor) Start() int {
 
 	shell, err := shell.NewShell(cmd, e.tmpDirectory)
 	if err != nil {
-		log.Println(shell)
+		log.Debug(shell)
 		return 1
 	}
 
@@ -76,7 +76,7 @@ func (e *ShellExecutor) Start() int {
 
 	err = e.Shell.Start()
 	if err != nil {
-		log.Println(err)
+		log.Error(err)
 		return 1
 	}
 
@@ -231,14 +231,14 @@ func (e *ShellExecutor) RunCommand(command string, silent bool, alias string) in
 }
 
 func (e *ShellExecutor) Stop() int {
-	log.Println("Starting the process killing procedure")
+	log.Debug("Starting the process killing procedure")
 
 	err := e.Shell.Close()
 	if err != nil {
-		fmt.Println(err)
+		log.Error(err)
 	}
 
-	log.Printf("Process killing finished without errors")
+	log.Debug("Process killing finished without errors")
 
 	return 0
 }

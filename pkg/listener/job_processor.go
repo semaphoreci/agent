@@ -1,8 +1,6 @@
 package listener
 
 import (
-	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,6 +9,7 @@ import (
 	"github.com/semaphoreci/agent/pkg/api"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
+	log "github.com/sirupsen/logrus"
 )
 
 func StartJobProcessor(apiClient *selfhostedapi.Api) (*JobProcessor, error) {
@@ -71,8 +70,7 @@ func (p *JobProcessor) Sync() {
 }
 
 func (p *JobProcessor) HandleSyncError(err error) {
-	fmt.Println("[SYNC ERR] Failed to sync with API.")
-	fmt.Println("[SYNC ERR] " + err.Error())
+	log.Errorf("[SYNC ERR] Failed to sync with API: %v", err)
 
 	now := time.Now()
 
@@ -130,7 +128,7 @@ func (p *JobProcessor) getJobWithRetries(jobID string) (*api.JobRequest, error) 
 	retries := 10
 
 	for {
-		log.Printf("Getting job %s", jobID)
+		log.Infof("Getting job %s", jobID)
 
 		jobRequest, err := p.ApiClient.GetJob(jobID)
 		if err == nil {
@@ -170,7 +168,7 @@ func (p *JobProcessor) SetupInteruptHandler() {
 
 func (p *JobProcessor) disconnect() {
 	p.StopSync = true
-	fmt.Println("Diconnecting the Agent from Semaphore")
+	log.Info("Diconnecting the Agent from Semaphore")
 
 	success := false
 
@@ -181,27 +179,27 @@ func (p *JobProcessor) disconnect() {
 			success = true
 			break
 		} else {
-			fmt.Printf("Disconnect Error. %s", err.Error())
+			log.Errorf("Disconnect Error. %s", err.Error())
 			time.Sleep(1 * time.Second)
 			continue
 		}
 	}
 
 	if success {
-		fmt.Println("Disconnected.")
+		log.Info("Disconnected.")
 	} else {
-		fmt.Printf("Failed to disconnect from Semaphore even after %d tries\n", p.DisconnectRetryAttempts)
+		log.Errorf("Failed to disconnect from Semaphore even after %d tries\n", p.DisconnectRetryAttempts)
 	}
 }
 
 func (p *JobProcessor) Shutdown(reason string, code int) {
-	fmt.Println()
+	log.Println()
 	p.disconnect()
 
-	fmt.Println()
-	fmt.Println()
-	fmt.Println()
-	fmt.Println(reason)
-	fmt.Println("Shutting down... Good bye!")
+	log.Println()
+	log.Println()
+	log.Println()
+	log.Info(reason)
+	log.Info("Shutting down... Good bye!")
 	os.Exit(code)
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
+	log "github.com/sirupsen/logrus"
 )
 
 type Listener struct {
@@ -32,8 +33,8 @@ func Start(config Config, logger io.Writer) (*Listener, error) {
 
 	listener.DisplayHelloMessage()
 
-	fmt.Println("* Starting Agent")
-	fmt.Println("* Registering Agent")
+	log.Info("Starting Agent")
+	log.Info("Registering Agent")
 	err := listener.Register()
 	if err != nil {
 		return listener, err
@@ -46,15 +47,13 @@ func Start(config Config, logger io.Writer) (*Listener, error) {
 	// 	return listener, err
 	// }
 
-	fmt.Println("* Starting to poll for jobs")
+	log.Info("Starting to poll for jobs")
 	jobProcessor, err := StartJobProcessor(listener.Client)
 	if err != nil {
 		return listener, err
 	}
 
 	listener.JobProcessor = jobProcessor
-
-	fmt.Println("* Acquiring job...")
 
 	return listener, nil
 }
@@ -102,7 +101,7 @@ func (l *Listener) Register() error {
 	for i := 0; i < l.Config.RegisterRetryLimit; i++ {
 		resp, err := l.Client.Register(req)
 		if err != nil {
-			fmt.Println(err)
+			log.Error(err)
 			time.Sleep(1 * time.Second)
 			continue
 		}
