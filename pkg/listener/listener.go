@@ -8,7 +8,7 @@ import (
 	"time"
 
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
-	"github.com/semaphoreci/agent/pkg/utils"
+	"github.com/semaphoreci/agent/pkg/retry"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -99,7 +99,7 @@ func (l *Listener) Register() error {
 		OS:   "Ubuntu",
 	}
 
-	err := utils.RetryWithConstantWait("Register", l.Config.RegisterRetryLimit, time.Second, func() error {
+	err := retry.RetryWithConstantWait("Register", l.Config.RegisterRetryLimit, time.Second, func() error {
 		resp, err := l.Client.Register(req)
 		if err != nil {
 			return err

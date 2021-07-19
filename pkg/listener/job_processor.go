@@ -9,7 +9,7 @@ import (
 	"github.com/semaphoreci/agent/pkg/api"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
-	"github.com/semaphoreci/agent/pkg/utils"
+	"github.com/semaphoreci/agent/pkg/retry"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -171,7 +171,7 @@ func (p *JobProcessor) disconnect() {
 	p.StopSync = true
 	log.Info("Disconnecting the Agent from Semaphore")
 
-	err := utils.RetryWithConstantWait("Disconnect", p.DisconnectRetryAttempts, time.Second, func() error {
+	err := retry.RetryWithConstantWait("Disconnect", p.DisconnectRetryAttempts, time.Second, func() error {
 		_, err := p.ApiClient.Disconnect()
 		return err
 	})

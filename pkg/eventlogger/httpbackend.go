@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/semaphoreci/agent/pkg/utils"
+	"github.com/semaphoreci/agent/pkg/retry"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -114,7 +114,7 @@ func (l *HttpBackend) pushLogs() error {
 func (l *HttpBackend) Close() error {
 	l.stopStreaming()
 
-	err := utils.RetryWithConstantWait("Push logs", 5, time.Second, func() error {
+	err := retry.RetryWithConstantWait("Push logs", 5, time.Second, func() error {
 		return l.pushLogs()
 	})
 
