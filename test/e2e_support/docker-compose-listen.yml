@@ -6,10 +6,11 @@ services:
       context: ../..
       dockerfile: Dockerfile.test
 
-    command: "./agent start --endpoint hub:4567 --token 321h1l2jkh1jk42341 --no-https"
+    command: 'bash -c "service ssh restart && ./agent start --endpoint hub:4567 --token 321h1l2jkh1jk42341 --no-https"'
 
     ports:
       - "30000:8000"
+      - "2222:22"
 
     links:
       - hub:hub
