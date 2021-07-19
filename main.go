@@ -3,15 +3,17 @@ package main
 import (
 	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"os"
 	"time"
 
 	watchman "github.com/renderedtext/go-watchman"
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
+	listener "github.com/semaphoreci/agent/pkg/listener"
 	server "github.com/semaphoreci/agent/pkg/server"
+	log "github.com/sirupsen/logrus"
 	pflag "github.com/spf13/pflag"
 )
 
@@ -25,9 +27,12 @@ func main() {
 
 	logfile := OpenLogfile()
 	log.SetOutput(logfile)
-	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Lshortfile)
+	log.SetFormatter(new(eventlogger.CustomFormatter))
+	log.SetLevel(getLogLevel())
 
 	switch action {
+	case "start":
+		RunListener(logfile)
 	case "serve":
 		RunServer(logfile)
 	case "run":
@@ -45,6 +50,44 @@ func OpenLogfile() io.Writer {
 	}
 
 	return io.MultiWriter(f, os.Stdout)
+}
+
+func getLogLevel() log.Level {
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel != "" {
+		level, err := log.ParseLevel(logLevel)
+		if err != nil {
+			log.Fatalf("Log level %s not supported", logLevel)
+		}
+
+		return level
+	} else {
+		return log.InfoLevel
+	}
+}
+
+func RunListener(logfile io.Writer) {
+	endpoint := pflag.String("endpoint", "", "Endpoint where agents are registered")
+	token := pflag.String("token", "", "Registration token")
+	noHttps := pflag.Bool("no-https", false, "Use http for communication")
+
+	pflag.Parse()
+
+	scheme := "https"
+	if *noHttps {
+		scheme = "http"
+	}
+
+	config := listener.Config{
+		Endpoint:           *endpoint,
+		RegisterRetryLimit: 30,
+		Token:              *token,
+		Scheme:             scheme,
+	}
+
+	go listener.Start(config, logfile)
+
+	select {}
 }
 
 func RunServer(logfile io.Writer) {
@@ -67,7 +110,7 @@ func RunServer(logfile io.Writer) {
 		// Initialize watchman
 		err := watchman.Configure(*statsdHost, *statsdPort, *statsdNamespace)
 		if err != nil {
-			log.Printf("(err) Failed to configure statsd connection with watchman. Error: %s", err.Error())
+			log.Errorf("Failed to configure statsd connection with watchman. Error: %s", err.Error())
 		}
 	}
 
@@ -96,5 +139,5 @@ func RunSingleJob() {
 
 	job.JobLogArchived = true
 
-	job.Run()
+	job.Run(nil)
 }

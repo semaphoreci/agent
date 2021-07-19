@@ -5,6 +5,9 @@ agent:
     type: e1-standard-2
     os_image: ubuntu1804
 
+execution_time_limit:
+  minutes: 10
+
 blocks:
   - name: "Tests"
     dependencies: []
@@ -50,6 +53,10 @@ blocks:
           commands:
             - "make e2e TEST=shell/$TEST"
           matrix:
+            - env_var: TEST_MODE
+              values:
+                - api
+                - listen
             - env_var: TEST
               values:
                 - command_aliases
@@ -99,6 +106,10 @@ blocks:
           commands:
             - "make e2e TEST=docker/$TEST"
           matrix:
+            - env_var: TEST_MODE
+              values:
+                - api
+                - listen
             - env_var: TEST
               values:
                 - hello_world

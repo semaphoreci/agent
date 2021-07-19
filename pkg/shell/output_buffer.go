@@ -1,10 +1,11 @@
 package shell
 
 import (
-	"log"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	log "github.com/sirupsen/logrus"
 )
 
 //
@@ -60,7 +61,7 @@ func (b *OutputBuffer) Flush() (string, bool) {
 		timeSinceLastAppend = time.Now().Sub(*b.lastAppend)
 	}
 
-	log.Printf("Flushing. %d bytes in the buffer", len(b.bytes))
+	log.Debugf("Flushing. %d bytes in the buffer", len(b.bytes))
 
 	// We don't want to flush too often.
 	//
