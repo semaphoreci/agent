@@ -70,7 +70,7 @@ func (s *Shell) handleAbruptShellCloses() {
 		log.Debugf("Shell closed with %s. Closing associated TTY", msg)
 		s.TTY.Close()
 
-		log.Debugf("Publishing an exit signal: %s")
+		log.Debugf("Publishing an exit signal: %s", msg)
 		s.ExitSignal <- msg
 	}()
 }
