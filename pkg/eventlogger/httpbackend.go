@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/semaphoreci/agent/pkg/retry"
@@ -17,6 +18,7 @@ type HttpBackend struct {
 	fileBackend FileBackend
 	startFrom   int
 	streamChan  chan bool
+	pushLock    sync.Mutex
 }
 
 func NewHttpBackend(url, token string) (*HttpBackend, error) {
@@ -79,6 +81,9 @@ func (l *HttpBackend) stopStreaming() {
 }
 
 func (l *HttpBackend) pushLogs() error {
+	l.pushLock.Lock()
+	defer l.pushLock.Unlock()
+
 	buffer := bytes.NewBuffer([]byte{})
 	nextStartFrom, err := l.fileBackend.Stream(l.startFrom, buffer)
 	if err != nil {
@@ -86,11 +91,13 @@ func (l *HttpBackend) pushLogs() error {
 	}
 
 	if l.startFrom == nextStartFrom {
+		log.Debugf("No logs to push - skipping")
 		// no logs to stream
 		return nil
 	}
 
 	url := fmt.Sprintf("%s?start_from=%d", l.url, l.startFrom)
+	log.Debugf("Pushing logs to %s", url)
 	request, err := http.NewRequest("POST", url, buffer)
 	if err != nil {
 		return err
