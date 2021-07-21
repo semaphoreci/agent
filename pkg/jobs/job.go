@@ -118,6 +118,8 @@ func (job *Job) Run(finishedCallback func()) {
 	if finishedCallback != nil {
 		finishedCallback()
 	}
+
+	job.Executor.Stop()
 }
 
 func (job *Job) PrepareEnvironment() int {
