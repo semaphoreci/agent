@@ -13,7 +13,6 @@ import (
 )
 
 type Listener struct {
-	HearthBeater *HearthBeater
 	JobProcessor *JobProcessor
 	Config       Config
 	Client       *selfhostedapi.Api
@@ -40,13 +39,6 @@ func Start(config Config, logger io.Writer) (*Listener, error) {
 	if err != nil {
 		return listener, err
 	}
-
-	// fmt.Println("* Starting to Send HearthBeats")
-	// hbEndpoint := "http://" + listener.Config.Endpoint + "/api/v1/self_hosted_agents/hearthbeat"
-	// hearthbeater, err := StartHeartBeater(hbEndpoint)
-	// if err != nil {
-	// 	return listener, err
-	// }
 
 	log.Info("Starting to poll for jobs")
 	jobProcessor, err := StartJobProcessor(listener.Client)
