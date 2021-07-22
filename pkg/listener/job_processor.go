@@ -107,7 +107,7 @@ func (p *JobProcessor) ProcessSyncResponse(response *selfhostedapi.SyncResponse)
 func (p *JobProcessor) RunJob(jobID string) {
 	p.State = selfhostedapi.AgentStateStartingJob
 
-	jobRequest, err := p.getJobWithRetries(p.CurrentJobID)
+	jobRequest, err := p.getJobWithRetries(jobID)
 	if err != nil {
 		log.Errorf("Could not get job details for %s: %v", jobID, err)
 		p.WaitForJobs()
