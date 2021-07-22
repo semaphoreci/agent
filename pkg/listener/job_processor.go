@@ -100,50 +100,48 @@ func (p *JobProcessor) ProcessSyncResponse(response *selfhostedapi.SyncResponse)
 		p.Shutdown("Agent Shutdown requested by Semaphore", 0)
 
 	case selfhostedapi.AgentActionWaitForJobs:
-		p.CurrentJobID = ""
-		p.CurrentJob = nil
-		p.State = selfhostedapi.AgentStateWaitingForJobs
+		p.WaitForJobs()
 	}
 }
 
 func (p *JobProcessor) RunJob(jobID string) {
-	p.CurrentJobID = jobID
-	p.State = selfhostedapi.AgentStateRunningJob
+	p.State = selfhostedapi.AgentStateStartingJob
 
 	jobRequest, err := p.getJobWithRetries(p.CurrentJobID)
 	if err != nil {
-		panic(err)
+		log.Errorf("Could not get job details for %s: %v", jobID, err)
+		p.WaitForJobs()
+		return
 	}
 
 	job, err := jobs.NewJob(jobRequest)
 	if err != nil {
-		panic("bbb")
+		log.Errorf("Could not create job for %s: %v", jobID, err)
+		p.WaitForJobs()
+		return
 	}
 
+	p.State = selfhostedapi.AgentStateRunningJob
+	p.CurrentJobID = jobID
 	p.CurrentJob = job
 
-	go job.Run(p.JobFinished)
+	go job.Run(p.WaitForJobs)
 }
 
 func (p *JobProcessor) getJobWithRetries(jobID string) (*api.JobRequest, error) {
-	retries := 10
-
-	for {
+	var jobRequest *api.JobRequest
+	err := retry.RetryWithConstantWait("Get job payload", 10, 3*time.Second, func() error {
 		log.Infof("Getting job %s", jobID)
-
-		jobRequest, err := p.ApiClient.GetJob(jobID)
-		if err == nil {
-			return jobRequest, err
+		payload, err := p.ApiClient.GetJob(jobID)
+		if err != nil {
+			return err
+		} else {
+			jobRequest = payload
+			return nil
 		}
+	})
 
-		if retries > 0 {
-			retries--
-			time.Sleep(3 * time.Second)
-			continue
-		}
-
-		return nil, err
-	}
+	return jobRequest, err
 }
 
 func (p *JobProcessor) StopJob(jobID string) {
@@ -153,8 +151,9 @@ func (p *JobProcessor) StopJob(jobID string) {
 	p.CurrentJob.Stop()
 }
 
-func (p *JobProcessor) JobFinished() {
+func (p *JobProcessor) WaitForJobs() {
 	p.CurrentJobID = ""
+	p.CurrentJob = nil
 	p.State = selfhostedapi.AgentStateWaitingForJobs
 }
 

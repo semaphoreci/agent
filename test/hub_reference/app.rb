@@ -53,6 +53,8 @@ post "/api/v1/self_hosted_agents/sync" do
               else
                 {"action" => "continue"}
               end
+            when "starting-job"
+              {"action" => "continue"}
             when "running-job"
               job_id = @json_request["job_id"]
               if $job_states[job_id] == "stopping"
@@ -61,8 +63,6 @@ post "/api/v1/self_hosted_agents/sync" do
                 {"action" => "continue"}
               end
             when "stopping-job"
-              {"action" => "continue"}
-            when "finished-job"
               {"action" => "continue"}
             else
               raise "unknown state"
