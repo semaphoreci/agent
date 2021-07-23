@@ -168,6 +168,7 @@ blocks:
               values:
                 - broken_finished_callback
                 - broken_teardown_callback
+                - broken_get_job
 
 promotions:
   - name: Release

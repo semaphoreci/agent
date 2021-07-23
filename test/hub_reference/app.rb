@@ -64,11 +64,15 @@ post "/api/v1/self_hosted_agents/sync" do
               {"action" => "continue"}
             when "finished-job"
               {"action" => "continue"}
+            when "starting-job"
+              {"action" => "continue"}
             when "failed-to-send-callback"
               job_id = @json_request["job_id"]
               $job_states[job_id] = "stuck"
               {"action" => "continue"}
             when "failed-to-fetch-job"
+              job_id = @json_request["job_id"]
+              puts "JOBID: #{job_id}"
               $job_states[job_id] = "stuck"
               {"action" => "continue"}
             when "failed-to-construct-job"
@@ -83,7 +87,13 @@ post "/api/v1/self_hosted_agents/sync" do
 end
 
 get "/api/v1/self_hosted_agents/jobs/:id" do
-  $payloads[params["id"]].to_json
+  job_id = params["id"]
+
+  if job_id == "bad-job-id"
+    halt 500, "error"
+  else
+    $payloads[params["id"]].to_json
+  end
 end
 
 get "/api/v1/self_hosted_agents/jobs/:id/status" do
