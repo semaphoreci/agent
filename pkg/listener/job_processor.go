@@ -15,9 +15,9 @@ import (
 
 func StartJobProcessor(apiClient *selfhostedapi.Api) (*JobProcessor, error) {
 	p := &JobProcessor{
-		ApiClient:         apiClient,
-		LastSuccesfulSync: time.Now(),
-		State:             selfhostedapi.AgentStateWaitingForJobs,
+		ApiClient:          apiClient,
+		LastSuccessfulSync: time.Now(),
+		State:              selfhostedapi.AgentStateWaitingForJobs,
 
 		SyncInterval:            5 * time.Second,
 		DisconnectRetryAttempts: 100,
@@ -37,7 +37,7 @@ type JobProcessor struct {
 	CurrentJob              *jobs.Job
 	SyncInterval            time.Duration
 	LastSyncErrorAt         *time.Time
-	LastSuccesfulSync       time.Time
+	LastSuccessfulSync      time.Time
 	DisconnectRetryAttempts int
 
 	StopSync bool
@@ -67,6 +67,7 @@ func (p *JobProcessor) Sync() {
 		return
 	}
 
+	p.LastSuccessfulSync = time.Now()
 	p.ProcessSyncResponse(response)
 }
 
@@ -77,7 +78,7 @@ func (p *JobProcessor) HandleSyncError(err error) {
 
 	p.LastSyncErrorAt = &now
 
-	if time.Now().Add(-10 * time.Minute).After(p.LastSuccesfulSync) {
+	if time.Now().Add(-10 * time.Minute).After(p.LastSuccessfulSync) {
 		p.Shutdown("Unable to sync with Semaphore for over 10 minutes.", 1)
 	}
 }
