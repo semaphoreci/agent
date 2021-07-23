@@ -1,6 +1,7 @@
 package listener
 
 import (
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,8 +14,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func StartJobProcessor(apiClient *selfhostedapi.Api) (*JobProcessor, error) {
+func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.Api) (*JobProcessor, error) {
 	p := &JobProcessor{
+		HttpClient:         httpClient,
 		ApiClient:          apiClient,
 		LastSuccessfulSync: time.Now(),
 		State:              selfhostedapi.AgentStateWaitingForJobs,
@@ -31,6 +33,7 @@ func StartJobProcessor(apiClient *selfhostedapi.Api) (*JobProcessor, error) {
 }
 
 type JobProcessor struct {
+	HttpClient              *http.Client
 	ApiClient               *selfhostedapi.Api
 	State                   selfhostedapi.AgentState
 	CurrentJobID            string
@@ -120,7 +123,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 		return
 	}
 
-	job, err := jobs.NewJob(jobRequest)
+	job, err := jobs.NewJob(jobRequest, p.HttpClient)
 	if err != nil {
 		log.Errorf("Could not construct job %s: %v", jobID, err)
 		p.State = selfhostedapi.AgentStateStuck

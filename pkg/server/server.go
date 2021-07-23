@@ -33,12 +33,14 @@ type Server struct {
 
 	ActiveJob *jobs.Job
 	router    *mux.Router
+
+	HttpClient *http.Client
 }
 
 const ServerStateWaitingForJob = "waiting-for-job"
 const ServerStateJobReceived = "job-received"
 
-func NewServer(host string, port int, tlsCertPath, tlsKeyPath, version string, logfile io.Writer, jwtSecret []byte) *Server {
+func NewServer(host string, port int, tlsCertPath, tlsKeyPath, version string, logfile io.Writer, jwtSecret []byte, httpClient *http.Client) *Server {
 	router := mux.NewRouter().StrictSlash(true)
 
 	server := &Server{
@@ -51,6 +53,7 @@ func NewServer(host string, port int, tlsCertPath, tlsKeyPath, version string, l
 		Logfile:     logfile,
 		router:      router,
 		Version:     version,
+		HttpClient:  httpClient,
 	}
 
 	jwtMiddleware := CreateJwtMiddleware(jwtSecret)
@@ -190,7 +193,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Debug("Creating new job")
-	job, err := jobs.NewJob(request)
+	job, err := jobs.NewJob(request, s.HttpClient)
 
 	if err != nil {
 		log.Errorf("Failed to create a new job, returning 500: %v", err)

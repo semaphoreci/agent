@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"time"
 
@@ -25,10 +26,10 @@ type Config struct {
 	Scheme             string
 }
 
-func Start(config Config, logger io.Writer) (*Listener, error) {
+func Start(httpClient *http.Client, config Config, logger io.Writer) (*Listener, error) {
 	listener := &Listener{
 		Config: config,
-		Client: selfhostedapi.New(config.Scheme, config.Endpoint, config.Token),
+		Client: selfhostedapi.New(httpClient, config.Scheme, config.Endpoint, config.Token),
 	}
 
 	listener.DisplayHelloMessage()
@@ -41,7 +42,7 @@ func Start(config Config, logger io.Writer) (*Listener, error) {
 	}
 
 	log.Info("Starting to poll for jobs")
-	jobProcessor, err := StartJobProcessor(listener.Client)
+	jobProcessor, err := StartJobProcessor(httpClient, listener.Client)
 	if err != nil {
 		return listener, err
 	}
