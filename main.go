@@ -143,5 +143,5 @@ func RunSingleJob(httpClient *http.Client) {
 
 	job.JobLogArchived = true
 
-	job.Run(nil)
+	job.Run()
 }

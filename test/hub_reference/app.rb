@@ -64,6 +64,16 @@ post "/api/v1/self_hosted_agents/sync" do
               {"action" => "continue"}
             when "finished-job"
               {"action" => "continue"}
+            when "failed-to-send-callback"
+              job_id = @json_request["job_id"]
+              $job_states[job_id] = "stuck"
+              {"action" => "continue"}
+            when "failed-to-fetch-job"
+              $job_states[job_id] = "stuck"
+              {"action" => "continue"}
+            when "failed-to-construct-job"
+              $job_states[job_id] = "stuck"
+              {"action" => "continue"}
             else
               raise "unknown state"
             end

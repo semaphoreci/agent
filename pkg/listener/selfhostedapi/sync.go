@@ -12,14 +12,15 @@ import (
 
 type AgentState string
 type AgentAction string
-type StuckReason string
 
 const AgentStateWaitingForJobs = "waiting-for-jobs"
 const AgentStateStartingJob = "starting-job"
 const AgentStateRunningJob = "running-job"
 const AgentStateStoppingJob = "stopping-job"
 const AgentStateFinishedJob = "finished-job"
-const AgentStateStuck = "stuck"
+const AgentStateFailedToFetchJob = "failed-to-fetch-job"
+const AgentStateFailedToConstructJob = "failed-to-construct-job"
+const AgentStateFailedToSendCallback = "failed-to-send-callback"
 
 const AgentActionWaitForJobs = "wait-for-jobs"
 const AgentActionRunJob = "run-job"
@@ -27,15 +28,9 @@ const AgentActionStopJob = "stop-job"
 const AgentActionShutdown = "shutdown"
 const AgentActionContinue = "continue"
 
-const AgentStuckReasonFailedToFetchJob = "failed-to-fetch-job"
-const AgentStuckReasonFailedToConstructJob = "failed-to-construct-job"
-const AgentStuckReasonFailedToSendCallback = "failed-to-send-callback"
-const AgentStuckReasonUnknown = "unknown"
-
 type SyncRequest struct {
-	State       AgentState  `json:"state"`
-	JobID       string      `json:"job_id"`
-	StuckReason StuckReason `json:"stuck_reason"`
+	State AgentState `json:"state"`
+	JobID string     `json:"job_id"`
 }
 
 type SyncResponse struct {

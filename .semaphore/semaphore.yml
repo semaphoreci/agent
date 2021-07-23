@@ -143,6 +143,32 @@ blocks:
                 - host_setup_commands
                 - multiple_containers
 
+  - name: "Self hosted E2E"
+    dependencies: []
+    task:
+      env_vars:
+        - name: GO111MODULE
+          value: "on"
+        - name: TEST_MODE
+          value: "listen"
+
+      prologue:
+        commands:
+          - sem-version go 1.13
+          - checkout
+          - go version
+          - go get
+          - go build
+      jobs:
+        - name: Self hosted
+          commands:
+            - "make e2e TEST=self-hosted/$TEST"
+          matrix:
+            - env_var: TEST
+              values:
+                - broken_finished_callback
+                - broken_teardown_callback
+
 promotions:
   - name: Release
     pipeline_file: "release.yml"

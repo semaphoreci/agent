@@ -72,7 +72,11 @@ func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
 	}, nil
 }
 
-func (job *Job) Run(finishedCallback func()) {
+func (job *Job) Run() {
+	job.RunWithCallbacks(nil, nil)
+}
+
+func (job *Job) RunWithCallbacks(onSuccessfulTeardown func(), onFailedTeardown func()) {
 	log.Infof("Running job %s", job.Request.ID)
 	executorRunning := false
 	result := JOB_FAILED
@@ -115,13 +119,14 @@ func (job *Job) Run(finishedCallback func()) {
 		}
 	}
 
-	job.Teardown(result)
-	job.Finished = true
-
-	if finishedCallback != nil {
-		finishedCallback()
+	err := job.Teardown(result)
+	if err != nil {
+		callFuncIfNotNull(onFailedTeardown)
+	} else {
+		callFuncIfNotNull(onSuccessfulTeardown)
 	}
 
+	job.Finished = true
 	job.Executor.Stop()
 }
 
@@ -184,16 +189,16 @@ func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command) int {
 	return lastExitCode
 }
 
-func (job *Job) Teardown(result string) {
+func (job *Job) Teardown(result string) error {
 	if !job.TeardownLock.TryLock() {
 		log.Warning("Duplicate attempts to enter the Teardown phase")
-		return
+		return nil
 	}
 
 	err := job.SendFinishedCallback(result)
 	if err != nil {
 		log.Errorf("Could not send finished callback: %v", err)
-		// TODO: stuck. What about hosted job?
+		return err
 	}
 
 	job.Logger.LogJobFinished(result)
@@ -220,10 +225,11 @@ func (job *Job) Teardown(result string) {
 	err = job.SendTeardownFinishedCallback()
 	if err != nil {
 		log.Errorf("Could not send teardown finished callback: %v", err)
-		// TODO: stuck. What about hosted job?
+		return err
 	}
 
 	log.Info("Job teardown finished")
+	return nil
 }
 
 func (j *Job) Stop() {
@@ -243,14 +249,14 @@ func (j *Job) Stop() {
 func (job *Job) SendFinishedCallback(result string) error {
 	payload := fmt.Sprintf(`{"result": "%s"}`, result)
 	log.Infof("Sending finished callback: %+v", payload)
-	return retry.RetryWithConstantWait("Send finished callback", 100, time.Second, func() error {
+	return retry.RetryWithConstantWait("Send finished callback", 60, time.Second, func() error {
 		return job.SendCallback(job.Request.Callbacks.Finished, payload)
 	})
 }
 
 func (job *Job) SendTeardownFinishedCallback() error {
 	log.Info("Sending teardown finished callback")
-	return retry.RetryWithConstantWait("Send teardown finished callback", 100, time.Second, func() error {
+	return retry.RetryWithConstantWait("Send teardown finished callback", 60, time.Second, func() error {
 		return job.SendCallback(job.Request.Callbacks.TeardownFinished, "{}")
 	})
 }
@@ -272,4 +278,10 @@ func (job *Job) SendCallback(url string, payload string) error {
 	}
 
 	return nil
+}
+
+func callFuncIfNotNull(function func()) {
+	if function != nil {
+		function()
+	}
 }

@@ -207,7 +207,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 	s.ActiveJob = job
 
 	log.Debug("Starting job execution")
-	go s.ActiveJob.Run(nil)
+	go s.ActiveJob.Run()
 
 	log.Debugf("Setting state to '%s'", ServerStateJobReceived)
 	s.State = ServerStateJobReceived

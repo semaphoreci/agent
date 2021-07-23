@@ -43,8 +43,7 @@ type JobProcessor struct {
 	LastSuccessfulSync      time.Time
 	DisconnectRetryAttempts int
 
-	StopSync    bool
-	StuckReason selfhostedapi.StuckReason
+	StopSync bool
 }
 
 func (p *JobProcessor) Start() {
@@ -64,9 +63,8 @@ func (p *JobProcessor) SyncLoop() {
 
 func (p *JobProcessor) Sync() {
 	request := &selfhostedapi.SyncRequest{
-		State:       p.State,
-		JobID:       p.CurrentJobID,
-		StuckReason: p.StuckReason,
+		State: p.State,
+		JobID: p.CurrentJobID,
 	}
 
 	response, err := p.ApiClient.Sync(request)
@@ -118,16 +116,14 @@ func (p *JobProcessor) RunJob(jobID string) {
 	jobRequest, err := p.getJobWithRetries(jobID)
 	if err != nil {
 		log.Errorf("Could not get job %s: %v", jobID, err)
-		p.State = selfhostedapi.AgentStateStuck
-		p.StuckReason = selfhostedapi.AgentStuckReasonFailedToFetchJob
+		p.State = selfhostedapi.AgentStateFailedToFetchJob
 		return
 	}
 
 	job, err := jobs.NewJob(jobRequest, p.HttpClient)
 	if err != nil {
 		log.Errorf("Could not construct job %s: %v", jobID, err)
-		p.State = selfhostedapi.AgentStateStuck
-		p.StuckReason = selfhostedapi.AgentStuckReasonFailedToConstructJob
+		p.State = selfhostedapi.AgentStateFailedToConstructJob
 		return
 	}
 
@@ -135,7 +131,9 @@ func (p *JobProcessor) RunJob(jobID string) {
 	p.CurrentJobID = jobID
 	p.CurrentJob = job
 
-	go job.Run(p.JobFinished)
+	go job.RunWithCallbacks(p.JobFinished, func() {
+		p.State = selfhostedapi.AgentStateFailedToSendCallback
+	})
 }
 
 func (p *JobProcessor) getJobWithRetries(jobID string) (*api.JobRequest, error) {

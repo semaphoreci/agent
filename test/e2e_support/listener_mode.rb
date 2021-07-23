@@ -35,6 +35,26 @@ class ListenerMode
     end
   end
 
+  def wait_for_job_to_get_stuck
+    puts ""
+    puts "Waiting for job to get stuck"
+
+    loop do
+      response = `curl -s --fail -X GET -k "#{HUB_ENDPOINT}/api/v1/self_hosted_agents/jobs/#{$JOB_ID}/status"`.strip
+      puts "Job state #{response}"
+
+      if response == "stuck"
+        return
+      else
+        sleep 1
+      end
+    end
+
+    sleep 5
+
+    puts
+  end
+
   def wait_for_job_to_finish
     puts ""
     puts "Waiting for job to finish"
