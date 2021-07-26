@@ -27,6 +27,7 @@ start_job <<-JSON
     "files": [],
 
     "commands": [
+      { "directive": "docker ps -a" }
       { "directive": "docker ps -a | grep db | wc -l" }
     ],
 
