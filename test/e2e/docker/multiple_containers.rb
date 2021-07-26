@@ -58,7 +58,7 @@ assert_job_log <<-LOG
   {"event":"cmd_started",  "timestamp":"*", "directive":"Injecting Files"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"Injecting Files","exit_code":0,"finished_at":"*","started_at":"*"}
   {"event":"cmd_started",  "timestamp":"*", "directive":"docker ps -a"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"*"}
+  *** LONG_OUTPUT ***
   {"event":"cmd_finished", "timestamp":"*", "directive":"docker ps -a","exit_code":0,"finished_at":"*","started_at":"*"}
   {"event":"cmd_started",  "timestamp":"*", "directive":"docker ps -a | grep db | wc -l"}
   {"event":"cmd_output",   "timestamp":"*", "output":"1\\n"}
