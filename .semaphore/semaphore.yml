@@ -29,52 +29,52 @@ blocks:
           commands:
             - make test
 
-  - name: "Shell Executor E2E tests"
-    dependencies: []
-    task:
-      env_vars:
-        - name: GO111MODULE
-          value: "on"
+  # - name: "Shell Executor E2E tests"
+  #   dependencies: []
+  #   task:
+  #     env_vars:
+  #       - name: GO111MODULE
+  #         value: "on"
 
-      prologue:
-        commands:
-          - sem-version go 1.13
-          - checkout
-          - go version
-          - go get
-          - go build
+  #     prologue:
+  #       commands:
+  #         - sem-version go 1.13
+  #         - checkout
+  #         - go version
+  #         - go get
+  #         - go build
 
-      epilogue:
-        commands:
-          - docker exec -ti agent cat /tmp/agent_log
+  #     epilogue:
+  #       commands:
+  #         - docker exec -ti agent cat /tmp/agent_log
 
-      jobs:
-        - name: Shell
-          commands:
-            - "make e2e TEST=shell/$TEST"
-          matrix:
-            - env_var: TEST_MODE
-              values:
-                - api
-                - listen
-            - env_var: TEST
-              values:
-                - command_aliases
-                - env_vars
-                - failed_job
-                - job_stopping
-                - file_injection
-                - file_injection_broken_file_mode
-                - stty_restoration
-                - epilogue_on_pass
-                - epilogue_on_fail
-                - ssh_jump_points
-                - unicode
-                - unknown_command
-                - broken_unicode
-                - killing_root_bash
-                - set_e
-                - set_pipefail
+  #     jobs:
+  #       - name: Shell
+  #         commands:
+  #           - "make e2e TEST=shell/$TEST"
+  #         matrix:
+  #           - env_var: TEST_MODE
+  #             values:
+  #               - api
+  #               - listen
+  #           - env_var: TEST
+  #             values:
+  #               - command_aliases
+  #               - env_vars
+  #               - failed_job
+  #               - job_stopping
+  #               - file_injection
+  #               - file_injection_broken_file_mode
+  #               - stty_restoration
+  #               - epilogue_on_pass
+  #               - epilogue_on_fail
+  #               - ssh_jump_points
+  #               - unicode
+  #               - unknown_command
+  #               - broken_unicode
+  #               - killing_root_bash
+  #               - set_e
+  #               - set_pipefail
 
   - name: "Docker Executor E2E"
     dependencies: []
@@ -112,35 +112,35 @@ blocks:
                 - listen
             - env_var: TEST
               values:
-                - hello_world
-                - command_aliases
-                - env_vars
-                - failed_job
-                - job_stopping
-                - file_injection
-                - file_injection_broken_file_mode
-                - stty_restoration
-                - epilogue_on_pass
-                - epilogue_on_fail
-                - docker_in_docker
-                - container_env_vars
-                - container_options
-                - dockerhub_private_image
-                - docker_registry_private_image
-                - docker_private_image_ecr
-                - docker_private_image_gcr
-                - dockerhub_private_image_bad_creds
-                - docker_registry_private_image_bad_creds
-                - docker_private_image_ecr_bad_creds
-                - docker_private_image_gcr_bad_creds
-                - ssh_jump_points
-                - no_bash
-                - container_custom_name
-                - unicode
-                - unknown_command
-                - broken_unicode
-                - check_dev_kvm
-                - host_setup_commands
+                # - hello_world
+                # - command_aliases
+                # - env_vars
+                # - failed_job
+                # - job_stopping
+                # - file_injection
+                # - file_injection_broken_file_mode
+                # - stty_restoration
+                # - epilogue_on_pass
+                # - epilogue_on_fail
+                # - docker_in_docker
+                # - container_env_vars
+                # - container_options
+                # - dockerhub_private_image
+                # - docker_registry_private_image
+                # - docker_private_image_ecr
+                # - docker_private_image_gcr
+                # - dockerhub_private_image_bad_creds
+                # - docker_registry_private_image_bad_creds
+                # - docker_private_image_ecr_bad_creds
+                # - docker_private_image_gcr_bad_creds
+                # - ssh_jump_points
+                # - no_bash
+                # - container_custom_name
+                # - unicode
+                # - unknown_command
+                # - broken_unicode
+                # - check_dev_kvm
+                # - host_setup_commands
                 - multiple_containers
 
 promotions:
