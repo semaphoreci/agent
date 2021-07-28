@@ -155,8 +155,7 @@ func (p *JobProcessor) StopJob(jobID string) {
 }
 
 func (p *JobProcessor) JobFinished() {
-	p.CurrentJobID = ""
-	p.State = selfhostedapi.AgentStateWaitingForJobs
+	p.State = selfhostedapi.AgentStateFinishedJob
 }
 
 func (p *JobProcessor) SetupInteruptHandler() {
