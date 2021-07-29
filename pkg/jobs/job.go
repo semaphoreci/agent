@@ -273,7 +273,7 @@ func (job *Job) SendCallback(url string, payload string) error {
 		return err
 	}
 
-	if response.StatusCode != http.StatusOK {
+	if response.StatusCode != http.StatusAccepted {
 		return fmt.Errorf("callback to %s got HTTP %d", url, response.StatusCode)
 	}
 
