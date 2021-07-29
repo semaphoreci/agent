@@ -273,7 +273,7 @@ func (job *Job) SendCallback(url string, payload string) error {
 		return err
 	}
 
-	if response.StatusCode != http.StatusAccepted {
+	if isSuccessfulCode(response.StatusCode) {
 		return fmt.Errorf("callback to %s got HTTP %d", url, response.StatusCode)
 	}
 
@@ -284,4 +284,8 @@ func callFuncIfNotNull(function func()) {
 	if function != nil {
 		function()
 	}
+}
+
+func isSuccessfulCode(code int) bool {
+	return code >= 200 && code < 300
 }
