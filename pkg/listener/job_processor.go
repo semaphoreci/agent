@@ -1,6 +1,7 @@
 package listener
 
 import (
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,8 +14,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func StartJobProcessor(apiClient *selfhostedapi.Api) (*JobProcessor, error) {
+func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.Api) (*JobProcessor, error) {
 	p := &JobProcessor{
+		HttpClient:         httpClient,
 		ApiClient:          apiClient,
 		LastSuccessfulSync: time.Now(),
 		State:              selfhostedapi.AgentStateWaitingForJobs,
@@ -31,6 +33,7 @@ func StartJobProcessor(apiClient *selfhostedapi.Api) (*JobProcessor, error) {
 }
 
 type JobProcessor struct {
+	HttpClient              *http.Client
 	ApiClient               *selfhostedapi.Api
 	State                   selfhostedapi.AgentState
 	CurrentJobID            string
@@ -59,7 +62,10 @@ func (p *JobProcessor) SyncLoop() {
 }
 
 func (p *JobProcessor) Sync() {
-	request := &selfhostedapi.SyncRequest{State: p.State, JobID: p.CurrentJobID}
+	request := &selfhostedapi.SyncRequest{
+		State: p.State,
+		JobID: p.CurrentJobID,
+	}
 
 	response, err := p.ApiClient.Sync(request)
 	if err != nil {
@@ -101,50 +107,50 @@ func (p *JobProcessor) ProcessSyncResponse(response *selfhostedapi.SyncResponse)
 		p.Shutdown("Agent Shutdown requested by Semaphore", 0)
 
 	case selfhostedapi.AgentActionWaitForJobs:
-		p.CurrentJobID = ""
-		p.CurrentJob = nil
-		p.State = selfhostedapi.AgentStateWaitingForJobs
+		p.WaitForJobs()
 	}
 }
 
 func (p *JobProcessor) RunJob(jobID string) {
+	p.State = selfhostedapi.AgentStateStartingJob
 	p.CurrentJobID = jobID
-	p.State = selfhostedapi.AgentStateRunningJob
 
 	jobRequest, err := p.getJobWithRetries(p.CurrentJobID)
 	if err != nil {
-		panic(err)
+		log.Errorf("Could not get job %s: %v", jobID, err)
+		p.State = selfhostedapi.AgentStateFailedToFetchJob
+		return
 	}
 
-	job, err := jobs.NewJob(jobRequest)
+	job, err := jobs.NewJob(jobRequest, p.HttpClient)
 	if err != nil {
-		panic("bbb")
+		log.Errorf("Could not construct job %s: %v", jobID, err)
+		p.State = selfhostedapi.AgentStateFailedToConstructJob
+		return
 	}
 
+	p.State = selfhostedapi.AgentStateRunningJob
+	p.CurrentJobID = jobID
 	p.CurrentJob = job
 
-	go job.Run(p.JobFinished)
+	go job.RunWithCallbacks(p.JobFinished, func() {
+		p.State = selfhostedapi.AgentStateFailedToSendCallback
+	})
 }
 
 func (p *JobProcessor) getJobWithRetries(jobID string) (*api.JobRequest, error) {
-	retries := 10
-
-	for {
-		log.Infof("Getting job %s", jobID)
-
-		jobRequest, err := p.ApiClient.GetJob(jobID)
-		if err == nil {
-			return jobRequest, err
+	var jobRequest *api.JobRequest
+	err := retry.RetryWithConstantWait("Get job", 10, 3*time.Second, func() error {
+		job, err := p.ApiClient.GetJob(jobID)
+		if err != nil {
+			return err
+		} else {
+			jobRequest = job
+			return nil
 		}
+	})
 
-		if retries > 0 {
-			retries--
-			time.Sleep(3 * time.Second)
-			continue
-		}
-
-		return nil, err
-	}
+	return jobRequest, err
 }
 
 func (p *JobProcessor) StopJob(jobID string) {
@@ -156,6 +162,12 @@ func (p *JobProcessor) StopJob(jobID string) {
 
 func (p *JobProcessor) JobFinished() {
 	p.State = selfhostedapi.AgentStateFinishedJob
+}
+
+func (p *JobProcessor) WaitForJobs() {
+	p.CurrentJobID = ""
+	p.CurrentJob = nil
+	p.State = selfhostedapi.AgentStateWaitingForJobs
 }
 
 func (p *JobProcessor) SetupInteruptHandler() {

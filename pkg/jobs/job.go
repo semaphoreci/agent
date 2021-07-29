@@ -3,12 +3,13 @@ package jobs
 import (
 	"bytes"
 	"fmt"
+	"net/http"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	executors "github.com/semaphoreci/agent/pkg/executors"
-	pester "github.com/sethgrid/pester"
+	"github.com/semaphoreci/agent/pkg/retry"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -16,6 +17,7 @@ const JOB_PASSED = "passed"
 const JOB_FAILED = "failed"
 
 type Job struct {
+	Client  *http.Client
 	Request *api.JobRequest
 	Logger  *eventlogger.Logger
 
@@ -37,7 +39,7 @@ type Job struct {
 	TeardownLock Lock
 }
 
-func NewJob(request *api.JobRequest) (*Job, error) {
+func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
 	if request.Executor == "" {
 		log.Infof("No executor specified - using %s executor", executors.ExecutorTypeShell)
 		request.Executor = executors.ExecutorTypeShell
@@ -61,6 +63,7 @@ func NewJob(request *api.JobRequest) (*Job, error) {
 	log.Debugf("Job Request %+v", request)
 
 	return &Job{
+		Client:         client,
 		Request:        request,
 		Executor:       executor,
 		JobLogArchived: false,
@@ -69,7 +72,11 @@ func NewJob(request *api.JobRequest) (*Job, error) {
 	}, nil
 }
 
-func (job *Job) Run(finishedCallback func()) {
+func (job *Job) Run() {
+	job.RunWithCallbacks(nil, nil)
+}
+
+func (job *Job) RunWithCallbacks(onSuccessfulTeardown func(), onFailedTeardown func()) {
 	log.Infof("Running job %s", job.Request.ID)
 	executorRunning := false
 	result := JOB_FAILED
@@ -112,13 +119,14 @@ func (job *Job) Run(finishedCallback func()) {
 		}
 	}
 
-	job.Teardown(result)
-	job.Finished = true
-
-	if finishedCallback != nil {
-		finishedCallback()
+	err := job.Teardown(result)
+	if err != nil {
+		callFuncIfNotNull(onFailedTeardown)
+	} else {
+		callFuncIfNotNull(onSuccessfulTeardown)
 	}
 
+	job.Finished = true
 	job.Executor.Stop()
 }
 
@@ -181,14 +189,18 @@ func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command) int {
 	return lastExitCode
 }
 
-func (job *Job) Teardown(result string) {
+func (job *Job) Teardown(result string) error {
 	if !job.TeardownLock.TryLock() {
 		log.Warning("Duplicate attempts to enter the Teardown phase")
-		return
+		return nil
 	}
 
-	log.Debug("Sending finished callback")
-	job.SendFinishedCallback(result)
+	err := job.SendFinishedCallback(result)
+	if err != nil {
+		log.Errorf("Could not send finished callback: %v", err)
+		return err
+	}
+
 	job.Logger.LogJobFinished(result)
 
 	if job.Request.Logger.Method == eventlogger.LoggerMethodPull {
@@ -205,14 +217,19 @@ func (job *Job) Teardown(result string) {
 		log.Debug("Archivator finished")
 	}
 
-	err := job.Logger.Close()
+	err = job.Logger.Close()
 	if err != nil {
 		log.Errorf("Error closing logger: %+v", err)
 	}
 
-	job.SendTeardownFinishedCallback()
+	err = job.SendTeardownFinishedCallback()
+	if err != nil {
+		log.Errorf("Could not send teardown finished callback: %v", err)
+		return err
+	}
 
 	log.Info("Job teardown finished")
+	return nil
 }
 
 func (j *Job) Stop() {
@@ -231,24 +248,40 @@ func (j *Job) Stop() {
 
 func (job *Job) SendFinishedCallback(result string) error {
 	payload := fmt.Sprintf(`{"result": "%s"}`, result)
-
-	return job.SendCallback(job.Request.Callbacks.Finished, payload)
+	log.Infof("Sending finished callback: %+v", payload)
+	return retry.RetryWithConstantWait("Send finished callback", 60, time.Second, func() error {
+		return job.SendCallback(job.Request.Callbacks.Finished, payload)
+	})
 }
 
 func (job *Job) SendTeardownFinishedCallback() error {
-	return job.SendCallback(job.Request.Callbacks.TeardownFinished, "{}")
+	log.Info("Sending teardown finished callback")
+	return retry.RetryWithConstantWait("Send teardown finished callback", 60, time.Second, func() error {
+		return job.SendCallback(job.Request.Callbacks.TeardownFinished, "{}")
+	})
 }
 
 func (job *Job) SendCallback(url string, payload string) error {
-	log.Debugf("Sending callback: %s with %+v", url, payload)
+	log.Debugf("Sending callback to %s: %+v", url, payload)
+	request, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(payload)))
+	if err != nil {
+		return err
+	}
 
-	client := pester.New()
-	client.MaxRetries = 100
-	client.KeepLog = true
+	response, err := job.Client.Do(request)
+	if err != nil {
+		return err
+	}
 
-	resp, err := client.Post(url, "application/json", bytes.NewBuffer([]byte(payload)))
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("callback to %s got HTTP %d", url, response.StatusCode)
+	}
 
-	log.Debugf("Callback response: %+v", resp)
+	return nil
+}
 
-	return err
+func callFuncIfNotNull(function func()) {
+	if function != nil {
+		function()
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net/http"
 	"os"
 	"time"
 
@@ -30,13 +31,15 @@ func main() {
 	log.SetFormatter(new(eventlogger.CustomFormatter))
 	log.SetLevel(getLogLevel())
 
+	httpClient := &http.Client{}
+
 	switch action {
 	case "start":
-		RunListener(logfile)
+		RunListener(httpClient, logfile)
 	case "serve":
-		RunServer(logfile)
+		RunServer(httpClient, logfile)
 	case "run":
-		RunSingleJob()
+		RunSingleJob(httpClient)
 	case "version":
 		fmt.Println(VERSION)
 	}
@@ -66,7 +69,7 @@ func getLogLevel() log.Level {
 	}
 }
 
-func RunListener(logfile io.Writer) {
+func RunListener(httpClient *http.Client, logfile io.Writer) {
 	endpoint := pflag.String("endpoint", "", "Endpoint where agents are registered")
 	token := pflag.String("token", "", "Registration token")
 	noHttps := pflag.Bool("no-https", false, "Use http for communication")
@@ -85,12 +88,12 @@ func RunListener(logfile io.Writer) {
 		Scheme:             scheme,
 	}
 
-	go listener.Start(config, logfile)
+	go listener.Start(httpClient, config, logfile)
 
 	select {}
 }
 
-func RunServer(logfile io.Writer) {
+func RunServer(httpClient *http.Client, logfile io.Writer) {
 	authTokenSecret := pflag.String("auth-token-secret", "", "Auth token for accessing the server")
 	port := pflag.Int("port", 8000, "Port of the server")
 	host := pflag.String("host", "0.0.0.0", "Host of the server")
@@ -122,22 +125,23 @@ func RunServer(logfile io.Writer) {
 		VERSION,
 		logfile,
 		[]byte(*authTokenSecret),
+		httpClient,
 	).Serve()
 }
 
-func RunSingleJob() {
+func RunSingleJob(httpClient *http.Client) {
 	request, err := api.NewRequestFromYamlFile(os.Args[2])
 
 	if err != nil {
 		panic(err)
 	}
 
-	job, err := jobs.NewJob(request)
+	job, err := jobs.NewJob(request, httpClient)
 	if err != nil {
 		panic(err)
 	}
 
 	job.JobLogArchived = true
 
-	job.Run(nil)
+	job.Run()
 }

@@ -14,9 +14,13 @@ type AgentState string
 type AgentAction string
 
 const AgentStateWaitingForJobs = "waiting-for-jobs"
+const AgentStateStartingJob = "starting-job"
 const AgentStateRunningJob = "running-job"
 const AgentStateStoppingJob = "stopping-job"
 const AgentStateFinishedJob = "finished-job"
+const AgentStateFailedToFetchJob = "failed-to-fetch-job"
+const AgentStateFailedToConstructJob = "failed-to-construct-job"
+const AgentStateFailedToSendCallback = "failed-to-send-callback"
 
 const AgentActionWaitForJobs = "wait-for-jobs"
 const AgentActionRunJob = "run-job"

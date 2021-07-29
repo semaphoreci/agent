@@ -15,12 +15,12 @@ type Api struct {
 	client *http.Client
 }
 
-func New(scheme string, endpoint string, token string) *Api {
+func New(httpClient *http.Client, scheme string, endpoint string, token string) *Api {
 	return &Api{
 		Endpoint:      endpoint,
 		RegisterToken: token,
 		Scheme:        scheme,
-		client:        &http.Client{},
+		client:        httpClient,
 	}
 }
 

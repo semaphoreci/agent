@@ -62,3 +62,11 @@ end
 def teardown_callback_url
   $strategy.teardown_callback_url
 end
+
+def wait_for_job_to_get_stuck
+  $strategy.wait_for_job_to_get_stuck
+end
+
+def bad_callback_url
+  "https://httpbin.org/status/500"
+end
