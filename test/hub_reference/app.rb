@@ -112,10 +112,12 @@ end
 post "/jobs/:id/callbacks/finished" do
   puts "[CALLBACK] Finished job #{params["id"]}"
   $job_states[params["id"]] = "finished"
+  status 202
 end
 
 post "/jobs/:id/callbacks/teardown" do
   $teardown[params["id"]] = true
+  status 202
 end
 
 #
