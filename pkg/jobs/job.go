@@ -82,6 +82,13 @@ func (job *Job) RunWithCallbacks(onSuccessfulTeardown func(), onFailedTeardown f
 
 	if executorRunning {
 		result = job.RunRegularCommands()
+		log.Debug("Exporting job result")
+		job.RunCommandsUntilFirstFailure([]api.Command{
+			{
+				Directive: fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%s", result),
+			},
+		})
+
 		if result != JOB_STOPPED {
 			job.handleEpilogues(result)
 		}
@@ -148,22 +155,25 @@ func (job *Job) RunRegularCommands() string {
 }
 
 func (job *Job) handleEpilogues(result string) {
-	log.Debug("Exporting job result")
-	job.RunCommandsUntilFirstFailure([]api.Command{
-		{
-			Directive: fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%s", result),
-		},
+	job.executeIfNotStopped(func() {
+		log.Info("Starting epilogue always commands")
+		job.RunCommandsUntilFirstFailure(job.Request.EpilogueAlwaysCommands)
 	})
 
-	log.Info("Starting epilogue always commands")
-	job.RunCommandsUntilFirstFailure(job.Request.EpilogueAlwaysCommands)
+	job.executeIfNotStopped(func() {
+		if result == JOB_PASSED {
+			log.Info("Starting epilogue on pass commands")
+			job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnPassCommands)
+		} else {
+			log.Info("Starting epilogue on fail commands")
+			job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnFailCommands)
+		}
+	})
+}
 
-	if result == JOB_PASSED {
-		log.Info("Starting epilogue on pass commands")
-		job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnPassCommands)
-	} else {
-		log.Info("Starting epilogue on fail commands")
-		job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnFailCommands)
+func (job *Job) executeIfNotStopped(callback func()) {
+	if !job.Stopped && callback != nil {
+		callback()
 	}
 }
 
@@ -187,6 +197,11 @@ func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command) int {
 }
 
 func (job *Job) Teardown(result string) error {
+	// if job was stopped during the epilogues, result should be stopped
+	if job.Stopped {
+		result = JOB_STOPPED
+	}
+
 	err := job.SendFinishedCallback(result)
 	if err != nil {
 		log.Errorf("Could not send finished callback: %v", err)
