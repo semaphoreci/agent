@@ -63,6 +63,7 @@ blocks:
                 - env_vars
                 - failed_job
                 - job_stopping
+                - job_stopping_on_epilogue
                 - file_injection
                 - file_injection_broken_file_mode
                 - stty_restoration
@@ -117,6 +118,7 @@ blocks:
                 - env_vars
                 - failed_job
                 - job_stopping
+                - job_stopping_on_epilogue
                 - file_injection
                 - file_injection_broken_file_mode
                 - stty_restoration
