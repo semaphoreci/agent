@@ -15,6 +15,7 @@ import (
 
 const JOB_PASSED = "passed"
 const JOB_FAILED = "failed"
+const JOB_STOPPED = "stopped"
 
 type Job struct {
 	Client  *http.Client
@@ -26,17 +27,6 @@ type Job struct {
 	JobLogArchived bool
 	Stopped        bool
 	Finished       bool
-
-	//
-	// The Teardown phase can be entered either after:
-	//  - a regular job execution ends
-	//  - from the Job.Stop procedure
-	//
-	// With this lock, we are making sure that only one Teardown is
-	// executed. This solves the race condition where both the job finishes
-	// and the job stops at the same time.
-	//
-	TeardownLock Lock
 }
 
 func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
@@ -92,30 +82,15 @@ func (job *Job) RunWithCallbacks(onSuccessfulTeardown func(), onFailedTeardown f
 
 	if executorRunning {
 		result = job.RunRegularCommands()
-
-		if result == JOB_PASSED {
-			log.Info("Regular commands finished successfully")
-		} else {
-			log.Info("Regular commands finished with failure")
-		}
-
 		log.Debug("Exporting job result")
-
 		job.RunCommandsUntilFirstFailure([]api.Command{
 			{
 				Directive: fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%s", result),
 			},
 		})
 
-		log.Info("Starting epilogue always commands")
-		job.RunCommandsUntilFirstFailure(job.Request.EpilogueAlwaysCommands)
-
-		if result == JOB_PASSED {
-			log.Info("Starting epilogue on pass commands")
-			job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnPassCommands)
-		} else {
-			log.Info("Starting epilogue on fail commands")
-			job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnFailCommands)
+		if result != JOB_STOPPED {
+			job.handleEpilogues(result)
 		}
 	}
 
@@ -127,7 +102,11 @@ func (job *Job) RunWithCallbacks(onSuccessfulTeardown func(), onFailedTeardown f
 	}
 
 	job.Finished = true
-	job.Executor.Stop()
+
+	// the executor is already stopped when the job is stopped, so there's no need to stop it again
+	if !job.Stopped {
+		job.Executor.Stop()
+	}
 }
 
 func (job *Job) PrepareEnvironment() int {
@@ -163,10 +142,38 @@ func (job *Job) RunRegularCommands() string {
 
 	exitCode = job.RunCommandsUntilFirstFailure(job.Request.Commands)
 
-	if exitCode == 0 {
+	if job.Stopped {
+		log.Info("Regular commands were stopped")
+		return JOB_STOPPED
+	} else if exitCode == 0 {
+		log.Info("Regular commands finished successfully")
 		return JOB_PASSED
 	} else {
+		log.Info("Regular commands finished with failure")
 		return JOB_FAILED
+	}
+}
+
+func (job *Job) handleEpilogues(result string) {
+	job.executeIfNotStopped(func() {
+		log.Info("Starting epilogue always commands")
+		job.RunCommandsUntilFirstFailure(job.Request.EpilogueAlwaysCommands)
+	})
+
+	job.executeIfNotStopped(func() {
+		if result == JOB_PASSED {
+			log.Info("Starting epilogue on pass commands")
+			job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnPassCommands)
+		} else {
+			log.Info("Starting epilogue on fail commands")
+			job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnFailCommands)
+		}
+	})
+}
+
+func (job *Job) executeIfNotStopped(callback func()) {
+	if !job.Stopped && callback != nil {
+		callback()
 	}
 }
 
@@ -190,9 +197,9 @@ func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command) int {
 }
 
 func (job *Job) Teardown(result string) error {
-	if !job.TeardownLock.TryLock() {
-		log.Warning("Duplicate attempts to enter the Teardown phase")
-		return nil
+	// if job was stopped during the epilogues, result should be stopped
+	if job.Stopped {
+		result = JOB_STOPPED
 	}
 
 	err := job.SendFinishedCallback(result)
@@ -242,8 +249,6 @@ func (j *Job) Stop() {
 	PreventPanicPropagation(func() {
 		j.Executor.Stop()
 	})
-
-	j.Teardown("stopped")
 }
 
 func (job *Job) SendFinishedCallback(result string) error {
