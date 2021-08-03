@@ -1,7 +1,12 @@
 FROM ubuntu:20.04
 
-RUN apt-get update -qy
-RUN apt-get install -y ca-certificates openssh-client
+RUN apt-get update -y
+RUN apt-get install -y ca-certificates openssh-client wget sudo
+RUN apt-get install -y curl
 RUN update-ca-certificates
+
+RUN useradd -m ubuntu && echo "ubuntu:ubuntu" | chpasswd && adduser ubuntu sudo
+
+USER ubuntu
 
 WORKDIR /app
