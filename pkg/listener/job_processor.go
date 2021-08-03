@@ -212,8 +212,8 @@ func (p *JobProcessor) executeShutdownHook() {
 		if err != nil {
 			log.Errorf("Error executing shutdown hook: %v", err)
 			log.Errorf("Output: %s", string(output))
+		} else {
+			log.Infof("Output: %s", string(output))
 		}
-
-		log.Infof("Output: %s", string(output))
 	}
 }
