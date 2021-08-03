@@ -73,6 +73,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	endpoint := pflag.String("endpoint", "", "Endpoint where agents are registered")
 	token := pflag.String("token", "", "Registration token")
 	noHttps := pflag.Bool("no-https", false, "Use http for communication")
+	hooksPath := pflag.String("hooks-path", "", "Hooks directory")
 
 	pflag.Parse()
 
@@ -86,6 +87,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		RegisterRetryLimit: 30,
 		Token:              *token,
 		Scheme:             scheme,
+		HooksPath:          *hooksPath,
 	}
 
 	go listener.Start(httpClient, config, logfile)

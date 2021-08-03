@@ -3,7 +3,9 @@ package listener
 import (
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
+	"path"
 	"syscall"
 	"time"
 
@@ -14,15 +16,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.Api) (*JobProcessor, error) {
+func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.Api, hooksPath string) (*JobProcessor, error) {
 	p := &JobProcessor{
-		HttpClient:         httpClient,
-		ApiClient:          apiClient,
-		LastSuccessfulSync: time.Now(),
-		State:              selfhostedapi.AgentStateWaitingForJobs,
-
+		HttpClient:              httpClient,
+		ApiClient:               apiClient,
+		LastSuccessfulSync:      time.Now(),
+		State:                   selfhostedapi.AgentStateWaitingForJobs,
 		SyncInterval:            5 * time.Second,
 		DisconnectRetryAttempts: 100,
+		HooksPath:               hooksPath,
 	}
 
 	go p.Start()
@@ -42,8 +44,8 @@ type JobProcessor struct {
 	LastSyncErrorAt         *time.Time
 	LastSuccessfulSync      time.Time
 	DisconnectRetryAttempts int
-
-	StopSync bool
+	HooksPath               string
+	StopSync                bool
 }
 
 func (p *JobProcessor) Start() {
@@ -196,13 +198,24 @@ func (p *JobProcessor) disconnect() {
 }
 
 func (p *JobProcessor) Shutdown(reason string, code int) {
-	log.Println()
 	p.disconnect()
-
-	log.Println()
-	log.Println()
-	log.Println()
+	p.executeShutdownHook()
 	log.Info(reason)
 	log.Info("Shutting down... Good bye!")
 	os.Exit(code)
+}
+
+func (p *JobProcessor) executeShutdownHook() {
+	if p.HooksPath != "" {
+		shutdownHookPath := path.Join(p.HooksPath, "shutdown")
+		cmd := exec.Command("bash", shutdownHookPath)
+		log.Infof("Executing shutdown hook from %s", shutdownHookPath)
+		output, err := cmd.Output()
+		if err != nil {
+			log.Errorf("Error executing shutdown hook: %v", err)
+			log.Errorf("Output: %s", string(output))
+		}
+
+		log.Infof("Output: %s", string(output))
+	}
 }
