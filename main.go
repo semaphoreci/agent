@@ -74,6 +74,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	token := pflag.String("token", "", "Registration token")
 	noHttps := pflag.Bool("no-https", false, "Use http for communication")
 	shutdownHookPath := pflag.String("shutdown-hook-path", "", "Shutdown hook path")
+	disconnectAfterJob := pflag.Bool("disconnect-after-job", false, "Disconnect after job")
 
 	pflag.Parse()
 
@@ -88,9 +89,15 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		Token:              *token,
 		Scheme:             scheme,
 		ShutdownHookPath:   *shutdownHookPath,
+		DisconnectAfterJob: *disconnectAfterJob,
 	}
 
-	go listener.Start(httpClient, config, logfile)
+	go func() {
+		_, err := listener.Start(httpClient, config, logfile)
+		if err != nil {
+			log.Panicf("Could not start agent: %v", err)
+		}
+	}()
 
 	select {}
 }

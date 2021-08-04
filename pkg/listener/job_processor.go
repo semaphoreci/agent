@@ -15,7 +15,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.Api, shutdownHookPath string) (*JobProcessor, error) {
+
+func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.Api, shutdownHookPath string, disconnectAfterJob bool) (*JobProcessor, error) {
 	p := &JobProcessor{
 		HttpClient:              httpClient,
 		ApiClient:               apiClient,
@@ -24,6 +25,7 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.Api, sh
 		SyncInterval:            5 * time.Second,
 		DisconnectRetryAttempts: 100,
 		ShutdownHookPath:        shutdownHookPath,
+		DisconnectAfterJob:      disconnectAfterJob,
 	}
 
 	go p.Start()
@@ -45,6 +47,7 @@ type JobProcessor struct {
 	DisconnectRetryAttempts int
 	ShutdownHookPath        string
 	StopSync                bool
+	DisconnectAfterJob      bool
 }
 
 func (p *JobProcessor) Start() {
@@ -135,7 +138,11 @@ func (p *JobProcessor) RunJob(jobID string) {
 	p.CurrentJob = job
 
 	go job.RunWithCallbacks(p.JobFinished, func() {
-		p.State = selfhostedapi.AgentStateFailedToSendCallback
+		if p.DisconnectAfterJob {
+			p.Shutdown("Job finished with error", 1)
+		} else {
+			p.State = selfhostedapi.AgentStateFailedToSendCallback
+		}
 	})
 }
 
@@ -162,7 +169,11 @@ func (p *JobProcessor) StopJob(jobID string) {
 }
 
 func (p *JobProcessor) JobFinished() {
-	p.State = selfhostedapi.AgentStateFinishedJob
+	if p.DisconnectAfterJob {
+		p.Shutdown("Job finished", 0)
+	} else {
+		p.State = selfhostedapi.AgentStateFinishedJob
+	}
 }
 
 func (p *JobProcessor) WaitForJobs() {
