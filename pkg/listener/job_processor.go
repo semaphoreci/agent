@@ -3,6 +3,7 @@ package listener
 import (
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -14,15 +15,16 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.Api, disconnectAfterJob bool) (*JobProcessor, error) {
-	p := &JobProcessor{
-		HttpClient:         httpClient,
-		ApiClient:          apiClient,
-		LastSuccessfulSync: time.Now(),
-		State:              selfhostedapi.AgentStateWaitingForJobs,
 
+func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.Api, shutdownHookPath string, disconnectAfterJob bool) (*JobProcessor, error) {
+	p := &JobProcessor{
+		HttpClient:              httpClient,
+		ApiClient:               apiClient,
+		LastSuccessfulSync:      time.Now(),
+		State:                   selfhostedapi.AgentStateWaitingForJobs,
 		SyncInterval:            5 * time.Second,
 		DisconnectRetryAttempts: 100,
+		ShutdownHookPath:        shutdownHookPath,
 		DisconnectAfterJob:      disconnectAfterJob,
 	}
 
@@ -43,9 +45,9 @@ type JobProcessor struct {
 	LastSyncErrorAt         *time.Time
 	LastSuccessfulSync      time.Time
 	DisconnectRetryAttempts int
+	ShutdownHookPath        string
+	StopSync                bool
 	DisconnectAfterJob      bool
-
-	StopSync bool
 }
 
 func (p *JobProcessor) Start() {
@@ -206,13 +208,23 @@ func (p *JobProcessor) disconnect() {
 }
 
 func (p *JobProcessor) Shutdown(reason string, code int) {
-	log.Println()
 	p.disconnect()
-
-	log.Println()
-	log.Println()
-	log.Println()
+	p.executeShutdownHook()
 	log.Info(reason)
 	log.Info("Shutting down... Good bye!")
 	os.Exit(code)
+}
+
+func (p *JobProcessor) executeShutdownHook() {
+	if p.ShutdownHookPath != "" {
+		log.Infof("Executing shutdown hook from %s", p.ShutdownHookPath)
+		cmd := exec.Command("bash", p.ShutdownHookPath)
+		output, err := cmd.Output()
+		if err != nil {
+			log.Errorf("Error executing shutdown hook: %v", err)
+			log.Errorf("Output: %s", string(output))
+		} else {
+			log.Infof("Output: %s", string(output))
+		}
+	}
 }

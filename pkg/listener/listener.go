@@ -24,6 +24,7 @@ type Config struct {
 	RegisterRetryLimit int
 	Token              string
 	Scheme             string
+	ShutdownHookPath   string
 	DisconnectAfterJob bool
 }
 
@@ -43,7 +44,7 @@ func Start(httpClient *http.Client, config Config, logger io.Writer) (*Listener,
 	}
 
 	log.Info("Starting to poll for jobs")
-	jobProcessor, err := StartJobProcessor(httpClient, listener.Client, config.DisconnectAfterJob)
+	jobProcessor, err := StartJobProcessor(httpClient, listener.Client, config.ShutdownHookPath, config.DisconnectAfterJob)
 	if err != nil {
 		return listener, err
 	}
