@@ -93,8 +93,8 @@ If StatsD flags are not provided, the Agent will not publish any StatsD metric.
 
 ```
 sudo ./install.sh \
-  -o semaphore \
-  -t e71649662cc9dea30ecdb310801c963cd9183bc651b9bbdf77c75687270f800a1456e18572c18458
+  -o <your-organization> \
+  -t <your-agent-type-token>
 ```
 
 If everything works ok, you should now have a `semaphore-agent` systemd service:
