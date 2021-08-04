@@ -1,42 +1,40 @@
 #!/bin/bash
 
-while getopts "o:t:" opt; do
-  case $opt in
-    o)
-      organization=$OPTARG
-      ;;
-    t)
-      agent_registration_token=$OPTARG
-      ;;
-    \?)
-      echo "Invalid option: -$OPTARG"
-      exit 1
-      ;;
-    :)
-      echo "Option -$OPTARG requires an argument."
-      exit 1
-      ;;
-  esac
-done
+SEMAPHORE_DIRECTORY=/opt/semaphore
 
+read -p "Enter organization: " organization
 if [[ -z $organization ]]; then
-  echo "Organization not set. Please provide the organization name using the -o option"
+  echo "Organization cannot be empty."
   exit 1
 fi
 
-if [[ -z $agent_registration_token ]]; then
-  echo "Agent registration token not set. Please provide the agent registration token using the -t option"
+read -p "Enter registration token: " registration_token
+if [[ -z $registration_token ]]; then
+  echo "Registration token cannot be empty."
   exit 1
 fi
 
-echo "Creating /opt/semaphore/agent directory..."
-sudo mkdir -p /opt/semaphore/agent
-sudo chown admin:admin /opt/semaphore/agent/
-cd /opt/semaphore/agent
+# TODO: allow version to be specified
+agent_version=latest
 
-echo "Downloading agent..."
-curl -L https://github.com/semaphoreci/agent/releases/download/v2.0.5-alpha/agent -o agent
-chmod +x agent
+# Other possible values are: Linux_i386 and Darwin_x86_64
+read -p "Enter os [default: Linux_x86_64]: " agent_os
+agent_os="${agent_os:=Linux_x86_64}"
+
+echo "Creating $SEMAPHORE_DIRECTORY directory..."
+sudo mkdir -p $SEMAPHORE_DIRECTORY
+sudo chown admin:admin $SEMAPHORE_DIRECTORY
+
+agent_url="https://github.com/semaphoreci/agent/releases/latest/download/agent_$agent_os.tar.gz"
+echo "Downloading $agent_url..."
+status_code=$(curl -w "%{http_code}" -sL $agent_url -o $SEMAPHORE_DIRECTORY/agent.tar.gz)
+if [[ $status_code -ne "200" ]]; then
+  echo "Error downloading agent: $status_code"
+  exit 1
+fi
+
+echo "Extracting $SEMAPHORE_DIRECTORY/agent.tar.gz..."
+tar -xf $SEMAPHORE_DIRECTORY/agent.tar.gz -C $SEMAPHORE_DIRECTORY
 
 SYSTEMD_SERVICE=$(cat <<-END
 [Unit]
@@ -49,8 +47,8 @@ Type=simple
 Restart=always
 RestartSec=5
 User=admin
-WorkingDirectory=/opt/semaphore/agent
-ExecStart=/opt/semaphore/agent/agent start --endpoint $organization.semaphoreci.com --token $agent_registration_token
+WorkingDirectory=/opt/semaphore
+ExecStart=/opt/semaphore/agent start --endpoint $organization.semaphoreci.com --token $registration_token
 
 [Install]
 WantedBy=multi-user.target
