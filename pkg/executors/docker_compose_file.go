@@ -41,8 +41,8 @@ func (f *DockerComposeFile) Service(container api.Container) string {
 	result := ""
 	result += fmt.Sprintf("  %s:\n", container.Name)
 	result += fmt.Sprintf("    image: %s\n", container.Image)
-	result += "    devices:\n"
-	result += "      - \"/dev/kvm:/dev/kvm\"\n"
+	// result += "    devices:\n"
+	// result += "      - \"/dev/kvm:/dev/kvm\"\n"
 
 	if container.Command != "" {
 		result += fmt.Sprintf("    command: %s\n", container.Command)
