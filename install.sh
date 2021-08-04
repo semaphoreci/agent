@@ -1,6 +1,9 @@
 #!/bin/bash
 
-SEMAPHORE_DIRECTORY=/opt/semaphore
+if [[ "$EUID" -ne 0 ]]; then
+  echo "Please run with sudo."
+  exit 1
+fi
 
 read -p "Enter organization: " organization
 if [[ -z $organization ]]; then
@@ -18,9 +21,10 @@ fi
 agent_version=latest
 
 # Other possible values are: Linux_i386 and Darwin_x86_64
-read -p "Enter os [default: Linux_x86_64]: " agent_os
+read -p "Enter architecture [Linux_x86_64]: " agent_os
 agent_os="${agent_os:=Linux_x86_64}"
 
+SEMAPHORE_DIRECTORY=/opt/semaphore
 echo "Creating $SEMAPHORE_DIRECTORY directory..."
 sudo mkdir -p $SEMAPHORE_DIRECTORY
 sudo chown admin:admin $SEMAPHORE_DIRECTORY
