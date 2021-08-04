@@ -672,11 +672,13 @@ func (e *DockerComposeExecutor) RunCommand(command string, silent bool, alias st
 func (e *DockerComposeExecutor) Stop() int {
 	log.Debug("Starting the process killing procedure")
 
-	err := e.Shell.Close()
-	if err != nil {
-		log.Errorf("Process killing procedure returned an error %+v\n", err)
+	if e.Shell != nil {
+		err := e.Shell.Close()
+		if err != nil {
+			log.Errorf("Process killing procedure returned an error %+v\n", err)
 
-		return 0
+			return 0
+		}
 	}
 
 	log.Debug("Process killing finished without errors")
