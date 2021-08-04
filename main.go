@@ -73,6 +73,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	endpoint := pflag.String("endpoint", "", "Endpoint where agents are registered")
 	token := pflag.String("token", "", "Registration token")
 	noHttps := pflag.Bool("no-https", false, "Use http for communication")
+	disconnectAfterJob := pflag.Bool("disconnect-after-job", false, "Disconnect after job")
 
 	pflag.Parse()
 
@@ -86,9 +87,15 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		RegisterRetryLimit: 30,
 		Token:              *token,
 		Scheme:             scheme,
+		DisconnectAfterJob: *disconnectAfterJob,
 	}
 
-	go listener.Start(httpClient, config, logfile)
+	go func() {
+		_, err := listener.Start(httpClient, config, logfile)
+		if err != nil {
+			log.Panicf("Could not start agent: %v", err)
+		}
+	}()
 
 	select {}
 }
