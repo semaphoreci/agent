@@ -27,9 +27,18 @@ agent_os="${agent_os:=Linux_x86_64}"
 read -p "Enter installation directory [/opt/semaphore]: " install_directory
 install_directory="${install_directory:=/opt/semaphore}"
 
+logged_in_user=$(logname)
+read -p "Enter user [$logged_in_user]: " install_user
+install_user="${install_user:=$logged_in_user}"
+
+if ! id "$install_user" &>/dev/null; then
+  echo "User $install_user does not exist. Exiting..."
+  exit 1
+fi
+
 echo "Creating $install_directory directory..."
 sudo mkdir -p $install_directory
-sudo chown admin:admin $install_directory
+sudo chown $install_user:$install_user $install_directory
 
 agent_url="https://github.com/semaphoreci/agent/releases/latest/download/agent_$agent_os.tar.gz"
 echo "Downloading $agent_url..."
@@ -52,7 +61,7 @@ StartLimitIntervalSec=0
 Type=simple
 Restart=always
 RestartSec=5
-User=admin
+User=$install_user
 WorkingDirectory=$install_directory
 ExecStart=$install_directory/agent start --endpoint $organization.semaphoreci.com --token $registration_token
 
