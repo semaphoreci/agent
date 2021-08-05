@@ -10,8 +10,12 @@ import (
 )
 
 type RegisterRequest struct {
-	Name string `json:"name"`
-	OS   string `json:"os"`
+	Name     string `json:"name"`
+	Version  string `json:"version"`
+	PID      int    `json:"pid"`
+	OS       string `json:"os"`
+	Arch     string `json:"arch"`
+	Hostname string `json:"hostname"`
 }
 
 type RegisterResponse struct {

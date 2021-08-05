@@ -6,10 +6,12 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/semaphoreci/agent/pkg/config"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
+	osinfo "github.com/semaphoreci/agent/pkg/osinfo"
 	"github.com/semaphoreci/agent/pkg/retry"
 	log "github.com/sirupsen/logrus"
 )
@@ -28,6 +30,7 @@ type Config struct {
 	ShutdownHookPath   string
 	DisconnectAfterJob bool
 	EnvVars            []config.HostEnvVar
+	AgentVersion       string
 }
 
 func Start(httpClient *http.Client, config Config, logger io.Writer) (*Listener, error) {
@@ -73,27 +76,24 @@ func (l *Listener) DisplayHelloMessage() {
 }
 
 func (l *Listener) Name() string {
-	hostname, err := os.Hostname()
+	randBytes := make([]byte, 20)
+
+	_, err := rand.Read(randBytes)
 	if err != nil {
 		panic(err)
 	}
 
-	randBytes := make([]byte, 10)
-
-	_, err = rand.Read(randBytes)
-	if err != nil {
-		panic(err)
-	}
-
-	randSuffix := fmt.Sprintf("%x", randBytes)
-
-	return "sh-" + hostname + "-" + randSuffix
+	return fmt.Sprintf("%x", randBytes)
 }
 
 func (l *Listener) Register() error {
 	req := &selfhostedapi.RegisterRequest{
-		Name: l.Name(),
-		OS:   "Ubuntu",
+		Version:  l.Config.AgentVersion,
+		Name:     l.Name(),
+		OS:       osinfo.Name(),
+		PID:      os.Getpid(),
+		Arch:     runtime.GOARCH,
+		Hostname: osinfo.Hostname(),
 	}
 
 	err := retry.RetryWithConstantWait("Register", l.Config.RegisterRetryLimit, time.Second, func() error {
