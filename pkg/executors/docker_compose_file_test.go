@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -58,6 +59,6 @@ services:
 
 `
 
-	compose := ConstructDockerComposeFile(conf, true)
+	compose := ConstructDockerComposeFile(conf, true, []config.FileInjection{})
 	assert.Equal(t, expected, compose)
 }

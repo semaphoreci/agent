@@ -13,6 +13,7 @@ import (
 	mux "github.com/gorilla/mux"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	log "github.com/sirupsen/logrus"
@@ -193,7 +194,12 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Debug("Creating new job")
-	job, err := jobs.NewJob(request, s.HttpClient, true)
+	job, err := jobs.NewJobWithOptions(&jobs.JobOptions{
+		Request:         request,
+		Client:          s.HttpClient,
+		ExposeKvmDevice: true,
+		FileInjections:  []config.FileInjection{},
+	})
 
 	if err != nil {
 		log.Errorf("Failed to create a new job, returning 500: %v", err)

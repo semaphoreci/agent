@@ -28,6 +28,7 @@ type Config struct {
 	ShutdownHookPath   string
 	DisconnectAfterJob bool
 	EnvVars            []config.HostEnvVar
+	FileInjections     []config.FileInjection
 }
 
 func Start(httpClient *http.Client, config Config, logger io.Writer) (*Listener, error) {

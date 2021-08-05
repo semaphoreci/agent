@@ -5,18 +5,25 @@ import (
 	"fmt"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 )
 
 type DockerComposeFile struct {
-	configuration api.Compose
+	configuration   api.Compose
+	exposeKvmDevice bool
+	fileInjections  []config.FileInjection
 }
 
-func ConstructDockerComposeFile(conf api.Compose, exposeKvmDevice bool) string {
-	f := DockerComposeFile{configuration: conf}
-	return f.Construct(exposeKvmDevice)
+func ConstructDockerComposeFile(conf api.Compose, exposeKvmDevice bool, fileInjections []config.FileInjection) string {
+	f := DockerComposeFile{
+		configuration:   conf,
+		exposeKvmDevice: exposeKvmDevice,
+		fileInjections:  fileInjections,
+	}
+	return f.Construct()
 }
 
-func (f *DockerComposeFile) Construct(exposeKvmDevice bool) string {
+func (f *DockerComposeFile) Construct() string {
 	dockerCompose := ""
 	dockerCompose += "version: \"2.0\"\n"
 	dockerCompose += "\n"
@@ -26,23 +33,23 @@ func (f *DockerComposeFile) Construct(exposeKvmDevice bool) string {
 	main, rest := f.configuration.Containers[0], f.configuration.Containers[1:]
 
 	// main service links up all the services
-	dockerCompose += f.ServiceWithLinks(main, rest, exposeKvmDevice)
+	dockerCompose += f.ServiceWithLinks(main, rest)
 	dockerCompose += "\n"
 
 	for _, c := range rest {
-		dockerCompose += f.Service(c, exposeKvmDevice)
+		dockerCompose += f.Service(c)
 		dockerCompose += "\n"
 	}
 
 	return dockerCompose
 }
 
-func (f *DockerComposeFile) Service(container api.Container, exposeKvmDevice bool) string {
+func (f *DockerComposeFile) Service(container api.Container) string {
 	result := ""
 	result += fmt.Sprintf("  %s:\n", container.Name)
 	result += fmt.Sprintf("    image: %s\n", container.Image)
 
-	if exposeKvmDevice {
+	if f.exposeKvmDevice {
 		result += "    devices:\n"
 		result += "      - \"/dev/kvm:/dev/kvm\"\n"
 	}
@@ -72,14 +79,21 @@ func (f *DockerComposeFile) Service(container api.Container, exposeKvmDevice boo
 	return result
 }
 
-func (f *DockerComposeFile) ServiceWithLinks(c api.Container, links []api.Container, exposeKvmDevice bool) string {
-	result := f.Service(c, exposeKvmDevice)
+func (f *DockerComposeFile) ServiceWithLinks(c api.Container, links []api.Container) string {
+	result := f.Service(c)
 
 	if len(links) > 0 {
 		result += "    links:\n"
 
 		for _, link := range links {
 			result += fmt.Sprintf("      - %s\n", link.Name)
+		}
+	}
+
+	if len(f.fileInjections) > 0 {
+		result += "    volumes:\n"
+		for _, fileInjection := range f.fileInjections {
+			result += fmt.Sprintf("      - %s:%s\n", fileInjection.HostPath, fileInjection.Destination)
 		}
 	}
 

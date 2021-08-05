@@ -30,32 +30,48 @@ type Job struct {
 	Finished       bool
 }
 
-func NewJob(request *api.JobRequest, client *http.Client, exposeKvmDevice bool) (*Job, error) {
-	if request.Executor == "" {
+type JobOptions struct {
+	Request         *api.JobRequest
+	Client          *http.Client
+	ExposeKvmDevice bool
+	FileInjections  []config.FileInjection
+}
+
+func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
+	return NewJobWithOptions(&JobOptions{
+		Request:         request,
+		Client:          client,
+		ExposeKvmDevice: true,
+		FileInjections:  []config.FileInjection{},
+	})
+}
+
+func NewJobWithOptions(options *JobOptions) (*Job, error) {
+	if options.Request.Executor == "" {
 		log.Infof("No executor specified - using %s executor", executors.ExecutorTypeShell)
-		request.Executor = executors.ExecutorTypeShell
+		options.Request.Executor = executors.ExecutorTypeShell
 	}
 
-	if request.Logger.Method == "" {
+	if options.Request.Logger.Method == "" {
 		log.Infof("No logger method specified - using %s logger method", eventlogger.LoggerMethodPull)
-		request.Logger.Method = eventlogger.LoggerMethodPull
+		options.Request.Logger.Method = eventlogger.LoggerMethodPull
 	}
 
-	logger, err := eventlogger.CreateLogger(request)
+	logger, err := eventlogger.CreateLogger(options.Request)
 	if err != nil {
 		return nil, err
 	}
 
-	executor, err := executors.CreateExecutor(request, logger, exposeKvmDevice)
+	executor, err := executors.CreateExecutor(options.Request, logger, options.ExposeKvmDevice, options.FileInjections)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Debugf("Job Request %+v", request)
+	log.Debugf("Job Request %+v", options.Request)
 
 	return &Job{
-		Client:         client,
-		Request:        request,
+		Client:         options.Client,
+		Request:        options.Request,
 		Executor:       executor,
 		JobLogArchived: false,
 		Stopped:        false,
@@ -65,6 +81,7 @@ func NewJob(request *api.JobRequest, client *http.Client, exposeKvmDevice bool) 
 
 type RunOptions struct {
 	EnvVars              []config.HostEnvVar
+	FileInjections       []config.FileInjection
 	OnSuccessfulTeardown func()
 	OnFailedTeardown     func()
 }
@@ -72,6 +89,7 @@ type RunOptions struct {
 func (job *Job) Run() {
 	job.RunWithOptions(RunOptions{
 		EnvVars:              []config.HostEnvVar{},
+		FileInjections:       []config.FileInjection{},
 		OnSuccessfulTeardown: nil,
 		OnFailedTeardown:     nil,
 	})

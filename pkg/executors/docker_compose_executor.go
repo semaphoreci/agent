@@ -29,14 +29,16 @@ type DockerComposeExecutor struct {
 	dockerComposeManifestPath string
 	mainContainerName         string
 	exposeKvmDevice           bool
+	fileInjections            []config.FileInjection
 }
 
-func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logger, exposeKvmDevice bool) *DockerComposeExecutor {
+func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logger, exposeKvmDevice bool, fileInjections []config.FileInjection) *DockerComposeExecutor {
 	return &DockerComposeExecutor{
 		Logger:                    logger,
 		jobRequest:                request,
 		dockerConfiguration:       request.Compose,
 		exposeKvmDevice:           exposeKvmDevice,
+		fileInjections:            fileInjections,
 		dockerComposeManifestPath: "/tmp/docker-compose.yml",
 		tmpDirectory:              "/tmp/agent-temp-directory", // make a better random name
 
@@ -56,7 +58,15 @@ func (e *DockerComposeExecutor) Prepare() int {
 		return 1
 	}
 
-	compose := ConstructDockerComposeFile(e.dockerConfiguration, e.exposeKvmDevice)
+	for _, fileInjection := range e.fileInjections {
+		err := fileInjection.CheckFileExists()
+		if err != nil {
+			log.Errorf("Error injecting file %s: %v", fileInjection.HostPath, err)
+			return 1
+		}
+	}
+
+	compose := ConstructDockerComposeFile(e.dockerConfiguration, e.exposeKvmDevice, e.fileInjections)
 	log.Debug("Compose File:")
 	log.Debug(compose)
 

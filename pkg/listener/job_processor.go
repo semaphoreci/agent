@@ -27,6 +27,7 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.Api, co
 		ShutdownHookPath:        config.ShutdownHookPath,
 		DisconnectAfterJob:      config.DisconnectAfterJob,
 		EnvVars:                 config.EnvVars,
+		FileInjections:          config.FileInjections,
 	}
 
 	go p.Start()
@@ -50,6 +51,7 @@ type JobProcessor struct {
 	StopSync                bool
 	DisconnectAfterJob      bool
 	EnvVars                 []config.HostEnvVar
+	FileInjections          []config.FileInjection
 }
 
 func (p *JobProcessor) Start() {
@@ -128,7 +130,13 @@ func (p *JobProcessor) RunJob(jobID string) {
 		return
 	}
 
-	job, err := jobs.NewJob(jobRequest, p.HttpClient, false)
+	job, err := jobs.NewJobWithOptions(&jobs.JobOptions{
+		Request:         jobRequest,
+		Client:          p.HttpClient,
+		ExposeKvmDevice: false,
+		FileInjections:  p.FileInjections,
+	})
+
 	if err != nil {
 		log.Errorf("Could not construct job %s: %v", jobID, err)
 		p.State = selfhostedapi.AgentStateFailedToConstructJob
@@ -141,6 +149,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 
 	go job.RunWithOptions(jobs.RunOptions{
 		EnvVars:              p.EnvVars,
+		FileInjections:       p.FileInjections,
 		OnSuccessfulTeardown: p.JobFinished,
 		OnFailedTeardown: func() {
 			if p.DisconnectAfterJob {
