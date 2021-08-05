@@ -92,11 +92,12 @@ If StatsD flags are not provided, the Agent will not publish any StatsD metric.
 ### Using systemd
 
 ```
-sudo ./install.sh \
-  -o <your-organization> \
-  -t <your-agent-type-token>
+curl -sL https://raw.githubusercontent.com/semaphoreci/agent/agent-as-systemd-service/install.sh -o install.sh
+chmod +x install.sh
+sudo ./install.sh
 ```
 
-If everything works ok, you should now have a `semaphore-agent` systemd service:
-- Stopping service: `sudo systemctl semaphore-agent stop`
-- Following logs: `sudo journalctl -u semaphore-agent -f`
+Follow the prompts and if everything works out, you end up with a `semaphore-agent` service:
+- `systemctl status semaphore-agent` to check status
+- `systemctl stop semaphore-agent` to stop it
+- `sudo journalctl -u semaphore-agent -f` to follow logs

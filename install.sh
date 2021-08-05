@@ -1,5 +1,8 @@
 #!/bin/bash
 
+set -e
+set -o pipefail
+
 if [[ "$EUID" -ne 0 ]]; then
   echo "Please run with sudo."
   exit 1
