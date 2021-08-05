@@ -79,6 +79,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	disconnectAfterJob := pflag.Bool("disconnect-after-job", false, "Disconnect after job")
 	envVars := pflag.StringSlice("env-vars", []string{}, "Export environment variables in jobs")
 	files := pflag.StringSlice("files", []string{}, "Inject files into container, when using docker compose executor")
+	failOnMissingFiles := pflag.Bool("fail-on-missing-files", false, "Fail job if files specified using --files are missing")
 
 	pflag.Parse()
 
@@ -106,6 +107,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		DisconnectAfterJob: *disconnectAfterJob,
 		EnvVars:            hostEnvVars,
 		FileInjections:     fileInjections,
+		FailOnMissingFiles: *failOnMissingFiles,
 	}
 
 	go func() {

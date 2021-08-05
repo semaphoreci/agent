@@ -31,18 +31,20 @@ type Job struct {
 }
 
 type JobOptions struct {
-	Request         *api.JobRequest
-	Client          *http.Client
-	ExposeKvmDevice bool
-	FileInjections  []config.FileInjection
+	Request            *api.JobRequest
+	Client             *http.Client
+	ExposeKvmDevice    bool
+	FileInjections     []config.FileInjection
+	FailOnMissingFiles bool
 }
 
 func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
 	return NewJobWithOptions(&JobOptions{
-		Request:         request,
-		Client:          client,
-		ExposeKvmDevice: true,
-		FileInjections:  []config.FileInjection{},
+		Request:            request,
+		Client:             client,
+		ExposeKvmDevice:    true,
+		FileInjections:     []config.FileInjection{},
+		FailOnMissingFiles: false,
 	})
 }
 
@@ -62,7 +64,7 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 		return nil, err
 	}
 
-	executor, err := executors.CreateExecutor(options.Request, logger, options.ExposeKvmDevice, options.FileInjections)
+	executor, err := CreateExecutor(options.Request, logger, *options)
 	if err != nil {
 		return nil, err
 	}
@@ -77,6 +79,23 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 		Stopped:        false,
 		Logger:         logger,
 	}, nil
+}
+
+func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOptions JobOptions) (executors.Executor, error) {
+	switch request.Executor {
+	case executors.ExecutorTypeShell:
+		return executors.NewShellExecutor(request, logger), nil
+	case executors.ExecutorTypeDockerCompose:
+		executorOptions := executors.DockerComposeExecutorOptions{
+			ExposeKvmDevice:    jobOptions.ExposeKvmDevice,
+			FileInjections:     jobOptions.FileInjections,
+			FailOnMissingFiles: jobOptions.FailOnMissingFiles,
+		}
+
+		return executors.NewDockerComposeExecutor(request, logger, executorOptions), nil
+	default:
+		return nil, fmt.Errorf("unknown executor type")
+	}
 }
 
 type RunOptions struct {

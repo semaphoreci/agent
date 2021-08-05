@@ -28,6 +28,7 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.Api, co
 		DisconnectAfterJob:      config.DisconnectAfterJob,
 		EnvVars:                 config.EnvVars,
 		FileInjections:          config.FileInjections,
+		FailOnMissingFiles:      config.FailOnMissingFiles,
 	}
 
 	go p.Start()
@@ -52,6 +53,7 @@ type JobProcessor struct {
 	DisconnectAfterJob      bool
 	EnvVars                 []config.HostEnvVar
 	FileInjections          []config.FileInjection
+	FailOnMissingFiles      bool
 }
 
 func (p *JobProcessor) Start() {
@@ -131,10 +133,11 @@ func (p *JobProcessor) RunJob(jobID string) {
 	}
 
 	job, err := jobs.NewJobWithOptions(&jobs.JobOptions{
-		Request:         jobRequest,
-		Client:          p.HttpClient,
-		ExposeKvmDevice: false,
-		FileInjections:  p.FileInjections,
+		Request:            jobRequest,
+		Client:             p.HttpClient,
+		ExposeKvmDevice:    false,
+		FileInjections:     p.FileInjections,
+		FailOnMissingFiles: p.FailOnMissingFiles,
 	})
 
 	if err != nil {

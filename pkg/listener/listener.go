@@ -29,6 +29,7 @@ type Config struct {
 	DisconnectAfterJob bool
 	EnvVars            []config.HostEnvVar
 	FileInjections     []config.FileInjection
+	FailOnMissingFiles bool
 }
 
 func Start(httpClient *http.Client, config Config, logger io.Writer) (*Listener, error) {
