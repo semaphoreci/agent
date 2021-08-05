@@ -58,6 +58,6 @@ services:
 
 `
 
-	compose := ConstructDockerComposeFile(conf)
+	compose := ConstructDockerComposeFile(conf, true)
 	assert.Equal(t, expected, compose)
 }
