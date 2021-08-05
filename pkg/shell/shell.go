@@ -166,16 +166,20 @@ func (s *Shell) NewProcess(command string) *Process {
 }
 
 func (s *Shell) Close() error {
-	err := s.TTY.Close()
-	if err != nil {
-		log.Errorf("Closing the TTY returned an error: %v", err)
-		return err
+	if s.TTY != nil {
+		err := s.TTY.Close()
+		if err != nil {
+			log.Errorf("Closing the TTY returned an error: %v", err)
+			return err
+		}
 	}
 
-	err = s.BootCommand.Process.Kill()
-	if err != nil {
-		log.Errorf("Process killing procedure returned an error %+v", err)
-		return err
+	if s.BootCommand.Process != nil {
+		err := s.BootCommand.Process.Kill()
+		if err != nil {
+			log.Errorf("Process killing procedure returned an error %+v", err)
+			return err
+		}
 	}
 
 	return nil
