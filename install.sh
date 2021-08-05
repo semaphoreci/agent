@@ -24,21 +24,23 @@ agent_version=latest
 read -p "Enter architecture [Linux_x86_64]: " agent_os
 agent_os="${agent_os:=Linux_x86_64}"
 
-SEMAPHORE_DIRECTORY=/opt/semaphore
-echo "Creating $SEMAPHORE_DIRECTORY directory..."
-sudo mkdir -p $SEMAPHORE_DIRECTORY
-sudo chown admin:admin $SEMAPHORE_DIRECTORY
+read -p "Enter installation directory [/opt/semaphore]: " install_directory
+install_directory="${install_directory:=/opt/semaphore}"
+
+echo "Creating $install_directory directory..."
+sudo mkdir -p $install_directory
+sudo chown admin:admin $install_directory
 
 agent_url="https://github.com/semaphoreci/agent/releases/latest/download/agent_$agent_os.tar.gz"
 echo "Downloading $agent_url..."
-status_code=$(curl -w "%{http_code}" -sL $agent_url -o $SEMAPHORE_DIRECTORY/agent.tar.gz)
+status_code=$(curl -w "%{http_code}" -sL $agent_url -o $install_directory/agent.tar.gz)
 if [[ $status_code -ne "200" ]]; then
   echo "Error downloading agent: $status_code"
   exit 1
 fi
 
-echo "Extracting $SEMAPHORE_DIRECTORY/agent.tar.gz..."
-tar -xf $SEMAPHORE_DIRECTORY/agent.tar.gz -C $SEMAPHORE_DIRECTORY
+echo "Extracting $install_directory/agent.tar.gz..."
+tar -xf $install_directory/agent.tar.gz -C $install_directory
 
 SYSTEMD_SERVICE=$(cat <<-END
 [Unit]
@@ -51,8 +53,8 @@ Type=simple
 Restart=always
 RestartSec=5
 User=admin
-WorkingDirectory=/opt/semaphore
-ExecStart=/opt/semaphore/agent start --endpoint $organization.semaphoreci.com --token $registration_token
+WorkingDirectory=$install_directory
+ExecStart=$install_directory/agent start --endpoint $organization.semaphoreci.com --token $registration_token
 
 [Install]
 WantedBy=multi-user.target
