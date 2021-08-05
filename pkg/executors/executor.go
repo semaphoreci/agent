@@ -8,7 +8,7 @@ import (
 )
 
 type Executor interface {
-	Prepare() int
+	Prepare(bool) int
 	Start() int
 	ExportEnvVars([]api.EnvVar) int
 	InjectFiles([]api.File) int

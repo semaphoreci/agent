@@ -42,7 +42,7 @@ func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logge
 	}
 }
 
-func (e *DockerComposeExecutor) Prepare() int {
+func (e *DockerComposeExecutor) Prepare(exposeKvmDevice bool) int {
 	err := os.MkdirAll(e.tmpDirectory, os.ModePerm)
 	if err != nil {
 		return 1
@@ -53,7 +53,7 @@ func (e *DockerComposeExecutor) Prepare() int {
 		return 1
 	}
 
-	compose := ConstructDockerComposeFile(e.dockerConfiguration)
+	compose := ConstructDockerComposeFile(e.dockerConfiguration, exposeKvmDevice)
 	log.Debug("Compose File:")
 	log.Debug(compose)
 

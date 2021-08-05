@@ -32,7 +32,7 @@ func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger) *Shel
 	}
 }
 
-func (e *ShellExecutor) Prepare() int {
+func (e *ShellExecutor) Prepare(exposeKvmDevice bool) int {
 	return e.setUpSSHJumpPoint()
 }
 

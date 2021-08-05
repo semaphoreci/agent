@@ -62,18 +62,28 @@ func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
 	}, nil
 }
 
-func (job *Job) Run() {
-	job.RunWithCallbacks(nil, nil)
+type RunOptions struct {
+	OnSuccessfulTeardown func()
+	OnFailedTeardown     func()
+	ExposeKvmDevice      bool
 }
 
-func (job *Job) RunWithCallbacks(onSuccessfulTeardown func(), onFailedTeardown func()) {
+func (job *Job) Run() {
+	job.RunWithOptions(RunOptions{
+		OnSuccessfulTeardown: nil,
+		OnFailedTeardown:     nil,
+		ExposeKvmDevice:      true,
+	})
+}
+
+func (job *Job) RunWithOptions(options RunOptions) {
 	log.Infof("Running job %s", job.Request.ID)
 	executorRunning := false
 	result := JOB_FAILED
 
 	job.Logger.LogJobStarted()
 
-	exitCode := job.PrepareEnvironment()
+	exitCode := job.PrepareEnvironment(options.ExposeKvmDevice)
 	if exitCode == 0 {
 		executorRunning = true
 	} else {
@@ -96,9 +106,9 @@ func (job *Job) RunWithCallbacks(onSuccessfulTeardown func(), onFailedTeardown f
 
 	err := job.Teardown(result)
 	if err != nil {
-		callFuncIfNotNull(onFailedTeardown)
+		callFuncIfNotNull(options.OnFailedTeardown)
 	} else {
-		callFuncIfNotNull(onSuccessfulTeardown)
+		callFuncIfNotNull(options.OnSuccessfulTeardown)
 	}
 
 	job.Finished = true
@@ -109,8 +119,8 @@ func (job *Job) RunWithCallbacks(onSuccessfulTeardown func(), onFailedTeardown f
 	}
 }
 
-func (job *Job) PrepareEnvironment() int {
-	exitCode := job.Executor.Prepare()
+func (job *Job) PrepareEnvironment(exposeKvmDevice bool) int {
+	exitCode := job.Executor.Prepare(exposeKvmDevice)
 	if exitCode != 0 {
 		log.Error("Failed to prepare executor")
 		return exitCode

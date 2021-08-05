@@ -15,7 +15,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-
 func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.Api, shutdownHookPath string, disconnectAfterJob bool) (*JobProcessor, error) {
 	p := &JobProcessor{
 		HttpClient:              httpClient,
@@ -137,12 +136,16 @@ func (p *JobProcessor) RunJob(jobID string) {
 	p.CurrentJobID = jobID
 	p.CurrentJob = job
 
-	go job.RunWithCallbacks(p.JobFinished, func() {
-		if p.DisconnectAfterJob {
-			p.Shutdown("Job finished with error", 1)
-		} else {
-			p.State = selfhostedapi.AgentStateFailedToSendCallback
-		}
+	go job.RunWithOptions(jobs.RunOptions{
+		ExposeKvmDevice:      false,
+		OnSuccessfulTeardown: p.JobFinished,
+		OnFailedTeardown: func() {
+			if p.DisconnectAfterJob {
+				p.Shutdown("Job finished with error", 1)
+			} else {
+				p.State = selfhostedapi.AgentStateFailedToSendCallback
+			}
+		},
 	})
 }
 
