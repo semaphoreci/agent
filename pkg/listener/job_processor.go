@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
 	"github.com/semaphoreci/agent/pkg/retry"
 	log "github.com/sirupsen/logrus"
 )
 
-func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.Api, shutdownHookPath string, disconnectAfterJob bool) (*JobProcessor, error) {
+func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.Api, config Config) (*JobProcessor, error) {
 	p := &JobProcessor{
 		HttpClient:              httpClient,
 		ApiClient:               apiClient,
@@ -23,8 +24,9 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.Api, sh
 		State:                   selfhostedapi.AgentStateWaitingForJobs,
 		SyncInterval:            5 * time.Second,
 		DisconnectRetryAttempts: 100,
-		ShutdownHookPath:        shutdownHookPath,
-		DisconnectAfterJob:      disconnectAfterJob,
+		ShutdownHookPath:        config.ShutdownHookPath,
+		DisconnectAfterJob:      config.DisconnectAfterJob,
+		EnvVars:                 config.EnvVars,
 	}
 
 	go p.Start()
@@ -47,6 +49,7 @@ type JobProcessor struct {
 	ShutdownHookPath        string
 	StopSync                bool
 	DisconnectAfterJob      bool
+	EnvVars                 []config.HostEnvVar
 }
 
 func (p *JobProcessor) Start() {
@@ -137,6 +140,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 	p.CurrentJob = job
 
 	go job.RunWithOptions(jobs.RunOptions{
+		EnvVars:              p.EnvVars,
 		OnSuccessfulTeardown: p.JobFinished,
 		OnFailedTeardown: func() {
 			if p.DisconnectAfterJob {

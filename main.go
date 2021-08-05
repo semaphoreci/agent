@@ -6,10 +6,12 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	watchman "github.com/renderedtext/go-watchman"
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 	"github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	listener "github.com/semaphoreci/agent/pkg/listener"
@@ -75,12 +77,18 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	noHttps := pflag.Bool("no-https", false, "Use http for communication")
 	shutdownHookPath := pflag.String("shutdown-hook-path", "", "Shutdown hook path")
 	disconnectAfterJob := pflag.Bool("disconnect-after-job", false, "Disconnect after job")
+	envVars := pflag.StringSlice("env-vars", []string{}, "Export environment variables in jobs")
 
 	pflag.Parse()
 
 	scheme := "https"
 	if *noHttps {
 		scheme = "http"
+	}
+
+	hostEnvVars, err := ParseEnvVars(*envVars)
+	if err != nil {
+		log.Fatalf("Error parsing environment variables: %v", err)
 	}
 
 	config := listener.Config{
@@ -90,6 +98,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		Scheme:             scheme,
 		ShutdownHookPath:   *shutdownHookPath,
 		DisconnectAfterJob: *disconnectAfterJob,
+		EnvVars:            hostEnvVars,
 	}
 
 	go func() {
@@ -100,6 +109,23 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	}()
 
 	select {}
+}
+
+func ParseEnvVars(envVars []string) ([]config.HostEnvVar, error) {
+	vars := []config.HostEnvVar{}
+	for _, envVar := range envVars {
+		nameAndValue := strings.Split(envVar, "=")
+		if len(nameAndValue) != 2 {
+			return nil, fmt.Errorf("%s is not a valid environment variable", envVar)
+		}
+
+		vars = append(vars, config.HostEnvVar{
+			Name:  nameAndValue[0],
+			Value: nameAndValue[1],
+		})
+	}
+
+	return vars, nil
 }
 
 func RunServer(httpClient *http.Client, logfile io.Writer) {

@@ -13,6 +13,7 @@ import (
 	pty "github.com/kr/pty"
 	watchman "github.com/renderedtext/go-watchman"
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	shell "github.com/semaphoreci/agent/pkg/shell"
 	log "github.com/sirupsen/logrus"
@@ -40,7 +41,7 @@ func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logge
 		tmpDirectory:              "/tmp/agent-temp-directory", // make a better random name
 
 		// during testing the name main gets taken up, if we make it random we avoid headaches
-		mainContainerName: fmt.Sprintf("%s", request.Compose.Containers[0].Name),
+		mainContainerName: request.Compose.Containers[0].Name,
 	}
 }
 
@@ -522,9 +523,9 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	return exitCode
 }
 
-func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar) int {
+func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config.HostEnvVar) int {
 	commandStartedAt := int(time.Now().Unix())
-	directive := fmt.Sprintf("Exporting environment variables")
+	directive := "Exporting environment variables"
 	exitCode := 0
 
 	e.Logger.LogCommandStarted(directive)
@@ -548,6 +549,11 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar) int {
 		}
 
 		envFile += fmt.Sprintf("export %s=%s\n", env.Name, ShellQuote(string(value)))
+	}
+
+	for _, env := range hostEnvVars {
+		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", env.Name))
+		envFile += fmt.Sprintf("export %s=%s\n", env.Name, ShellQuote(env.Value))
 	}
 
 	envPath := fmt.Sprintf("%s/.env", e.tmpDirectory)
@@ -574,7 +580,7 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar) int {
 }
 
 func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
-	directive := fmt.Sprintf("Injecting Files")
+	directive := "Injecting Files"
 	commandStartedAt := int(time.Now().Unix())
 	exitCode := 0
 
