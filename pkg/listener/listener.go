@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/semaphoreci/agent/pkg/config"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
 	"github.com/semaphoreci/agent/pkg/retry"
 	log "github.com/sirupsen/logrus"
@@ -26,6 +27,7 @@ type Config struct {
 	Scheme             string
 	ShutdownHookPath   string
 	DisconnectAfterJob bool
+	EnvVars            []config.HostEnvVar
 }
 
 func Start(httpClient *http.Client, config Config, logger io.Writer) (*Listener, error) {
@@ -44,7 +46,7 @@ func Start(httpClient *http.Client, config Config, logger io.Writer) (*Listener,
 	}
 
 	log.Info("Starting to poll for jobs")
-	jobProcessor, err := StartJobProcessor(httpClient, listener.Client, config.ShutdownHookPath, config.DisconnectAfterJob)
+	jobProcessor, err := StartJobProcessor(httpClient, listener.Client, listener.Config)
 	if err != nil {
 		return listener, err
 	}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	executors "github.com/semaphoreci/agent/pkg/executors"
 	"github.com/semaphoreci/agent/pkg/retry"
@@ -63,12 +64,14 @@ func NewJob(request *api.JobRequest, client *http.Client, exposeKvmDevice bool) 
 }
 
 type RunOptions struct {
+	EnvVars              []config.HostEnvVar
 	OnSuccessfulTeardown func()
 	OnFailedTeardown     func()
 }
 
 func (job *Job) Run() {
 	job.RunWithOptions(RunOptions{
+		EnvVars:              []config.HostEnvVar{},
 		OnSuccessfulTeardown: nil,
 		OnFailedTeardown:     nil,
 	})
@@ -89,7 +92,7 @@ func (job *Job) RunWithOptions(options RunOptions) {
 	}
 
 	if executorRunning {
-		result = job.RunRegularCommands()
+		result = job.RunRegularCommands(options.EnvVars)
 		log.Debug("Exporting job result")
 		job.RunCommandsUntilFirstFailure([]api.Command{
 			{
@@ -133,8 +136,8 @@ func (job *Job) PrepareEnvironment() int {
 	return 0
 }
 
-func (job *Job) RunRegularCommands() string {
-	exitCode := job.Executor.ExportEnvVars(job.Request.EnvVars)
+func (job *Job) RunRegularCommands(hostEnvVars []config.HostEnvVar) string {
+	exitCode := job.Executor.ExportEnvVars(job.Request.EnvVars, hostEnvVars)
 	if exitCode != 0 {
 		log.Error("Failed to export env vars")
 

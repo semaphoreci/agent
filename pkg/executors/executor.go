@@ -4,13 +4,14 @@ import (
 	"fmt"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 )
 
 type Executor interface {
 	Prepare() int
 	Start() int
-	ExportEnvVars([]api.EnvVar) int
+	ExportEnvVars([]api.EnvVar, []config.HostEnvVar) int
 	InjectFiles([]api.File) int
 	RunCommand(string, bool, string) int
 	Stop() int
@@ -27,6 +28,6 @@ func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, exposeK
 	case ExecutorTypeDockerCompose:
 		return NewDockerComposeExecutor(request, logger, exposeKvmDevice), nil
 	default:
-		return nil, fmt.Errorf("Uknown executor type")
+		return nil, fmt.Errorf("unknown executor type")
 	}
 }

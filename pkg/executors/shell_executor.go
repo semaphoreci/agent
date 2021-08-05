@@ -9,6 +9,7 @@ import (
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	shell "github.com/semaphoreci/agent/pkg/shell"
 	log "github.com/sirupsen/logrus"
@@ -83,9 +84,9 @@ func (e *ShellExecutor) Start() int {
 	return 0
 }
 
-func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar) int {
+func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config.HostEnvVar) int {
 	commandStartedAt := int(time.Now().Unix())
-	directive := fmt.Sprintf("Exporting environment variables")
+	directive := "Exporting environment variables"
 	exitCode := 0
 
 	e.Logger.LogCommandStarted(directive)
@@ -111,6 +112,11 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar) int {
 		envFile += fmt.Sprintf("export %s=%s\n", env.Name, ShellQuote(string(value)))
 	}
 
+	for _, env := range hostEnvVars {
+		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", env.Name))
+		envFile += fmt.Sprintf("export %s=%s\n", env.Name, ShellQuote(env.Value))
+	}
+
 	err := ioutil.WriteFile("/tmp/.env", []byte(envFile), 0644)
 
 	if err != nil {
@@ -132,7 +138,7 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar) int {
 }
 
 func (e *ShellExecutor) InjectFiles(files []api.File) int {
-	directive := fmt.Sprintf("Injecting Files")
+	directive := "Injecting Files"
 	commandStartedAt := int(time.Now().Unix())
 	exitCode := 0
 
