@@ -77,7 +77,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	noHttps := pflag.Bool("no-https", false, "Use http for communication")
 	shutdownHookPath := pflag.String("shutdown-hook-path", "", "Shutdown hook path")
 	disconnectAfterJob := pflag.Bool("disconnect-after-job", false, "Disconnect after job")
-	envVars := pflag.StringSlice("env-vars", []string{}, "Environment variables to expose to jobs")
+	envVars := pflag.StringSlice("env-vars", []string{}, "Export environment variables in jobs")
 
 	pflag.Parse()
 
@@ -112,17 +112,20 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 }
 
 func ParseEnvVars(envVars []string) ([]config.HostEnvVar, error) {
-	converted := []config.HostEnvVar{}
+	vars := []config.HostEnvVar{}
 	for _, envVar := range envVars {
 		nameAndValue := strings.Split(envVar, "=")
 		if len(nameAndValue) != 2 {
 			return nil, fmt.Errorf("%s is not a valid environment variable", envVar)
 		}
 
-		converted = append(converted, config.HostEnvVar{Name: nameAndValue[0], Value: nameAndValue[1]})
+		vars = append(vars, config.HostEnvVar{
+			Name:  nameAndValue[0],
+			Value: nameAndValue[1],
+		})
 	}
 
-	return converted, nil
+	return vars, nil
 }
 
 func RunServer(httpClient *http.Client, logfile io.Writer) {
