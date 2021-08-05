@@ -193,7 +193,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Debug("Creating new job")
-	job, err := jobs.NewJob(request, s.HttpClient)
+	job, err := jobs.NewJob(request, s.HttpClient, true)
 
 	if err != nil {
 		log.Errorf("Failed to create a new job, returning 500: %v", err)

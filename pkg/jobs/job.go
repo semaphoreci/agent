@@ -29,7 +29,7 @@ type Job struct {
 	Finished       bool
 }
 
-func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
+func NewJob(request *api.JobRequest, client *http.Client, exposeKvmDevice bool) (*Job, error) {
 	if request.Executor == "" {
 		log.Infof("No executor specified - using %s executor", executors.ExecutorTypeShell)
 		request.Executor = executors.ExecutorTypeShell
@@ -45,7 +45,7 @@ func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
 		return nil, err
 	}
 
-	executor, err := executors.CreateExecutor(request, logger)
+	executor, err := executors.CreateExecutor(request, logger, exposeKvmDevice)
 	if err != nil {
 		return nil, err
 	}
@@ -62,11 +62,19 @@ func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
 	}, nil
 }
 
-func (job *Job) Run() {
-	job.RunWithCallbacks(nil, nil)
+type RunOptions struct {
+	OnSuccessfulTeardown func()
+	OnFailedTeardown     func()
 }
 
-func (job *Job) RunWithCallbacks(onSuccessfulTeardown func(), onFailedTeardown func()) {
+func (job *Job) Run() {
+	job.RunWithOptions(RunOptions{
+		OnSuccessfulTeardown: nil,
+		OnFailedTeardown:     nil,
+	})
+}
+
+func (job *Job) RunWithOptions(options RunOptions) {
 	log.Infof("Running job %s", job.Request.ID)
 	executorRunning := false
 	result := JOB_FAILED
@@ -96,9 +104,9 @@ func (job *Job) RunWithCallbacks(onSuccessfulTeardown func(), onFailedTeardown f
 
 	err := job.Teardown(result)
 	if err != nil {
-		callFuncIfNotNull(onFailedTeardown)
+		callFuncIfNotNull(options.OnFailedTeardown)
 	} else {
-		callFuncIfNotNull(onSuccessfulTeardown)
+		callFuncIfNotNull(options.OnSuccessfulTeardown)
 	}
 
 	job.Finished = true

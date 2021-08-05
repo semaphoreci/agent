@@ -20,12 +20,12 @@ type Executor interface {
 const ExecutorTypeShell = "shell"
 const ExecutorTypeDockerCompose = "dockercompose"
 
-func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger) (Executor, error) {
+func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, exposeKvmDevice bool) (Executor, error) {
 	switch request.Executor {
 	case ExecutorTypeShell:
 		return NewShellExecutor(request, logger), nil
 	case ExecutorTypeDockerCompose:
-		return NewDockerComposeExecutor(request, logger), nil
+		return NewDockerComposeExecutor(request, logger, exposeKvmDevice), nil
 	default:
 		return nil, fmt.Errorf("Uknown executor type")
 	}

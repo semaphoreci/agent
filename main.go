@@ -145,7 +145,7 @@ func RunSingleJob(httpClient *http.Client) {
 		panic(err)
 	}
 
-	job, err := jobs.NewJob(request, httpClient)
+	job, err := jobs.NewJob(request, httpClient, true)
 	if err != nil {
 		panic(err)
 	}
