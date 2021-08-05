@@ -168,6 +168,7 @@ func (e *DockerComposeExecutor) startBashSession() int {
 		"-f",
 		e.dockerComposeManifestPath,
 		"run",
+		"--rm",
 		"--name",
 		e.mainContainerName,
 		"-v",
@@ -482,6 +483,7 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 		"-f",
 		e.dockerComposeManifestPath,
 		"run",
+		"--rm",
 		e.mainContainerName,
 		"true")
 
