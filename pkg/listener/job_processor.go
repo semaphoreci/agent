@@ -125,7 +125,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 		return
 	}
 
-	job, err := jobs.NewJob(jobRequest, p.HttpClient)
+	job, err := jobs.NewJob(jobRequest, p.HttpClient, false)
 	if err != nil {
 		log.Errorf("Could not construct job %s: %v", jobID, err)
 		p.State = selfhostedapi.AgentStateFailedToConstructJob
@@ -137,7 +137,6 @@ func (p *JobProcessor) RunJob(jobID string) {
 	p.CurrentJob = job
 
 	go job.RunWithOptions(jobs.RunOptions{
-		ExposeKvmDevice:      false,
 		OnSuccessfulTeardown: p.JobFinished,
 		OnFailedTeardown: func() {
 			if p.DisconnectAfterJob {

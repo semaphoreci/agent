@@ -27,13 +27,15 @@ type DockerComposeExecutor struct {
 	dockerConfiguration       api.Compose
 	dockerComposeManifestPath string
 	mainContainerName         string
+	exposeKvmDevice           bool
 }
 
-func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logger) *DockerComposeExecutor {
+func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logger, exposeKvmDevice bool) *DockerComposeExecutor {
 	return &DockerComposeExecutor{
 		Logger:                    logger,
 		jobRequest:                request,
 		dockerConfiguration:       request.Compose,
+		exposeKvmDevice:           exposeKvmDevice,
 		dockerComposeManifestPath: "/tmp/docker-compose.yml",
 		tmpDirectory:              "/tmp/agent-temp-directory", // make a better random name
 
@@ -42,7 +44,7 @@ func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logge
 	}
 }
 
-func (e *DockerComposeExecutor) Prepare(exposeKvmDevice bool) int {
+func (e *DockerComposeExecutor) Prepare() int {
 	err := os.MkdirAll(e.tmpDirectory, os.ModePerm)
 	if err != nil {
 		return 1
@@ -53,7 +55,7 @@ func (e *DockerComposeExecutor) Prepare(exposeKvmDevice bool) int {
 		return 1
 	}
 
-	compose := ConstructDockerComposeFile(e.dockerConfiguration, exposeKvmDevice)
+	compose := ConstructDockerComposeFile(e.dockerConfiguration, e.exposeKvmDevice)
 	log.Debug("Compose File:")
 	log.Debug(compose)
 

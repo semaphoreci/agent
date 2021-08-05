@@ -48,9 +48,9 @@ func startComposeExecutor() (*DockerComposeExecutor, *eventlogger.Logger, *event
 
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 
-	e := NewDockerComposeExecutor(request, testLogger)
+	e := NewDockerComposeExecutor(request, testLogger, true)
 
-	if code := e.Prepare(true); code != 0 {
+	if code := e.Prepare(); code != 0 {
 		panic("Prapare failed")
 	}
 

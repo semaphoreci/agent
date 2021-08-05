@@ -29,7 +29,7 @@ type Job struct {
 	Finished       bool
 }
 
-func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
+func NewJob(request *api.JobRequest, client *http.Client, exposeKvmDevice bool) (*Job, error) {
 	if request.Executor == "" {
 		log.Infof("No executor specified - using %s executor", executors.ExecutorTypeShell)
 		request.Executor = executors.ExecutorTypeShell
@@ -45,7 +45,7 @@ func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
 		return nil, err
 	}
 
-	executor, err := executors.CreateExecutor(request, logger)
+	executor, err := executors.CreateExecutor(request, logger, exposeKvmDevice)
 	if err != nil {
 		return nil, err
 	}
@@ -65,14 +65,12 @@ func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
 type RunOptions struct {
 	OnSuccessfulTeardown func()
 	OnFailedTeardown     func()
-	ExposeKvmDevice      bool
 }
 
 func (job *Job) Run() {
 	job.RunWithOptions(RunOptions{
 		OnSuccessfulTeardown: nil,
 		OnFailedTeardown:     nil,
-		ExposeKvmDevice:      true,
 	})
 }
 
@@ -83,7 +81,7 @@ func (job *Job) RunWithOptions(options RunOptions) {
 
 	job.Logger.LogJobStarted()
 
-	exitCode := job.PrepareEnvironment(options.ExposeKvmDevice)
+	exitCode := job.PrepareEnvironment()
 	if exitCode == 0 {
 		executorRunning = true
 	} else {
@@ -119,8 +117,8 @@ func (job *Job) RunWithOptions(options RunOptions) {
 	}
 }
 
-func (job *Job) PrepareEnvironment(exposeKvmDevice bool) int {
-	exitCode := job.Executor.Prepare(exposeKvmDevice)
+func (job *Job) PrepareEnvironment() int {
+	exitCode := job.Executor.Prepare()
 	if exitCode != 0 {
 		log.Error("Failed to prepare executor")
 		return exitCode
