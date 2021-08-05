@@ -24,7 +24,7 @@ func Test__ShellExecutor(t *testing.T) {
 
 	e := NewShellExecutor(request, testLogger)
 
-	e.Prepare()
+	e.Prepare(true)
 	e.Start()
 
 	e.RunCommand("echo 'here'", false, "")
@@ -103,7 +103,7 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 
 	e := NewShellExecutor(request, testLogger)
 
-	e.Prepare()
+	e.Prepare(true)
 	e.Start()
 
 	go func() {
@@ -140,7 +140,7 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 
 	e := NewShellExecutor(request, testLogger)
 
-	e.Prepare()
+	e.Prepare(true)
 	e.Start()
 
 	go func() {
