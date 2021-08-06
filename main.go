@@ -138,20 +138,20 @@ func ParseEnvVars(envVars []string) ([]config.HostEnvVar, error) {
 }
 
 func ParseFiles(files []string) ([]config.FileInjection, error) {
-	FileInjections := []config.FileInjection{}
+	fileInjections := []config.FileInjection{}
 	for _, file := range files {
 		hostPathAndDestination := strings.Split(file, ":")
 		if len(hostPathAndDestination) != 2 {
 			return nil, fmt.Errorf("%s is not a valid file injection", file)
 		}
 
-		FileInjections = append(FileInjections, config.FileInjection{
+		fileInjections = append(fileInjections, config.FileInjection{
 			HostPath:    hostPathAndDestination[0],
 			Destination: hostPathAndDestination[1],
 		})
 	}
 
-	return FileInjections, nil
+	return fileInjections, nil
 }
 
 func RunServer(httpClient *http.Client, logfile io.Writer) {
