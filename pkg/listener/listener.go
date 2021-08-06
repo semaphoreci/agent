@@ -1,9 +1,9 @@
 package listener
 
 import (
-	"crypto/rand"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"os"
 	"runtime"
@@ -75,15 +75,15 @@ func (l *Listener) DisplayHelloMessage() {
 	fmt.Println("                                      ")
 }
 
+const nameLetters = "abcdefghijklmnopqrstuvwxyz123456789"
+const nameLength = 20
+
 func (l *Listener) Name() string {
-	randBytes := make([]byte, 20)
-
-	_, err := rand.Read(randBytes)
-	if err != nil {
-		panic(err)
+	b := make([]byte, nameLength)
+	for i := range b {
+		b[i] = nameLetters[rand.Intn(len(nameLetters))]
 	}
-
-	return fmt.Sprintf("%x", randBytes)
+	return string(b)
 }
 
 func (l *Listener) Register() error {
