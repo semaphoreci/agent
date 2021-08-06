@@ -91,6 +91,8 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 
 	viper.BindPFlags(pflag.CommandLine)
 
+	validateConfiguration()
+
 	if viper.GetString(config.ENDPOINT) == "" {
 		log.Fatal("Semaphore endpoint was not specified. Exiting...")
 	}
@@ -144,6 +146,24 @@ func loadConfigFile(configFile string) {
 			log.Fatalf("Couldn't find config file %s: %v", configFile, err)
 		} else {
 			log.Fatalf("Error reading config file %s: %v", configFile, err)
+		}
+	}
+}
+
+func validateConfiguration() {
+	contains := func(list []string, item string) bool {
+		for _, x := range list {
+			if x == item {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	for _, key := range viper.AllKeys() {
+		if !contains(config.VALID_CONFIG_KEYS, key) {
+			log.Fatalf("Unrecognized option '%s'. Exiting...", key)
 		}
 	}
 }

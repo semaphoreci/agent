@@ -14,6 +14,18 @@ const (
 	FAIL_ON_MISSING_FILES = "fail-on-missing-files"
 )
 
+var VALID_CONFIG_KEYS = []string{
+	CONFIG_FILE,
+	ENDPOINT,
+	TOKEN,
+	NO_HTTPS,
+	SHUTDOWN_HOOK_PATH,
+	DISCONNECT_AFTER_JOB,
+	ENV_VARS,
+	FILES,
+	FAIL_ON_MISSING_FILES,
+}
+
 type HostEnvVar struct {
 	Name  string
 	Value string
