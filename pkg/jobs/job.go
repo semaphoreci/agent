@@ -30,32 +30,50 @@ type Job struct {
 	Finished       bool
 }
 
-func NewJob(request *api.JobRequest, client *http.Client, exposeKvmDevice bool) (*Job, error) {
-	if request.Executor == "" {
+type JobOptions struct {
+	Request            *api.JobRequest
+	Client             *http.Client
+	ExposeKvmDevice    bool
+	FileInjections     []config.FileInjection
+	FailOnMissingFiles bool
+}
+
+func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
+	return NewJobWithOptions(&JobOptions{
+		Request:            request,
+		Client:             client,
+		ExposeKvmDevice:    true,
+		FileInjections:     []config.FileInjection{},
+		FailOnMissingFiles: false,
+	})
+}
+
+func NewJobWithOptions(options *JobOptions) (*Job, error) {
+	if options.Request.Executor == "" {
 		log.Infof("No executor specified - using %s executor", executors.ExecutorTypeShell)
-		request.Executor = executors.ExecutorTypeShell
+		options.Request.Executor = executors.ExecutorTypeShell
 	}
 
-	if request.Logger.Method == "" {
+	if options.Request.Logger.Method == "" {
 		log.Infof("No logger method specified - using %s logger method", eventlogger.LoggerMethodPull)
-		request.Logger.Method = eventlogger.LoggerMethodPull
+		options.Request.Logger.Method = eventlogger.LoggerMethodPull
 	}
 
-	logger, err := eventlogger.CreateLogger(request)
+	logger, err := eventlogger.CreateLogger(options.Request)
 	if err != nil {
 		return nil, err
 	}
 
-	executor, err := executors.CreateExecutor(request, logger, exposeKvmDevice)
+	executor, err := CreateExecutor(options.Request, logger, *options)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Debugf("Job Request %+v", request)
+	log.Debugf("Job Request %+v", options.Request)
 
 	return &Job{
-		Client:         client,
-		Request:        request,
+		Client:         options.Client,
+		Request:        options.Request,
 		Executor:       executor,
 		JobLogArchived: false,
 		Stopped:        false,
@@ -63,8 +81,26 @@ func NewJob(request *api.JobRequest, client *http.Client, exposeKvmDevice bool) 
 	}, nil
 }
 
+func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOptions JobOptions) (executors.Executor, error) {
+	switch request.Executor {
+	case executors.ExecutorTypeShell:
+		return executors.NewShellExecutor(request, logger), nil
+	case executors.ExecutorTypeDockerCompose:
+		executorOptions := executors.DockerComposeExecutorOptions{
+			ExposeKvmDevice:    jobOptions.ExposeKvmDevice,
+			FileInjections:     jobOptions.FileInjections,
+			FailOnMissingFiles: jobOptions.FailOnMissingFiles,
+		}
+
+		return executors.NewDockerComposeExecutor(request, logger, executorOptions), nil
+	default:
+		return nil, fmt.Errorf("unknown executor type")
+	}
+}
+
 type RunOptions struct {
 	EnvVars              []config.HostEnvVar
+	FileInjections       []config.FileInjection
 	OnSuccessfulTeardown func()
 	OnFailedTeardown     func()
 }
@@ -72,6 +108,7 @@ type RunOptions struct {
 func (job *Job) Run() {
 	job.RunWithOptions(RunOptions{
 		EnvVars:              []config.HostEnvVar{},
+		FileInjections:       []config.FileInjection{},
 		OnSuccessfulTeardown: nil,
 		OnFailedTeardown:     nil,
 	})

@@ -29,14 +29,24 @@ type DockerComposeExecutor struct {
 	dockerComposeManifestPath string
 	mainContainerName         string
 	exposeKvmDevice           bool
+	fileInjections            []config.FileInjection
+	FailOnMissingFiles        bool
 }
 
-func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logger, exposeKvmDevice bool) *DockerComposeExecutor {
+type DockerComposeExecutorOptions struct {
+	ExposeKvmDevice    bool
+	FileInjections     []config.FileInjection
+	FailOnMissingFiles bool
+}
+
+func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logger, options DockerComposeExecutorOptions) *DockerComposeExecutor {
 	return &DockerComposeExecutor{
 		Logger:                    logger,
 		jobRequest:                request,
 		dockerConfiguration:       request.Compose,
-		exposeKvmDevice:           exposeKvmDevice,
+		exposeKvmDevice:           options.ExposeKvmDevice,
+		fileInjections:            options.FileInjections,
+		FailOnMissingFiles:        options.FailOnMissingFiles,
 		dockerComposeManifestPath: "/tmp/docker-compose.yml",
 		tmpDirectory:              "/tmp/agent-temp-directory", // make a better random name
 
@@ -56,13 +66,37 @@ func (e *DockerComposeExecutor) Prepare() int {
 		return 1
 	}
 
-	compose := ConstructDockerComposeFile(e.dockerConfiguration, e.exposeKvmDevice)
+	filesToInject, err := e.findValidFilesToInject()
+	if err != nil {
+		log.Errorf("Error injecting files: %v", err)
+		return 1
+	}
+
+	compose := ConstructDockerComposeFile(e.dockerConfiguration, e.exposeKvmDevice, filesToInject)
 	log.Debug("Compose File:")
 	log.Debug(compose)
 
 	ioutil.WriteFile(e.dockerComposeManifestPath, []byte(compose), 0644)
 
 	return e.setUpSSHJumpPoint()
+}
+
+func (e *DockerComposeExecutor) findValidFilesToInject() ([]config.FileInjection, error) {
+	filesToInject := []config.FileInjection{}
+	for _, fileInjection := range e.fileInjections {
+		err := fileInjection.CheckFileExists()
+		if err == nil {
+			filesToInject = append(filesToInject, fileInjection)
+		} else {
+			if e.FailOnMissingFiles {
+				return nil, err
+			} else {
+				log.Warningf("Error injecting file %s - ignoring it: %v", fileInjection.HostPath, err)
+			}
+		}
+	}
+
+	return filesToInject, nil
 }
 
 func (e *DockerComposeExecutor) executeHostCommands() error {

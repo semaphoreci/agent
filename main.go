@@ -78,6 +78,8 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	shutdownHookPath := pflag.String("shutdown-hook-path", "", "Shutdown hook path")
 	disconnectAfterJob := pflag.Bool("disconnect-after-job", false, "Disconnect after job")
 	envVars := pflag.StringSlice("env-vars", []string{}, "Export environment variables in jobs")
+	files := pflag.StringSlice("files", []string{}, "Inject files into container, when using docker compose executor")
+	failOnMissingFiles := pflag.Bool("fail-on-missing-files", false, "Fail job if files specified using --files are missing")
 
 	pflag.Parse()
 
@@ -88,7 +90,12 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 
 	hostEnvVars, err := ParseEnvVars(*envVars)
 	if err != nil {
-		log.Fatalf("Error parsing environment variables: %v", err)
+		log.Fatalf("Error parsing --env-vars: %v", err)
+	}
+
+	fileInjections, err := ParseFiles(*files)
+	if err != nil {
+		log.Fatalf("Error parsing --files: %v", err)
 	}
 
 	config := listener.Config{
@@ -99,6 +106,8 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		ShutdownHookPath:   *shutdownHookPath,
 		DisconnectAfterJob: *disconnectAfterJob,
 		EnvVars:            hostEnvVars,
+		FileInjections:     fileInjections,
+		FailOnMissingFiles: *failOnMissingFiles,
 		AgentVersion:       VERSION,
 	}
 
@@ -127,6 +136,23 @@ func ParseEnvVars(envVars []string) ([]config.HostEnvVar, error) {
 	}
 
 	return vars, nil
+}
+
+func ParseFiles(files []string) ([]config.FileInjection, error) {
+	fileInjections := []config.FileInjection{}
+	for _, file := range files {
+		hostPathAndDestination := strings.Split(file, ":")
+		if len(hostPathAndDestination) != 2 {
+			return nil, fmt.Errorf("%s is not a valid file injection", file)
+		}
+
+		fileInjections = append(fileInjections, config.FileInjection{
+			HostPath:    hostPathAndDestination[0],
+			Destination: hostPathAndDestination[1],
+		})
+	}
+
+	return fileInjections, nil
 }
 
 func RunServer(httpClient *http.Client, logfile io.Writer) {
@@ -172,7 +198,13 @@ func RunSingleJob(httpClient *http.Client) {
 		panic(err)
 	}
 
-	job, err := jobs.NewJob(request, httpClient, true)
+	job, err := jobs.NewJobWithOptions(&jobs.JobOptions{
+		Request:         request,
+		Client:          httpClient,
+		ExposeKvmDevice: true,
+		FileInjections:  []config.FileInjection{},
+	})
+
 	if err != nil {
 		panic(err)
 	}

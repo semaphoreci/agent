@@ -49,7 +49,10 @@ func startComposeExecutor() (*DockerComposeExecutor, *eventlogger.Logger, *event
 
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 
-	e := NewDockerComposeExecutor(request, testLogger, true)
+	e := NewDockerComposeExecutor(request, testLogger, DockerComposeExecutorOptions{
+		ExposeKvmDevice: true,
+		FileInjections:  []config.FileInjection{},
+	})
 
 	if code := e.Prepare(); code != 0 {
 		panic("Prapare failed")

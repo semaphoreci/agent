@@ -30,6 +30,8 @@ type Config struct {
 	ShutdownHookPath   string
 	DisconnectAfterJob bool
 	EnvVars            []config.HostEnvVar
+	FileInjections     []config.FileInjection
+	FailOnMissingFiles bool
 	AgentVersion       string
 }
 
