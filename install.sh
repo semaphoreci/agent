@@ -54,6 +54,22 @@ fi
 echo "Extracting $install_directory/agent.tar.gz..."
 tar -xf $install_directory/agent.tar.gz -C $install_directory
 
+AGENT_CONFIG=$(cat <<-END
+endpoint: "$organization.semaphoreci.com"
+token: "$registration_token"
+no-https: false
+shutdown-hook-path: ""
+disconnect-after-job: false
+env-vars: []
+files: []
+fail-on-missing-files: false
+END
+)
+
+AGENT_CONFIG_PATH="$install_directory/config.yaml"
+echo "Creating agent config file at $AGENT_CONFIG_PATH..."
+echo "$AGENT_CONFIG" > $AGENT_CONFIG_PATH
+
 SYSTEMD_SERVICE=$(cat <<-END
 [Unit]
 Description=Semaphore agent
@@ -66,7 +82,7 @@ Restart=always
 RestartSec=5
 User=$install_user
 WorkingDirectory=$install_directory
-ExecStart=$install_directory/agent start --endpoint $organization.semaphoreci.com --token $registration_token
+ExecStart=$install_directory/agent start --config-file $AGENT_CONFIG_PATH
 
 [Install]
 WantedBy=multi-user.target
