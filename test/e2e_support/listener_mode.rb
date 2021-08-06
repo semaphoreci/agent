@@ -5,6 +5,7 @@ class ListenerMode
   HUB_ENDPOINT = "http://localhost:4567"
 
   def boot_up_agent
+    File.write("/tmp/agent-temp-directory/config.yaml", $AGENT_CONFIG.to_yaml)
     system "docker-compose -f test/e2e_support/docker-compose-listen.yml stop"
     system "docker-compose -f test/e2e_support/docker-compose-listen.yml build"
     system "docker-compose -f test/e2e_support/docker-compose-listen.yml up -d"
