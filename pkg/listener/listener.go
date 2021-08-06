@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"runtime"
 	"time"
 
 	"github.com/semaphoreci/agent/pkg/config"
@@ -92,9 +91,9 @@ func (l *Listener) Register() error {
 	req := &selfhostedapi.RegisterRequest{
 		Version:  l.Config.AgentVersion,
 		Name:     l.Name(),
-		OS:       osinfo.Name(),
 		PID:      os.Getpid(),
-		Arch:     runtime.GOARCH,
+		OS:       osinfo.Name(),
+		Arch:     osinfo.Arch(),
 		Hostname: osinfo.Hostname(),
 	}
 
