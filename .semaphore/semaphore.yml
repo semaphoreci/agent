@@ -174,6 +174,8 @@ blocks:
                 - broken_finished_callback
                 - broken_teardown_callback
                 - broken_get_job
+                - docker_compose_host_env_vars
+                - shell_host_env_vars
 
 promotions:
   - name: Release
