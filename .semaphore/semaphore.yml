@@ -43,6 +43,7 @@ blocks:
           - go version
           - go get
           - go build
+          - mkdir /tmp/agent
 
       epilogue:
         commands:
@@ -97,6 +98,7 @@ blocks:
           - go version
           - go get
           - go build
+          - mkdir /tmp/agent
 
       epilogue:
         commands:
@@ -161,6 +163,7 @@ blocks:
           - go version
           - go get
           - go build
+          - mkdir /tmp/agent
       jobs:
         - name: Self hosted
           commands:
