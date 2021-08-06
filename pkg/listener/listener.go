@@ -1,15 +1,17 @@
 package listener
 
 import (
-	"crypto/rand"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/semaphoreci/agent/pkg/config"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
+	osinfo "github.com/semaphoreci/agent/pkg/osinfo"
 	"github.com/semaphoreci/agent/pkg/retry"
 	log "github.com/sirupsen/logrus"
 )
@@ -28,6 +30,7 @@ type Config struct {
 	ShutdownHookPath   string
 	DisconnectAfterJob bool
 	EnvVars            []config.HostEnvVar
+	AgentVersion       string
 }
 
 func Start(httpClient *http.Client, config Config, logger io.Writer) (*Listener, error) {
@@ -72,28 +75,25 @@ func (l *Listener) DisplayHelloMessage() {
 	fmt.Println("                                      ")
 }
 
+const nameLetters = "abcdefghijklmnopqrstuvwxyz123456789"
+const nameLength = 20
+
 func (l *Listener) Name() string {
-	hostname, err := os.Hostname()
-	if err != nil {
-		panic(err)
+	b := make([]byte, nameLength)
+	for i := range b {
+		b[i] = nameLetters[rand.Intn(len(nameLetters))]
 	}
-
-	randBytes := make([]byte, 10)
-
-	_, err = rand.Read(randBytes)
-	if err != nil {
-		panic(err)
-	}
-
-	randSuffix := fmt.Sprintf("%x", randBytes)
-
-	return "sh-" + hostname + "-" + randSuffix
+	return string(b)
 }
 
 func (l *Listener) Register() error {
 	req := &selfhostedapi.RegisterRequest{
-		Name: l.Name(),
-		OS:   "Ubuntu",
+		Version:  l.Config.AgentVersion,
+		Name:     l.Name(),
+		OS:       osinfo.Name(),
+		PID:      os.Getpid(),
+		Arch:     runtime.GOARCH,
+		Hostname: osinfo.Hostname(),
 	}
 
 	err := retry.RetryWithConstantWait("Register", l.Config.RegisterRetryLimit, time.Second, func() error {

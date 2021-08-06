@@ -99,6 +99,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		ShutdownHookPath:   *shutdownHookPath,
 		DisconnectAfterJob: *disconnectAfterJob,
 		EnvVars:            hostEnvVars,
+		AgentVersion:       VERSION,
 	}
 
 	go func() {
