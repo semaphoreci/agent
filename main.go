@@ -108,6 +108,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		EnvVars:            hostEnvVars,
 		FileInjections:     fileInjections,
 		FailOnMissingFiles: *failOnMissingFiles,
+		AgentVersion:       VERSION,
 	}
 
 	go func() {
