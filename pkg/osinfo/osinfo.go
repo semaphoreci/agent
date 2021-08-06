@@ -29,6 +29,19 @@ func Hostname() string {
 	return hostname
 }
 
+func Arch() string {
+	switch runtime.GOARCH {
+	case "amd64":
+		return "x86_64"
+
+	case "386":
+		return "x86"
+
+	default:
+		return runtime.GOARCH
+	}
+}
+
 func namemac() string {
 	o1, err := exec.Command("sw_vers", "-productName").Output()
 	if err != nil {
