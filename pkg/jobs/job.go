@@ -10,6 +10,7 @@ import (
 	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	executors "github.com/semaphoreci/agent/pkg/executors"
+	httputils "github.com/semaphoreci/agent/pkg/httputils"
 	"github.com/semaphoreci/agent/pkg/retry"
 	log "github.com/sirupsen/logrus"
 )
@@ -326,7 +327,7 @@ func (job *Job) SendCallback(url string, payload string) error {
 		return err
 	}
 
-	if !isSuccessfulCode(response.StatusCode) {
+	if !httputils.IsSuccessfulCode(response.StatusCode) {
 		return fmt.Errorf("callback to %s got HTTP %d", url, response.StatusCode)
 	}
 
@@ -337,8 +338,4 @@ func callFuncIfNotNull(function func()) {
 	if function != nil {
 		function()
 	}
-}
-
-func isSuccessfulCode(code int) bool {
-	return code >= 200 && code < 300
 }

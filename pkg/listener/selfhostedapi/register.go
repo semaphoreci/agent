@@ -3,9 +3,11 @@ package selfhostedapi
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
+	httputils "github.com/semaphoreci/agent/pkg/httputils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -49,6 +51,10 @@ func (a *Api) Register(req *RegisterRequest) (*RegisterResponse, error) {
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+
+	if !httputils.IsSuccessfulCode(resp.StatusCode) {
+		return nil, fmt.Errorf("register request to %s got HTTP %d", a.RegisterPath(), resp.StatusCode)
 	}
 
 	response := &RegisterResponse{}
