@@ -89,3 +89,17 @@ agent start --statsd-host "192.1.1.9" --statsd-port 8192 --statsd-namespace "age
 
 If StatsD flags are not provided, the Agent will not publish any StatsD metric.
 
+### Using systemd
+
+```sh
+mkdir -p /opt/semaphore/agent
+cd /opt/semaphore/agent
+curl https://github.com/semaphoreci/agent/releases/download/v2.0.8/agent_Linux_x86_64.tar.gz -o agent.tar.gz
+tar -xf agent.tar.gz
+sudo ./install.sh
+```
+
+Follow the prompts and if everything works out, you end up with a `semaphore-agent` service:
+- `systemctl status semaphore-agent` to check status
+- `systemctl stop semaphore-agent` to stop it
+- `sudo journalctl -u semaphore-agent -f` to follow logs
