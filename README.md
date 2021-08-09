@@ -91,9 +91,11 @@ If StatsD flags are not provided, the Agent will not publish any StatsD metric.
 
 ### Using systemd
 
-```
-curl -sL https://raw.githubusercontent.com/semaphoreci/agent/agent-as-systemd-service/install.sh -o install.sh
-chmod +x install.sh
+```sh
+mkdir -p /opt/semaphore/agent
+cd /opt/semaphore/agent
+curl https://github.com/semaphoreci/agent/releases/download/v2.0.8/agent_Linux_x86_64.tar.gz -o agent.tar.gz
+tar -xf agent.tar.gz
 sudo ./install.sh
 ```
 
