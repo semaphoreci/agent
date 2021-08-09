@@ -9,11 +9,11 @@ import (
 	"github.com/semaphoreci/agent/pkg/api"
 )
 
-func (a *Api) GetJobPath(jobID string) string {
+func (a *API) GetJobPath(jobID string) string {
 	return a.BasePath() + fmt.Sprintf("/jobs/%s", jobID)
 }
 
-func (a *Api) GetJob(jobID string) (*api.JobRequest, error) {
+func (a *API) GetJob(jobID string) (*api.JobRequest, error) {
 	r, err := http.NewRequest("GET", a.GetJobPath(jobID), nil)
 	if err != nil {
 		return nil, err

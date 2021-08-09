@@ -53,7 +53,7 @@ type Callbacks struct {
 
 type Logger struct {
 	Method string `json:"method" yaml:"method"`
-	Url    string `json:"url" yaml:"url"`
+	URL    string `json:"url" yaml:"url"`
 	Token  string `json:"token" yaml:"token"`
 }
 

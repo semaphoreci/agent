@@ -6,11 +6,11 @@ import (
 	"net/http"
 )
 
-func (a *Api) DisconnectPath() string {
+func (a *API) DisconnectPath() string {
 	return a.BasePath() + "/disconnect"
 }
 
-func (a *Api) Disconnect() (string, error) {
+func (a *API) Disconnect() (string, error) {
 	r, err := http.NewRequest("POST", a.DisconnectPath(), nil)
 	if err != nil {
 		return "", err

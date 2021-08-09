@@ -90,9 +90,9 @@ func (e *DockerComposeExecutor) findValidFilesToInject() ([]config.FileInjection
 		} else {
 			if e.FailOnMissingFiles {
 				return nil, err
-			} else {
-				log.Warningf("Error injecting file %s - ignoring it: %v", fileInjection.HostPath, err)
 			}
+
+			log.Warningf("Error injecting file %s - ignoring it: %v", fileInjection.HostPath, err)
 		}
 	}
 

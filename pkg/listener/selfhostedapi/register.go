@@ -23,11 +23,11 @@ type RegisterResponse struct {
 	Token string `json:"token"`
 }
 
-func (a *Api) RegisterPath() string {
+func (a *API) RegisterPath() string {
 	return a.BasePath() + "/register"
 }
 
-func (a *Api) Register(req *RegisterRequest) (*RegisterResponse, error) {
+func (a *API) Register(req *RegisterRequest) (*RegisterResponse, error) {
 	b, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
