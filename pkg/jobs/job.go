@@ -14,9 +14,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const JOB_PASSED = "passed"
-const JOB_FAILED = "failed"
-const JOB_STOPPED = "stopped"
+const JobPassed = "passed"
+const JobFailed = "failed"
+const JobStopped = "stopped"
 
 type Job struct {
 	Client  *http.Client
@@ -117,7 +117,7 @@ func (job *Job) Run() {
 func (job *Job) RunWithOptions(options RunOptions) {
 	log.Infof("Running job %s", job.Request.ID)
 	executorRunning := false
-	result := JOB_FAILED
+	result := JobFailed
 
 	job.Logger.LogJobStarted()
 
@@ -137,7 +137,7 @@ func (job *Job) RunWithOptions(options RunOptions) {
 			},
 		})
 
-		if result != JOB_STOPPED {
+		if result != JobStopped {
 			job.handleEpilogues(result)
 		}
 	}
@@ -178,27 +178,27 @@ func (job *Job) RunRegularCommands(hostEnvVars []config.HostEnvVar) string {
 	if exitCode != 0 {
 		log.Error("Failed to export env vars")
 
-		return JOB_FAILED
+		return JobFailed
 	}
 
 	exitCode = job.Executor.InjectFiles(job.Request.Files)
 	if exitCode != 0 {
 		log.Error("Failed to inject files")
 
-		return JOB_FAILED
+		return JobFailed
 	}
 
 	exitCode = job.RunCommandsUntilFirstFailure(job.Request.Commands)
 
 	if job.Stopped {
 		log.Info("Regular commands were stopped")
-		return JOB_STOPPED
+		return JobStopped
 	} else if exitCode == 0 {
 		log.Info("Regular commands finished successfully")
-		return JOB_PASSED
+		return JobPassed
 	} else {
 		log.Info("Regular commands finished with failure")
-		return JOB_FAILED
+		return JobFailed
 	}
 }
 
@@ -209,7 +209,7 @@ func (job *Job) handleEpilogues(result string) {
 	})
 
 	job.executeIfNotStopped(func() {
-		if result == JOB_PASSED {
+		if result == JobPassed {
 			log.Info("Starting epilogue on pass commands")
 			job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnPassCommands)
 		} else {
@@ -247,7 +247,7 @@ func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command) int {
 func (job *Job) Teardown(result string) error {
 	// if job was stopped during the epilogues, result should be stopped
 	if job.Stopped {
-		result = JOB_STOPPED
+		result = JobStopped
 	}
 
 	err := job.SendFinishedCallback(result)
@@ -287,15 +287,15 @@ func (job *Job) Teardown(result string) error {
 	return nil
 }
 
-func (j *Job) Stop() {
+func (job *Job) Stop() {
 	log.Info("Stopping job")
 
-	j.Stopped = true
+	job.Stopped = true
 
 	log.Debug("Invoking process stopping")
 
 	PreventPanicPropagation(func() {
-		j.Executor.Stop()
+		job.Executor.Stop()
 	})
 }
 

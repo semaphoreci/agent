@@ -10,7 +10,7 @@ go.install:
 	cd -
 
 lint:
-	revive -config lint.toml ./...
+	revive -formatter friendly -config lint.toml ./...
 
 run:
 	go run *.go run $(JOB)

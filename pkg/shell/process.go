@@ -158,18 +158,18 @@ func (p *Process) loadCommand() error {
 func (p *Process) readBufferSize() int {
 	if flag.Lookup("test.v") == nil {
 		return 100
-	} else {
-		// simulating the worst kind of baud rate
-		// random in size, and possibly very short
-
-		// The implementation needs to handle everything.
-		rand.Seed(time.Now().UnixNano())
-
-		min := 1
-		max := 20
-
-		return rand.Intn(max-min) + min
 	}
+
+	// simulating the worst kind of baud rate
+	// random in size, and possibly very short
+
+	// The implementation needs to handle everything.
+	rand.Seed(time.Now().UnixNano())
+
+	min := 1
+	max := 20
+
+	return rand.Intn(max-min) + min
 }
 
 //

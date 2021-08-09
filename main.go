@@ -59,22 +59,22 @@ func OpenLogfile() io.Writer {
 
 func getLogLevel() log.Level {
 	logLevel := os.Getenv("LOG_LEVEL")
-	if logLevel != "" {
-		level, err := log.ParseLevel(logLevel)
-		if err != nil {
-			log.Fatalf("Log level %s not supported", logLevel)
-		}
-
-		return level
-	} else {
+	if logLevel == "" {
 		return log.InfoLevel
 	}
+
+	level, err := log.ParseLevel(logLevel)
+	if err != nil {
+		log.Fatalf("Log level %s not supported", logLevel)
+	}
+
+	return level
 }
 
 func RunListener(httpClient *http.Client, logfile io.Writer) {
 	endpoint := pflag.String("endpoint", "", "Endpoint where agents are registered")
 	token := pflag.String("token", "", "Registration token")
-	noHttps := pflag.Bool("no-https", false, "Use http for communication")
+	noHTTPS := pflag.Bool("no-https", false, "Use http for communication")
 	shutdownHookPath := pflag.String("shutdown-hook-path", "", "Shutdown hook path")
 	disconnectAfterJob := pflag.Bool("disconnect-after-job", false, "Disconnect after job")
 	envVars := pflag.StringSlice("env-vars", []string{}, "Export environment variables in jobs")
@@ -84,7 +84,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	pflag.Parse()
 
 	scheme := "https"
-	if *noHttps {
+	if *noHTTPS {
 		scheme = "http"
 	}
 
