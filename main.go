@@ -162,7 +162,7 @@ func validateConfiguration() {
 	}
 
 	for _, key := range viper.AllKeys() {
-		if !contains(config.VALID_CONFIG_KEYS, key) {
+		if !contains(config.ValidConfigKeys, key) {
 			log.Fatalf("Unrecognized option '%s'. Exiting...", key)
 		}
 	}

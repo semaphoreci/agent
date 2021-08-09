@@ -14,7 +14,7 @@ const (
 	FailOnMissingFiles = "fail-on-missing-files"
 )
 
-var VALID_CONFIG_KEYS = []string{
+var ValidConfigKeys = []string{
 	ConfigFile,
 	Endpoint,
 	Token,
