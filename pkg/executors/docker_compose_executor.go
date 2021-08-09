@@ -13,6 +13,7 @@ import (
 	pty "github.com/kr/pty"
 	watchman "github.com/renderedtext/go-watchman"
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	shell "github.com/semaphoreci/agent/pkg/shell"
 	log "github.com/sirupsen/logrus"
@@ -27,18 +28,30 @@ type DockerComposeExecutor struct {
 	dockerConfiguration       api.Compose
 	dockerComposeManifestPath string
 	mainContainerName         string
+	exposeKvmDevice           bool
+	fileInjections            []config.FileInjection
+	FailOnMissingFiles        bool
 }
 
-func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logger) *DockerComposeExecutor {
+type DockerComposeExecutorOptions struct {
+	ExposeKvmDevice    bool
+	FileInjections     []config.FileInjection
+	FailOnMissingFiles bool
+}
+
+func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logger, options DockerComposeExecutorOptions) *DockerComposeExecutor {
 	return &DockerComposeExecutor{
 		Logger:                    logger,
 		jobRequest:                request,
 		dockerConfiguration:       request.Compose,
+		exposeKvmDevice:           options.ExposeKvmDevice,
+		fileInjections:            options.FileInjections,
+		FailOnMissingFiles:        options.FailOnMissingFiles,
 		dockerComposeManifestPath: "/tmp/docker-compose.yml",
 		tmpDirectory:              "/tmp/agent-temp-directory", // make a better random name
 
 		// during testing the name main gets taken up, if we make it random we avoid headaches
-		mainContainerName: fmt.Sprintf("%s", request.Compose.Containers[0].Name),
+		mainContainerName: request.Compose.Containers[0].Name,
 	}
 }
 
@@ -53,13 +66,37 @@ func (e *DockerComposeExecutor) Prepare() int {
 		return 1
 	}
 
-	compose := ConstructDockerComposeFile(e.dockerConfiguration)
+	filesToInject, err := e.findValidFilesToInject()
+	if err != nil {
+		log.Errorf("Error injecting files: %v", err)
+		return 1
+	}
+
+	compose := ConstructDockerComposeFile(e.dockerConfiguration, e.exposeKvmDevice, filesToInject)
 	log.Debug("Compose File:")
 	log.Debug(compose)
 
 	ioutil.WriteFile(e.dockerComposeManifestPath, []byte(compose), 0644)
 
 	return e.setUpSSHJumpPoint()
+}
+
+func (e *DockerComposeExecutor) findValidFilesToInject() ([]config.FileInjection, error) {
+	filesToInject := []config.FileInjection{}
+	for _, fileInjection := range e.fileInjections {
+		err := fileInjection.CheckFileExists()
+		if err == nil {
+			filesToInject = append(filesToInject, fileInjection)
+		} else {
+			if e.FailOnMissingFiles {
+				return nil, err
+			}
+
+			log.Warningf("Error injecting file %s - ignoring it: %v", fileInjection.HostPath, err)
+		}
+	}
+
+	return filesToInject, nil
 }
 
 func (e *DockerComposeExecutor) executeHostCommands() error {
@@ -166,6 +203,7 @@ func (e *DockerComposeExecutor) startBashSession() int {
 		"-f",
 		e.dockerComposeManifestPath,
 		"run",
+		"--rm",
 		"--name",
 		e.mainContainerName,
 		"-v",
@@ -480,6 +518,7 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 		"-f",
 		e.dockerComposeManifestPath,
 		"run",
+		"--rm",
 		e.mainContainerName,
 		"true")
 
@@ -518,9 +557,9 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	return exitCode
 }
 
-func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar) int {
+func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config.HostEnvVar) int {
 	commandStartedAt := int(time.Now().Unix())
-	directive := fmt.Sprintf("Exporting environment variables")
+	directive := "Exporting environment variables"
 	exitCode := 0
 
 	e.Logger.LogCommandStarted(directive)
@@ -544,6 +583,11 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar) int {
 		}
 
 		envFile += fmt.Sprintf("export %s=%s\n", env.Name, ShellQuote(string(value)))
+	}
+
+	for _, env := range hostEnvVars {
+		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", env.Name))
+		envFile += fmt.Sprintf("export %s=%s\n", env.Name, ShellQuote(env.Value))
 	}
 
 	envPath := fmt.Sprintf("%s/.env", e.tmpDirectory)
@@ -570,7 +614,7 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar) int {
 }
 
 func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
-	directive := fmt.Sprintf("Injecting Files")
+	directive := "Injecting Files"
 	commandStartedAt := int(time.Now().Unix())
 	exitCode := 0
 

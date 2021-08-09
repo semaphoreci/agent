@@ -4,6 +4,7 @@ Encoding.default_external = Encoding::UTF_8
 
 require 'tempfile'
 require 'json'
+require 'yaml'
 require 'timeout'
 require 'base64'
 
@@ -21,6 +22,7 @@ when "api" then
   $LOGGER = '{ "method": "pull" }'
 when "listen" then
   $strategy = ListenerMode.new
+
   $LOGGER = <<-JSON
   {
     "method": "push",
@@ -29,6 +31,18 @@ when "listen" then
   }
   JSON
 
+  if !$AGENT_CONFIG
+    $AGENT_CONFIG = {
+      "endpoint" => "hub:4567",
+      "token" => "321h1l2jkh1jk42341",
+      "no-https" => true,
+      "shutdown-hook-path" => "",
+      "disconnect-after-job" => false,
+      "env-vars" => [],
+      "files" => [],
+      "fail-on-missing-files" => false
+    }
+  end
 else
   raise "Testing Mode not set"
 end

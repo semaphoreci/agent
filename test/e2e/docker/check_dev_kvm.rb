@@ -38,28 +38,55 @@ JSON
 
 wait_for_job_to_finish
 
-assert_job_log <<-LOG
-  {"event":"job_started",  "timestamp":"*"}
-  {"event":"cmd_started",  "timestamp":"*", "directive":"Pulling docker images..."}
-  *** LONG_OUTPUT ***
-  {"event":"cmd_finished", "timestamp":"*", "directive":"Pulling docker images...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
+case ENV["TEST_MODE"]
+when "api" then
+  assert_job_log <<-LOG
+    {"event":"job_started",  "timestamp":"*"}
+    {"event":"cmd_started",  "timestamp":"*", "directive":"Pulling docker images..."}
+    *** LONG_OUTPUT ***
+    {"event":"cmd_finished", "timestamp":"*", "directive":"Pulling docker images...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
 
-  {"event":"cmd_started",  "timestamp":"*", "directive":"Starting the docker image..."}
-  {"event":"cmd_output",   "timestamp":"*", "output":"Starting a new bash session.\\n"}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"Starting the docker image...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
+    {"event":"cmd_started",  "timestamp":"*", "directive":"Starting the docker image..."}
+    {"event":"cmd_output",   "timestamp":"*", "output":"Starting a new bash session.\\n"}
+    {"event":"cmd_finished", "timestamp":"*", "directive":"Starting the docker image...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
 
-  {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"Exporting environment variables","exit_code":0,"finished_at":"*","started_at":"*"}
-  {"event":"cmd_started",  "timestamp":"*", "directive":"Injecting Files"}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"Injecting Files","exit_code":0,"finished_at":"*","started_at":"*"}
+    {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
+    {"event":"cmd_finished", "timestamp":"*", "directive":"Exporting environment variables","exit_code":0,"finished_at":"*","started_at":"*"}
+    {"event":"cmd_started",  "timestamp":"*", "directive":"Injecting Files"}
+    {"event":"cmd_finished", "timestamp":"*", "directive":"Injecting Files","exit_code":0,"finished_at":"*","started_at":"*"}
 
+    {"event":"cmd_started",  "timestamp":"*", "directive":"ls /dev | grep kvm"}
+    {"event":"cmd_output",   "timestamp":"*", "output":"kvm\\n"}
+    {"event":"cmd_finished", "timestamp":"*", "directive":"ls /dev | grep kvm","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
+  
+    {"event":"cmd_started",  "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=passed"}
+    {"event":"cmd_finished", "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=passed","exit_code":0,"finished_at":"*","started_at":"*"}
+    {"event":"job_finished", "timestamp":"*", "result":"passed"}
+  LOG
+when "listen" then
+  assert_job_log <<-LOG
+    {"event":"job_started",  "timestamp":"*"}
+    {"event":"cmd_started",  "timestamp":"*", "directive":"Pulling docker images..."}
+    *** LONG_OUTPUT ***
+    {"event":"cmd_finished", "timestamp":"*", "directive":"Pulling docker images...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
 
-  {"event":"cmd_started",  "timestamp":"*", "directive":"ls /dev | grep kvm"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"kvm\\n"}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"ls /dev | grep kvm","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
- 
-  {"event":"cmd_started",  "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=passed"}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=passed","exit_code":0,"finished_at":"*","started_at":"*"}
-  {"event":"job_finished", "timestamp":"*", "result":"passed"}
+    {"event":"cmd_started",  "timestamp":"*", "directive":"Starting the docker image..."}
+    {"event":"cmd_output",   "timestamp":"*", "output":"Starting a new bash session.\\n"}
+    {"event":"cmd_finished", "timestamp":"*", "directive":"Starting the docker image...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
 
-LOG
+    {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
+    {"event":"cmd_finished", "timestamp":"*", "directive":"Exporting environment variables","exit_code":0,"finished_at":"*","started_at":"*"}
+    {"event":"cmd_started",  "timestamp":"*", "directive":"Injecting Files"}
+    {"event":"cmd_finished", "timestamp":"*", "directive":"Injecting Files","exit_code":0,"finished_at":"*","started_at":"*"}
+
+    {"event":"cmd_started",  "timestamp":"*", "directive":"ls /dev | grep kvm"}
+    {"event":"cmd_finished", "timestamp":"*", "directive":"ls /dev | grep kvm","event":"cmd_finished","exit_code":1,"finished_at":"*","started_at":"*","timestamp":"*"}
+  
+    {"event":"cmd_started",  "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=failed"}
+    {"event":"cmd_finished", "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=failed","exit_code":0,"finished_at":"*","started_at":"*"}
+    {"event":"job_finished", "timestamp":"*", "result":"failed"}
+  LOG
+
+else
+  raise "Testing Mode not set"
+end

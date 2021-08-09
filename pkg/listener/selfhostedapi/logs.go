@@ -6,11 +6,11 @@ import (
 	"net/http"
 )
 
-func (a *Api) LogsPath(jobID string) string {
+func (a *API) LogsPath(jobID string) string {
 	return a.BasePath() + fmt.Sprintf("/jobs/%s/logs", jobID)
 }
 
-func (a *Api) Logs(jobID string, batch *bytes.Buffer) error {
+func (a *API) Logs(jobID string, batch *bytes.Buffer) error {
 	r, err := http.NewRequest("POST", a.LogsPath(jobID), batch)
 	if err != nil {
 		return err

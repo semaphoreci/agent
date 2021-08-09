@@ -1,14 +1,16 @@
 package listener
 
 import (
-	"crypto/rand"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/semaphoreci/agent/pkg/config"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
+	osinfo "github.com/semaphoreci/agent/pkg/osinfo"
 	"github.com/semaphoreci/agent/pkg/retry"
 	log "github.com/sirupsen/logrus"
 )
@@ -16,7 +18,7 @@ import (
 type Listener struct {
 	JobProcessor *JobProcessor
 	Config       Config
-	Client       *selfhostedapi.Api
+	Client       *selfhostedapi.API
 }
 
 type Config struct {
@@ -24,6 +26,12 @@ type Config struct {
 	RegisterRetryLimit int
 	Token              string
 	Scheme             string
+	ShutdownHookPath   string
+	DisconnectAfterJob bool
+	EnvVars            []config.HostEnvVar
+	FileInjections     []config.FileInjection
+	FailOnMissingFiles bool
+	AgentVersion       string
 }
 
 func Start(httpClient *http.Client, config Config, logger io.Writer) (*Listener, error) {
@@ -42,7 +50,7 @@ func Start(httpClient *http.Client, config Config, logger io.Writer) (*Listener,
 	}
 
 	log.Info("Starting to poll for jobs")
-	jobProcessor, err := StartJobProcessor(httpClient, listener.Client)
+	jobProcessor, err := StartJobProcessor(httpClient, listener.Client, listener.Config)
 	if err != nil {
 		return listener, err
 	}
@@ -68,38 +76,35 @@ func (l *Listener) DisplayHelloMessage() {
 	fmt.Println("                                      ")
 }
 
+const nameLetters = "abcdefghijklmnopqrstuvwxyz123456789"
+const nameLength = 20
+
 func (l *Listener) Name() string {
-	hostname, err := os.Hostname()
-	if err != nil {
-		panic(err)
+	b := make([]byte, nameLength)
+	for i := range b {
+		b[i] = nameLetters[rand.Intn(len(nameLetters))]
 	}
-
-	randBytes := make([]byte, 10)
-
-	_, err = rand.Read(randBytes)
-	if err != nil {
-		panic(err)
-	}
-
-	randSuffix := fmt.Sprintf("%x", randBytes)
-
-	return "sh-" + hostname + "-" + randSuffix
+	return string(b)
 }
 
 func (l *Listener) Register() error {
 	req := &selfhostedapi.RegisterRequest{
-		Name: l.Name(),
-		OS:   "Ubuntu",
+		Version:  l.Config.AgentVersion,
+		Name:     l.Name(),
+		PID:      os.Getpid(),
+		OS:       osinfo.Name(),
+		Arch:     osinfo.Arch(),
+		Hostname: osinfo.Hostname(),
 	}
 
 	err := retry.RetryWithConstantWait("Register", l.Config.RegisterRetryLimit, time.Second, func() error {
 		resp, err := l.Client.Register(req)
 		if err != nil {
 			return err
-		} else {
-			l.Client.SetAccessToken(resp.Token)
-			return nil
 		}
+
+		l.Client.SetAccessToken(resp.Token)
+		return nil
 	})
 
 	if err != nil {

@@ -38,11 +38,11 @@ type SyncResponse struct {
 	JobID  string      `json:"job_id"`
 }
 
-func (a *Api) SyncPath() string {
+func (a *API) SyncPath() string {
 	return a.BasePath() + "/sync"
 }
 
-func (a *Api) Sync(req *SyncRequest) (*SyncResponse, error) {
+func (a *API) Sync(req *SyncRequest) (*SyncResponse, error) {
 	b, err := json.Marshal(req)
 	if err != nil {
 		return nil, err

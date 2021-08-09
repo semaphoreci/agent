@@ -6,16 +6,19 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	watchman "github.com/renderedtext/go-watchman"
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 	"github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	listener "github.com/semaphoreci/agent/pkg/listener"
 	server "github.com/semaphoreci/agent/pkg/server"
 	log "github.com/sirupsen/logrus"
 	pflag "github.com/spf13/pflag"
+	"github.com/spf13/viper"
 )
 
 var VERSION = "dev"
@@ -57,40 +60,146 @@ func OpenLogfile() io.Writer {
 
 func getLogLevel() log.Level {
 	logLevel := os.Getenv("LOG_LEVEL")
-	if logLevel != "" {
-		level, err := log.ParseLevel(logLevel)
-		if err != nil {
-			log.Fatalf("Log level %s not supported", logLevel)
-		}
-
-		return level
-	} else {
+	if logLevel == "" {
 		return log.InfoLevel
 	}
+
+	level, err := log.ParseLevel(logLevel)
+	if err != nil {
+		log.Fatalf("Log level %s not supported", logLevel)
+	}
+
+	return level
 }
 
 func RunListener(httpClient *http.Client, logfile io.Writer) {
-	endpoint := pflag.String("endpoint", "", "Endpoint where agents are registered")
-	token := pflag.String("token", "", "Registration token")
-	noHttps := pflag.Bool("no-https", false, "Use http for communication")
+	configFile := pflag.String(config.ConfigFile, "", "Config file")
+	_ = pflag.String(config.Endpoint, "", "Endpoint where agents are registered")
+	_ = pflag.String(config.Token, "", "Registration token")
+	_ = pflag.Bool(config.NoHTTPS, false, "Use http for communication")
+	_ = pflag.String(config.ShutdownHookPath, "", "Shutdown hook path")
+	_ = pflag.Bool(config.DisconnectAfterJob, false, "Disconnect after job")
+	_ = pflag.StringSlice(config.EnvVars, []string{}, "Export environment variables in jobs")
+	_ = pflag.StringSlice(config.Files, []string{}, "Inject files into container, when using docker compose executor")
+	_ = pflag.Bool(config.FailOnMissingFiles, false, "Fail job if files specified using --files are missing")
 
 	pflag.Parse()
 
+	if *configFile != "" {
+		loadConfigFile(*configFile)
+	}
+
+	viper.BindPFlags(pflag.CommandLine)
+
+	validateConfiguration()
+
+	if viper.GetString(config.Endpoint) == "" {
+		log.Fatal("Semaphore endpoint was not specified. Exiting...")
+	}
+
+	if viper.GetString(config.Token) == "" {
+		log.Fatal("Agent registration token was not specified. Exiting...")
+	}
+
 	scheme := "https"
-	if *noHttps {
+	if viper.GetBool(config.NoHTTPS) {
 		scheme = "http"
 	}
 
-	config := listener.Config{
-		Endpoint:           *endpoint,
-		RegisterRetryLimit: 30,
-		Token:              *token,
-		Scheme:             scheme,
+	hostEnvVars, err := ParseEnvVars()
+	if err != nil {
+		log.Fatalf("Error parsing --env-vars: %v", err)
 	}
 
-	go listener.Start(httpClient, config, logfile)
+	fileInjections, err := ParseFiles()
+	if err != nil {
+		log.Fatalf("Error parsing --files: %v", err)
+	}
+
+	config := listener.Config{
+		Endpoint:           viper.GetString(config.Endpoint),
+		Token:              viper.GetString(config.Token),
+		RegisterRetryLimit: 30,
+		Scheme:             scheme,
+		ShutdownHookPath:   viper.GetString(config.ShutdownHookPath),
+		DisconnectAfterJob: viper.GetBool(config.DisconnectAfterJob),
+		EnvVars:            hostEnvVars,
+		FileInjections:     fileInjections,
+		FailOnMissingFiles: viper.GetBool(config.FailOnMissingFiles),
+		AgentVersion:       VERSION,
+	}
+
+	go func() {
+		_, err := listener.Start(httpClient, config, logfile)
+		if err != nil {
+			log.Panicf("Could not start agent: %v", err)
+		}
+	}()
 
 	select {}
+}
+
+func loadConfigFile(configFile string) {
+	viper.SetConfigFile(configFile)
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			log.Fatalf("Couldn't find config file %s: %v", configFile, err)
+		} else {
+			log.Fatalf("Error reading config file %s: %v", configFile, err)
+		}
+	}
+}
+
+func validateConfiguration() {
+	contains := func(list []string, item string) bool {
+		for _, x := range list {
+			if x == item {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	for _, key := range viper.AllKeys() {
+		if !contains(config.ValidConfigKeys, key) {
+			log.Fatalf("Unrecognized option '%s'. Exiting...", key)
+		}
+	}
+}
+
+func ParseEnvVars() ([]config.HostEnvVar, error) {
+	vars := []config.HostEnvVar{}
+	for _, envVar := range viper.GetStringSlice(config.EnvVars) {
+		nameAndValue := strings.Split(envVar, "=")
+		if len(nameAndValue) != 2 {
+			return nil, fmt.Errorf("%s is not a valid environment variable", envVar)
+		}
+
+		vars = append(vars, config.HostEnvVar{
+			Name:  nameAndValue[0],
+			Value: nameAndValue[1],
+		})
+	}
+
+	return vars, nil
+}
+
+func ParseFiles() ([]config.FileInjection, error) {
+	fileInjections := []config.FileInjection{}
+	for _, file := range viper.GetStringSlice(config.Files) {
+		hostPathAndDestination := strings.Split(file, ":")
+		if len(hostPathAndDestination) != 2 {
+			return nil, fmt.Errorf("%s is not a valid file injection", file)
+		}
+
+		fileInjections = append(fileInjections, config.FileInjection{
+			HostPath:    hostPathAndDestination[0],
+			Destination: hostPathAndDestination[1],
+		})
+	}
+
+	return fileInjections, nil
 }
 
 func RunServer(httpClient *http.Client, logfile io.Writer) {
@@ -136,7 +245,13 @@ func RunSingleJob(httpClient *http.Client) {
 		panic(err)
 	}
 
-	job, err := jobs.NewJob(request, httpClient)
+	job, err := jobs.NewJobWithOptions(&jobs.JobOptions{
+		Request:         request,
+		Client:          httpClient,
+		ExposeKvmDevice: true,
+		FileInjections:  []config.FileInjection{},
+	})
+
 	if err != nil {
 		panic(err)
 	}

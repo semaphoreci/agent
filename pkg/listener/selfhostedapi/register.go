@@ -3,15 +3,21 @@ package selfhostedapi
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
+	httputils "github.com/semaphoreci/agent/pkg/httputils"
 	log "github.com/sirupsen/logrus"
 )
 
 type RegisterRequest struct {
-	Name string `json:"name"`
-	OS   string `json:"os"`
+	Name     string `json:"name"`
+	Version  string `json:"version"`
+	PID      int    `json:"pid"`
+	OS       string `json:"os"`
+	Arch     string `json:"arch"`
+	Hostname string `json:"hostname"`
 }
 
 type RegisterResponse struct {
@@ -19,11 +25,11 @@ type RegisterResponse struct {
 	Token string `json:"token"`
 }
 
-func (a *Api) RegisterPath() string {
+func (a *API) RegisterPath() string {
 	return a.BasePath() + "/register"
 }
 
-func (a *Api) Register(req *RegisterRequest) (*RegisterResponse, error) {
+func (a *API) Register(req *RegisterRequest) (*RegisterResponse, error) {
 	b, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
@@ -45,6 +51,10 @@ func (a *Api) Register(req *RegisterRequest) (*RegisterResponse, error) {
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+
+	if !httputils.IsSuccessfulCode(resp.StatusCode) {
+		return nil, fmt.Errorf("register request to %s got HTTP %d", a.RegisterPath(), resp.StatusCode)
 	}
 
 	response := &RegisterResponse{}

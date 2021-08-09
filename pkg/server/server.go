@@ -13,6 +13,7 @@ import (
 	mux "github.com/gorilla/mux"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	log "github.com/sirupsen/logrus"
@@ -34,7 +35,7 @@ type Server struct {
 	ActiveJob *jobs.Job
 	router    *mux.Router
 
-	HttpClient *http.Client
+	HTTPClient *http.Client
 }
 
 const ServerStateWaitingForJob = "waiting-for-job"
@@ -53,7 +54,7 @@ func NewServer(host string, port int, tlsCertPath, tlsKeyPath, version string, l
 		Logfile:     logfile,
 		router:      router,
 		Version:     version,
-		HttpClient:  httpClient,
+		HTTPClient:  httpClient,
 	}
 
 	jwtMiddleware := CreateJwtMiddleware(jwtSecret)
@@ -183,17 +184,22 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 			// idempotent call
 			fmt.Fprint(w, `{"message": "ok"}`)
 			return
-		} else {
-			log.Warn("A job is already running, returning 422")
-
-			w.WriteHeader(422)
-			fmt.Fprintf(w, `{"message": "a job is already running"}`)
-			return
 		}
+
+		log.Warn("A job is already running, returning 422")
+
+		w.WriteHeader(422)
+		fmt.Fprintf(w, `{"message": "a job is already running"}`)
+		return
 	}
 
 	log.Debug("Creating new job")
-	job, err := jobs.NewJob(request, s.HttpClient)
+	job, err := jobs.NewJobWithOptions(&jobs.JobOptions{
+		Request:         request,
+		Client:          s.HTTPClient,
+		ExposeKvmDevice: true,
+		FileInjections:  []config.FileInjection{},
+	})
 
 	if err != nil {
 		log.Errorf("Failed to create a new job, returning 500: %v", err)

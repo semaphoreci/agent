@@ -5,14 +5,21 @@ import (
 	"fmt"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 )
 
 type DockerComposeFile struct {
-	configuration api.Compose
+	configuration   api.Compose
+	exposeKvmDevice bool
+	fileInjections  []config.FileInjection
 }
 
-func ConstructDockerComposeFile(conf api.Compose) string {
-	f := DockerComposeFile{configuration: conf}
+func ConstructDockerComposeFile(conf api.Compose, exposeKvmDevice bool, fileInjections []config.FileInjection) string {
+	f := DockerComposeFile{
+		configuration:   conf,
+		exposeKvmDevice: exposeKvmDevice,
+		fileInjections:  fileInjections,
+	}
 	return f.Construct()
 }
 
@@ -41,8 +48,11 @@ func (f *DockerComposeFile) Service(container api.Container) string {
 	result := ""
 	result += fmt.Sprintf("  %s:\n", container.Name)
 	result += fmt.Sprintf("    image: %s\n", container.Image)
-	// result += "    devices:\n"
-	// result += "      - \"/dev/kvm:/dev/kvm\"\n"
+
+	if f.exposeKvmDevice {
+		result += "    devices:\n"
+		result += "      - \"/dev/kvm:/dev/kvm\"\n"
+	}
 
 	if container.Command != "" {
 		result += fmt.Sprintf("    command: %s\n", container.Command)
@@ -77,6 +87,13 @@ func (f *DockerComposeFile) ServiceWithLinks(c api.Container, links []api.Contai
 
 		for _, link := range links {
 			result += fmt.Sprintf("      - %s\n", link.Name)
+		}
+	}
+
+	if len(f.fileInjections) > 0 {
+		result += "    volumes:\n"
+		for _, fileInjection := range f.fileInjections {
+			result += fmt.Sprintf("      - %s:%s\n", fileInjection.HostPath, fileInjection.Destination)
 		}
 	}
 

@@ -9,6 +9,9 @@ go.install:
 	sudo mv go /usr/local
 	cd -
 
+lint:
+	revive -formatter friendly -config lint.toml ./...
+
 run:
 	go run *.go run $(JOB)
 .PHONY: run
