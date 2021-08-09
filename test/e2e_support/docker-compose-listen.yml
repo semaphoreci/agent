@@ -6,7 +6,7 @@ services:
       context: ../..
       dockerfile: Dockerfile.test
 
-    command: 'bash -c "service ssh restart && ./agent start --endpoint hub:4567 --token 321h1l2jkh1jk42341 --no-https"'
+    command: 'bash -c "service ssh restart && ./agent start --config-file /tmp/agent/config.yaml"'
 
     ports:
       - "30000:8000"
@@ -19,6 +19,7 @@ services:
       - /dev/ptmx
 
     volumes:
+      - /tmp/agent:/tmp/agent
       - /tmp/agent-temp-directory:/tmp/agent-temp-directory
       - /var/run/docker.sock:/var/run/docker.sock
 
