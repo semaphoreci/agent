@@ -45,6 +45,7 @@ END
 AGENT_CONFIG_PATH="$install_directory/config.yaml"
 echo "Creating agent config file at $AGENT_CONFIG_PATH..."
 echo "$AGENT_CONFIG" > $AGENT_CONFIG_PATH
+sudo chown $install_user:$install_user $AGENT_CONFIG_PATH
 
 SYSTEMD_SERVICE=$(cat <<-END
 [Unit]
