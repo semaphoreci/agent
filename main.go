@@ -73,15 +73,15 @@ func getLogLevel() log.Level {
 }
 
 func RunListener(httpClient *http.Client, logfile io.Writer) {
-	configFile := pflag.String(config.CONFIG_FILE, "", "Config file")
-	_ = pflag.String(config.ENDPOINT, "", "Endpoint where agents are registered")
-	_ = pflag.String(config.TOKEN, "", "Registration token")
-	_ = pflag.Bool(config.NO_HTTPS, false, "Use http for communication")
-	_ = pflag.String(config.SHUTDOWN_HOOK_PATH, "", "Shutdown hook path")
-	_ = pflag.Bool(config.DISCONNECT_AFTER_JOB, false, "Disconnect after job")
-	_ = pflag.StringSlice(config.ENV_VARS, []string{}, "Export environment variables in jobs")
-	_ = pflag.StringSlice(config.FILES, []string{}, "Inject files into container, when using docker compose executor")
-	_ = pflag.Bool(config.FAIL_ON_MISSING_FILES, false, "Fail job if files specified using --files are missing")
+	configFile := pflag.String(config.ConfigFile, "", "Config file")
+	_ = pflag.String(config.Endpoint, "", "Endpoint where agents are registered")
+	_ = pflag.String(config.Token, "", "Registration token")
+	_ = pflag.Bool(config.NoHTTPS, false, "Use http for communication")
+	_ = pflag.String(config.ShutdownHookPath, "", "Shutdown hook path")
+	_ = pflag.Bool(config.DisconnectAfterJob, false, "Disconnect after job")
+	_ = pflag.StringSlice(config.EnvVars, []string{}, "Export environment variables in jobs")
+	_ = pflag.StringSlice(config.Files, []string{}, "Inject files into container, when using docker compose executor")
+	_ = pflag.Bool(config.FailOnMissingFiles, false, "Fail job if files specified using --files are missing")
 
 	pflag.Parse()
 
@@ -93,16 +93,16 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 
 	validateConfiguration()
 
-	if viper.GetString(config.ENDPOINT) == "" {
+	if viper.GetString(config.Endpoint) == "" {
 		log.Fatal("Semaphore endpoint was not specified. Exiting...")
 	}
 
-	if viper.GetString(config.TOKEN) == "" {
+	if viper.GetString(config.Token) == "" {
 		log.Fatal("Agent registration token was not specified. Exiting...")
 	}
 
 	scheme := "https"
-	if viper.GetBool(config.NO_HTTPS) {
+	if viper.GetBool(config.NoHTTPS) {
 		scheme = "http"
 	}
 
@@ -117,15 +117,15 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	}
 
 	config := listener.Config{
-		Endpoint:           viper.GetString(config.ENDPOINT),
-		Token:              viper.GetString(config.TOKEN),
+		Endpoint:           viper.GetString(config.Endpoint),
+		Token:              viper.GetString(config.Token),
 		RegisterRetryLimit: 30,
 		Scheme:             scheme,
-		ShutdownHookPath:   viper.GetString(config.SHUTDOWN_HOOK_PATH),
-		DisconnectAfterJob: viper.GetBool(config.DISCONNECT_AFTER_JOB),
+		ShutdownHookPath:   viper.GetString(config.ShutdownHookPath),
+		DisconnectAfterJob: viper.GetBool(config.DisconnectAfterJob),
 		EnvVars:            hostEnvVars,
 		FileInjections:     fileInjections,
-		FailOnMissingFiles: viper.GetBool(config.FAIL_ON_MISSING_FILES),
+		FailOnMissingFiles: viper.GetBool(config.FailOnMissingFiles),
 		AgentVersion:       VERSION,
 	}
 
@@ -170,7 +170,7 @@ func validateConfiguration() {
 
 func ParseEnvVars() ([]config.HostEnvVar, error) {
 	vars := []config.HostEnvVar{}
-	for _, envVar := range viper.GetStringSlice(config.ENV_VARS) {
+	for _, envVar := range viper.GetStringSlice(config.EnvVars) {
 		nameAndValue := strings.Split(envVar, "=")
 		if len(nameAndValue) != 2 {
 			return nil, fmt.Errorf("%s is not a valid environment variable", envVar)
@@ -187,7 +187,7 @@ func ParseEnvVars() ([]config.HostEnvVar, error) {
 
 func ParseFiles() ([]config.FileInjection, error) {
 	fileInjections := []config.FileInjection{}
-	for _, file := range viper.GetStringSlice(config.FILES) {
+	for _, file := range viper.GetStringSlice(config.Files) {
 		hostPathAndDestination := strings.Split(file, ":")
 		if len(hostPathAndDestination) != 2 {
 			return nil, fmt.Errorf("%s is not a valid file injection", file)
