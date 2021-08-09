@@ -37,9 +37,10 @@ type FileInjection struct {
 }
 
 func (f *FileInjection) CheckFileExists() error {
-	if _, err := os.Stat(f.HostPath); err == nil {
-		return nil
-	} else {
+	_, err := os.Stat(f.HostPath)
+	if err != nil {
 		return err
 	}
+
+	return nil
 }

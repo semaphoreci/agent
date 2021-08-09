@@ -60,16 +60,16 @@ func OpenLogfile() io.Writer {
 
 func getLogLevel() log.Level {
 	logLevel := os.Getenv("LOG_LEVEL")
-	if logLevel != "" {
-		level, err := log.ParseLevel(logLevel)
-		if err != nil {
-			log.Fatalf("Log level %s not supported", logLevel)
-		}
-
-		return level
-	} else {
+	if logLevel == "" {
 		return log.InfoLevel
 	}
+
+	level, err := log.ParseLevel(logLevel)
+	if err != nil {
+		log.Fatalf("Log level %s not supported", logLevel)
+	}
+
+	return level
 }
 
 func RunListener(httpClient *http.Client, logfile io.Writer) {

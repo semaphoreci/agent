@@ -16,10 +16,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.Api, config Config) (*JobProcessor, error) {
+func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, config Config) (*JobProcessor, error) {
 	p := &JobProcessor{
-		HttpClient:              httpClient,
-		ApiClient:               apiClient,
+		HTTPClient:              httpClient,
+		APIClient:               apiClient,
 		LastSuccessfulSync:      time.Now(),
 		State:                   selfhostedapi.AgentStateWaitingForJobs,
 		SyncInterval:            5 * time.Second,
@@ -39,8 +39,8 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.Api, co
 }
 
 type JobProcessor struct {
-	HttpClient              *http.Client
-	ApiClient               *selfhostedapi.Api
+	HTTPClient              *http.Client
+	APIClient               *selfhostedapi.API
 	State                   selfhostedapi.AgentState
 	CurrentJobID            string
 	CurrentJob              *jobs.Job
@@ -77,7 +77,7 @@ func (p *JobProcessor) Sync() {
 		JobID: p.CurrentJobID,
 	}
 
-	response, err := p.ApiClient.Sync(request)
+	response, err := p.APIClient.Sync(request)
 	if err != nil {
 		p.HandleSyncError(err)
 		return
@@ -134,7 +134,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 
 	job, err := jobs.NewJobWithOptions(&jobs.JobOptions{
 		Request:            jobRequest,
-		Client:             p.HttpClient,
+		Client:             p.HTTPClient,
 		ExposeKvmDevice:    false,
 		FileInjections:     p.FileInjections,
 		FailOnMissingFiles: p.FailOnMissingFiles,
@@ -167,13 +167,13 @@ func (p *JobProcessor) RunJob(jobID string) {
 func (p *JobProcessor) getJobWithRetries(jobID string) (*api.JobRequest, error) {
 	var jobRequest *api.JobRequest
 	err := retry.RetryWithConstantWait("Get job", 10, 3*time.Second, func() error {
-		job, err := p.ApiClient.GetJob(jobID)
+		job, err := p.APIClient.GetJob(jobID)
 		if err != nil {
 			return err
-		} else {
-			jobRequest = job
-			return nil
 		}
+
+		jobRequest = job
+		return nil
 	})
 
 	return jobRequest, err
@@ -214,7 +214,7 @@ func (p *JobProcessor) disconnect() {
 	log.Info("Disconnecting the Agent from Semaphore")
 
 	err := retry.RetryWithConstantWait("Disconnect", p.DisconnectRetryAttempts, time.Second, func() error {
-		_, err := p.ApiClient.Disconnect()
+		_, err := p.APIClient.Disconnect()
 		return err
 	})
 

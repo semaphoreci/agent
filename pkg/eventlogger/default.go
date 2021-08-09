@@ -15,7 +15,7 @@ func CreateLogger(request *api.JobRequest) (*Logger, error) {
 	case LoggerMethodPull:
 		return Default()
 	case LoggerMethodPush:
-		return DefaultHttp(request)
+		return DefaultHTTP(request)
 	default:
 		return nil, fmt.Errorf("unknown logger type")
 	}
@@ -40,12 +40,12 @@ func Default() (*Logger, error) {
 	return logger, nil
 }
 
-func DefaultHttp(request *api.JobRequest) (*Logger, error) {
-	if request.Logger.Url == "" {
+func DefaultHTTP(request *api.JobRequest) (*Logger, error) {
+	if request.Logger.URL == "" {
 		return nil, errors.New("HTTP logger needs a URL")
 	}
 
-	backend, err := NewHttpBackend(request.Logger.Url, request.Logger.Token)
+	backend, err := NewHTTPBackend(request.Logger.URL, request.Logger.Token)
 	if err != nil {
 		return nil, err
 	}

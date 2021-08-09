@@ -91,12 +91,12 @@ func namelinux() string {
 			if strings.HasPrefix(line, key+"=") {
 				name := strings.Split(line, key+"=")[1]
 
-				// if the value is wrapped in quotes, remove the quotes
 				if name[0] != '"' {
 					return name, true
-				} else {
-					return strings.Split(name, "\"")[1], true
 				}
+
+				// if the value is wrapped in quotes, remove the quotes
+				return strings.Split(name, "\"")[1], true
 			}
 		}
 

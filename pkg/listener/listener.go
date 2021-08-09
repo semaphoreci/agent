@@ -18,7 +18,7 @@ import (
 type Listener struct {
 	JobProcessor *JobProcessor
 	Config       Config
-	Client       *selfhostedapi.Api
+	Client       *selfhostedapi.API
 }
 
 type Config struct {
@@ -101,10 +101,10 @@ func (l *Listener) Register() error {
 		resp, err := l.Client.Register(req)
 		if err != nil {
 			return err
-		} else {
-			l.Client.SetAccessToken(resp.Token)
-			return nil
 		}
+
+		l.Client.SetAccessToken(resp.Token)
+		return nil
 	})
 
 	if err != nil {

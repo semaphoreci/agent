@@ -11,7 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type HttpBackend struct {
+type HTTPBackend struct {
 	client      *http.Client
 	url         string
 	token       string
@@ -21,13 +21,13 @@ type HttpBackend struct {
 	pushLock    sync.Mutex
 }
 
-func NewHttpBackend(url, token string) (*HttpBackend, error) {
+func NewHTTPBackend(url, token string) (*HTTPBackend, error) {
 	fileBackend, err := NewFileBackend("/tmp/job_log.json")
 	if err != nil {
 		return nil, err
 	}
 
-	httpBackend := HttpBackend{
+	httpBackend := HTTPBackend{
 		client:      &http.Client{},
 		url:         url,
 		token:       token,
@@ -40,15 +40,15 @@ func NewHttpBackend(url, token string) (*HttpBackend, error) {
 	return &httpBackend, nil
 }
 
-func (l *HttpBackend) Open() error {
+func (l *HTTPBackend) Open() error {
 	return l.fileBackend.Open()
 }
 
-func (l *HttpBackend) Write(event interface{}) error {
+func (l *HTTPBackend) Write(event interface{}) error {
 	return l.fileBackend.Write(event)
 }
 
-func (l *HttpBackend) startPushingLogs() {
+func (l *HTTPBackend) startPushingLogs() {
 	log.Debugf("Logs will be pushed to %s", l.url)
 
 	ticker := time.NewTicker(time.Second)
@@ -72,7 +72,7 @@ func (l *HttpBackend) startPushingLogs() {
 	}()
 }
 
-func (l *HttpBackend) stopStreaming() {
+func (l *HTTPBackend) stopStreaming() {
 	if l.streamChan != nil {
 		close(l.streamChan)
 	}
@@ -80,7 +80,7 @@ func (l *HttpBackend) stopStreaming() {
 	log.Debug("Stopped streaming logs")
 }
 
-func (l *HttpBackend) pushLogs() error {
+func (l *HTTPBackend) pushLogs() error {
 	l.pushLock.Lock()
 	defer l.pushLock.Unlock()
 
@@ -118,7 +118,7 @@ func (l *HttpBackend) pushLogs() error {
 	return nil
 }
 
-func (l *HttpBackend) Close() error {
+func (l *HTTPBackend) Close() error {
 	l.stopStreaming()
 
 	err := retry.RetryWithConstantWait("Push logs", 5, time.Second, func() error {
