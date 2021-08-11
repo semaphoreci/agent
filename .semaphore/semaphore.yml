@@ -69,7 +69,6 @@ blocks:
 
       epilogue:
         commands:
-          - docker exec -ti agent cat /tmp/agent_log
           - docker logs e2e_support_agent_1
           - docker logs e2e_support_hub_1
 
@@ -126,7 +125,6 @@ blocks:
 
       epilogue:
         commands:
-          - docker exec -ti agent cat /tmp/agent_log
           - docker logs e2e_support_agent_1
           - docker logs e2e_support_hub_1
 
@@ -193,7 +191,6 @@ blocks:
 
       epilogue:
         commands:
-          - docker exec -ti agent cat /tmp/agent_log
           - docker logs e2e_support_agent_1
           - docker logs e2e_support_hub_1
 
