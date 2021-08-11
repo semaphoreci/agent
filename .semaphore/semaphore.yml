@@ -70,6 +70,8 @@ blocks:
       epilogue:
         commands:
           - docker exec -ti agent cat /tmp/agent_log
+          - docker logs e2e_support_agent_1
+          - docker logs e2e_support_hub_1
 
       jobs:
         - name: Shell
@@ -125,6 +127,8 @@ blocks:
       epilogue:
         commands:
           - docker exec -ti agent cat /tmp/agent_log
+          - docker logs e2e_support_agent_1
+          - docker logs e2e_support_hub_1
 
       jobs:
         - name: Docker
@@ -186,6 +190,13 @@ blocks:
           - go get
           - go build
           - mkdir /tmp/agent
+
+      epilogue:
+        commands:
+          - docker exec -ti agent cat /tmp/agent_log
+          - docker logs e2e_support_agent_1
+          - docker logs e2e_support_hub_1
+
       jobs:
         - name: Self hosted
           commands:
