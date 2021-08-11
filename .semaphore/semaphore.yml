@@ -69,8 +69,8 @@ blocks:
 
       epilogue:
         commands:
-          - docker logs e2e_support_agent_1
-          - docker logs e2e_support_hub_1
+          - if [ "$TEST_MODE" = "api" ]; then docker exec -ti agent cat /tmp/agent_log; else docker logs e2e_support_agent_1; fi
+          - if [ "$TEST_MODE" = "api" ]; then echo "No hub"; else docker logs e2e_support_hub_1; fi
 
       jobs:
         - name: Shell
@@ -125,8 +125,8 @@ blocks:
 
       epilogue:
         commands:
-          - docker logs e2e_support_agent_1
-          - docker logs e2e_support_hub_1
+          - if [ "$TEST_MODE" = "api" ]; then docker exec -ti agent cat /tmp/agent_log; else docker logs e2e_support_agent_1; fi
+          - if [ "$TEST_MODE" = "api" ]; then echo "No hub"; else docker logs e2e_support_hub_1; fi
 
       jobs:
         - name: Docker
