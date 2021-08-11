@@ -201,6 +201,8 @@ blocks:
                 - docker_compose_missing_host_files
                 - docker_compose_fail_on_missing_host_files
                 - shell_host_env_vars
+                - shutdown
+                - shutdown_while_waiting
 
 promotions:
   - name: Release
