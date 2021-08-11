@@ -9,6 +9,8 @@ set :bind, "0.0.0.0"
 set :logging, false
 
 $registered = false
+$disconnected = false
+$should_shutdown = false
 $jobs = []
 $payloads = {}
 $job_states = {}
@@ -41,12 +43,19 @@ post "/api/v1/self_hosted_agents/register" do
   }.to_json
 end
 
+post "/api/v1/self_hosted_agents/disconnect" do
+  puts "[SYNC] Disconnect received"
+  $disconnected = true
+end
+
 post "/api/v1/self_hosted_agents/sync" do
   puts "[SYNC] Request #{@json_request.to_json}"
 
   response = case @json_request["state"]
             when "waiting-for-jobs"
-              if $jobs.size > 0
+              if $should_shutdown
+                {"action" => "shutdown"}
+              elsif $jobs.size > 0
                 job = $jobs.shift
 
                 {"action" => "run-job", "job_id" => job["id"]}
@@ -55,7 +64,7 @@ post "/api/v1/self_hosted_agents/sync" do
               end
             when "running-job"
               job_id = @json_request["job_id"]
-              if $job_states[job_id] == "stopping"
+              if $should_shutdown || $job_states[job_id] == "stopping"
                 {"action" => "stop-job"}
               else
                 {"action" => "continue"}
@@ -63,21 +72,20 @@ post "/api/v1/self_hosted_agents/sync" do
             when "stopping-job"
               {"action" => "continue"}
             when "finished-job"
-              {"action" => "continue"}
+              $should_shutdown ? {"action" => "shutdown"} : {"action" => "continue"}
             when "starting-job"
               {"action" => "continue"}
             when "failed-to-send-callback"
               job_id = @json_request["job_id"]
               $job_states[job_id] = "stuck"
-              {"action" => "continue"}
+              $should_shutdown ? {"action" => "shutdown"} : {"action" => "continue"}
             when "failed-to-fetch-job"
               job_id = @json_request["job_id"]
-              puts "JOBID: #{job_id}"
               $job_states[job_id] = "stuck"
-              {"action" => "continue"}
+              $should_shutdown ? {"action" => "shutdown"} : {"action" => "continue"}
             when "failed-to-construct-job"
               $job_states[job_id] = "stuck"
-              {"action" => "continue"}
+              $should_shutdown ? {"action" => "shutdown"} : {"action" => "continue"}
             else
               raise "unknown state"
             end
@@ -98,6 +106,10 @@ end
 
 get "/api/v1/self_hosted_agents/jobs/:id/status" do
   $job_states[params["id"]]
+end
+
+get "/api/v1/self_hosted_agents/is_shutdown" do
+  "#{$disconnected}"
 end
 
 post "/api/v1/logs/:id" do
@@ -152,4 +164,9 @@ post "/private/schedule_stop/:id" do
   puts "Scheduled stop #{params["id"]}"
 
   $job_states[params["id"]] = "stopping"
+end
+
+post "/private/schedule_shutdown" do
+  puts "Scheduled shutdown"
+  $should_shutdown = true
 end

@@ -81,6 +81,14 @@ def wait_for_job_to_get_stuck
   $strategy.wait_for_job_to_get_stuck
 end
 
+def shutdown_agent
+  $strategy.shutdown_agent
+end
+
+def wait_for_agent_to_shutdown
+  $strategy.wait_for_agent_to_shutdown
+end
+
 def bad_callback_url
   "https://httpbin.org/status/500"
 end
