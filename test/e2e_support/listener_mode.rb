@@ -19,6 +19,10 @@ class ListenerMode
     system "curl -X POST -H 'Content-Type: application/json' -d @/tmp/j1 #{HUB_ENDPOINT}/private/schedule_job"
   end
 
+  def shutdown_agent
+    system "curl -X POST #{HUB_ENDPOINT}/private/schedule_shutdown"
+  end
+
   def wait_for_command_to_start(cmd)
     puts "========================="
     puts "Waiting for command to start '#{cmd}'"
@@ -45,6 +49,26 @@ class ListenerMode
       puts "Job state #{response}"
 
       if response == "stuck"
+        return
+      else
+        sleep 1
+      end
+    end
+
+    sleep 5
+
+    puts
+  end
+
+  def wait_for_agent_to_shutdown
+    puts ""
+    puts "Waiting for agent to shutdown"
+
+    loop do
+      response = `curl -s --fail -X GET -k "#{HUB_ENDPOINT}/api/v1/self_hosted_agents/is_shutdown"`.strip
+      puts "Agent is shutdown: #{response}"
+
+      if response == "true"
         return
       else
         sleep 1
