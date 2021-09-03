@@ -40,7 +40,7 @@ The [`agent start`](#agent-start-flags) command is used to run the agent in that
 
 ### `agent start [flags]`
 
-Starts the agent in a self hosted environment. The agent will register itself with Semaphore and periodically sync with Semaphore. No HTTP server is started and exposed. installation instructions for various operating systems are available [here](https://docs.semaphoreci.com/ci-cd-environment/installing-a-self-hosted-agent). Available configuration documentation for this command is available in the [self hosted docs](https://docs.semaphoreci.com/ci-cd-environment/configuring-a-self-hosted-agent).
+Starts the agent in a self hosted environment. The agent will register itself with Semaphore and periodically sync with Semaphore. No HTTP server is started and exposed. Read more about it [in the docs](https://docs.semaphoreci.com/ci-cd-environment/self-hosted-agents-overview).
 
 ### `agent serve [flags]`
 
