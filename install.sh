@@ -3,36 +3,55 @@
 set -e
 set -o pipefail
 
+AGENT_INSTALLATION_DIRECTORY=$(pwd)
+LOGGED_IN_USER=$(logname)
+TOOLBOX_VERSION="v1.14.6"
+
 if [[ "$EUID" -ne 0 ]]; then
   echo "Please run with sudo."
   exit 1
 fi
 
-read -p "Enter organization: " organization
-if [[ -z $organization ]]; then
-  echo "Organization cannot be empty."
+if [[ -z $SEMAPHORE_ORGANIZATION ]]; then
+  read -p "Enter organization: " SEMAPHORE_ORGANIZATION
+  if [[ -z $SEMAPHORE_ORGANIZATION ]]; then
+    echo "Organization cannot be empty."
+    exit 1
+  fi
+fi
+
+if [[ -z $SEMAPHORE_REGISTRATION_TOKEN ]]; then
+  read -p "Enter registration token: " SEMAPHORE_REGISTRATION_TOKEN
+  if [[ -z $SEMAPHORE_REGISTRATION_TOKEN ]]; then
+    echo "Registration token cannot be empty."
+    exit 1
+  fi
+fi
+
+read -p "Enter user [$LOGGED_IN_USER]: " AGENT_INSTALLATION_USER
+AGENT_INSTALLATION_USER="${AGENT_INSTALLATION_USER:=$LOGGED_IN_USER}"
+
+if ! id "$AGENT_INSTALLATION_USER" &>/dev/null; then
+  echo "User $AGENT_INSTALLATION_USER does not exist. Exiting..."
   exit 1
 fi
 
-read -p "Enter registration token: " registration_token
-if [[ -z $registration_token ]]; then
-  echo "Registration token cannot be empty."
-  exit 1
-fi
+#
+# Download toolbox
+#
+curl -L "https://github.com/semaphoreci/toolbox/releases/download/$TOOLBOX_VERSION/self-hosted-linux.tar" -o toolbox.tar
+tar -xf toolbox.tar
+mv toolbox ~/.toolbox
+bash ~/.toolbox/install-toolbox
+source ~/.toolbox/toolbox
+echo "source ~/.toolbox/toolbox" >> ~/.bash_profile
 
-install_directory=$(pwd)
-logged_in_user=$(logname)
-read -p "Enter user [$logged_in_user]: " install_user
-install_user="${install_user:=$logged_in_user}"
-
-if ! id "$install_user" &>/dev/null; then
-  echo "User $install_user does not exist. Exiting..."
-  exit 1
-fi
-
+#
+# Create agent config
+#
 AGENT_CONFIG=$(cat <<-END
-endpoint: "$organization.semaphoreci.com"
-token: "$registration_token"
+endpoint: "$SEMAPHORE_ORGANIZATION.semaphoreci.com"
+token: "$SEMAPHORE_REGISTRATION_TOKEN"
 no-https: false
 shutdown-hook-path: ""
 disconnect-after-job: false
@@ -42,11 +61,14 @@ fail-on-missing-files: false
 END
 )
 
-AGENT_CONFIG_PATH="$install_directory/config.yaml"
+AGENT_CONFIG_PATH="$AGENT_INSTALLATION_DIRECTORY/config.yaml"
 echo "Creating agent config file at $AGENT_CONFIG_PATH..."
 echo "$AGENT_CONFIG" > $AGENT_CONFIG_PATH
-sudo chown $install_user:$install_user $AGENT_CONFIG_PATH
+sudo chown $AGENT_INSTALLATION_USER:$AGENT_INSTALLATION_USER $AGENT_CONFIG_PATH
 
+#
+# Create systemd service
+#
 SYSTEMD_SERVICE=$(cat <<-END
 [Unit]
 Description=Semaphore agent
@@ -57,9 +79,9 @@ StartLimitIntervalSec=0
 Type=simple
 Restart=always
 RestartSec=5
-User=$install_user
-WorkingDirectory=$install_directory
-ExecStart=$install_directory/agent start --config-file $AGENT_CONFIG_PATH
+User=$AGENT_INSTALLATION_USER
+WorkingDirectory=$AGENT_INSTALLATION_DIRECTORY
+ExecStart=$AGENT_INSTALLATION_DIRECTORY/agent start --config-file $AGENT_CONFIG_PATH
 
 [Install]
 WantedBy=multi-user.target
