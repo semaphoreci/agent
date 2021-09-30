@@ -39,12 +39,18 @@ fi
 #
 # Download toolbox
 #
-curl -L "https://github.com/semaphoreci/toolbox/releases/download/$TOOLBOX_VERSION/self-hosted-linux.tar" -o toolbox.tar
+echo "Installing toolbox..."
+USER_HOME_DIRECTORY=$(sudo -u $AGENT_INSTALLATION_USER -H bash -c 'echo $HOME')
+curl -sL "https://github.com/semaphoreci/toolbox/releases/download/$TOOLBOX_VERSION/self-hosted-linux.tar" -o toolbox.tar
 tar -xf toolbox.tar
-mv toolbox ~/.toolbox
-bash ~/.toolbox/install-toolbox
-source ~/.toolbox/toolbox
-echo "source ~/.toolbox/toolbox" >> ~/.bash_profile
+
+mv toolbox $USER_HOME_DIRECTORY/.toolbox
+sudo chown -R $AGENT_INSTALLATION_USER:$AGENT_INSTALLATION_USER $USER_HOME_DIRECTORY/.toolbox
+
+sudo -u $AGENT_INSTALLATION_USER -H bash $USER_HOME_DIRECTORY/.toolbox/install-toolbox
+sudo -u $AGENT_INSTALLATION_USER -H bash -c 'source ~/.toolbox/toolbox'
+echo "source ~/.toolbox/toolbox" >> $USER_HOME_DIRECTORY/.bash_profile
+rm toolbox.tar
 
 #
 # Create agent config
