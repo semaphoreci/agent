@@ -5,7 +5,7 @@ set -o pipefail
 
 AGENT_INSTALLATION_DIRECTORY=$(pwd)
 LOGGED_IN_USER=$(logname)
-TOOLBOX_VERSION="v1.14.6"
+TOOLBOX_VERSION="v1.14.8"
 
 if [[ "$EUID" -ne 0 ]]; then
   echo "Please run with sudo."
@@ -28,11 +28,13 @@ if [[ -z $SEMAPHORE_REGISTRATION_TOKEN ]]; then
   fi
 fi
 
-read -p "Enter user [$LOGGED_IN_USER]: " AGENT_INSTALLATION_USER
-AGENT_INSTALLATION_USER="${AGENT_INSTALLATION_USER:=$LOGGED_IN_USER}"
+if [[ -z $SEMAPHORE_AGENT_INSTALLATION_USER ]]; then
+  read -p "Enter user [$LOGGED_IN_USER]: " SEMAPHORE_AGENT_INSTALLATION_USER
+  SEMAPHORE_AGENT_INSTALLATION_USER="${SEMAPHORE_AGENT_INSTALLATION_USER:=$LOGGED_IN_USER}"
+fi
 
-if ! id "$AGENT_INSTALLATION_USER" &>/dev/null; then
-  echo "User $AGENT_INSTALLATION_USER does not exist. Exiting..."
+if ! id "$SEMAPHORE_AGENT_INSTALLATION_USER" &>/dev/null; then
+  echo "User $SEMAPHORE_AGENT_INSTALLATION_USER does not exist. Exiting..."
   exit 1
 fi
 
@@ -40,14 +42,14 @@ fi
 # Download toolbox
 #
 echo "Installing toolbox..."
-USER_HOME_DIRECTORY=$(sudo -u $AGENT_INSTALLATION_USER -H bash -c 'echo $HOME')
+USER_HOME_DIRECTORY=$(sudo -u $SEMAPHORE_AGENT_INSTALLATION_USER -H bash -c 'echo $HOME')
 curl -sL "https://github.com/semaphoreci/toolbox/releases/download/$TOOLBOX_VERSION/self-hosted-linux.tar" -o toolbox.tar
 tar -xf toolbox.tar
 
 mv toolbox $USER_HOME_DIRECTORY/.toolbox
-sudo chown -R $AGENT_INSTALLATION_USER:$AGENT_INSTALLATION_USER $USER_HOME_DIRECTORY/.toolbox
+sudo chown -R $SEMAPHORE_AGENT_INSTALLATION_USER:$SEMAPHORE_AGENT_INSTALLATION_USER $USER_HOME_DIRECTORY/.toolbox
 
-sudo -u $AGENT_INSTALLATION_USER -H bash $USER_HOME_DIRECTORY/.toolbox/install-toolbox
+sudo -u $SEMAPHORE_AGENT_INSTALLATION_USER -H bash $USER_HOME_DIRECTORY/.toolbox/install-toolbox
 echo "source ~/.toolbox/toolbox" >> $USER_HOME_DIRECTORY/.bash_profile
 rm toolbox.tar
 
@@ -69,7 +71,7 @@ END
 AGENT_CONFIG_PATH="$AGENT_INSTALLATION_DIRECTORY/config.yaml"
 echo "Creating agent config file at $AGENT_CONFIG_PATH..."
 echo "$AGENT_CONFIG" > $AGENT_CONFIG_PATH
-sudo chown $AGENT_INSTALLATION_USER:$AGENT_INSTALLATION_USER $AGENT_CONFIG_PATH
+sudo chown $SEMAPHORE_AGENT_INSTALLATION_USER:$SEMAPHORE_AGENT_INSTALLATION_USER $AGENT_CONFIG_PATH
 
 #
 # Create systemd service
@@ -84,7 +86,7 @@ StartLimitIntervalSec=0
 Type=simple
 Restart=always
 RestartSec=5
-User=$AGENT_INSTALLATION_USER
+User=$SEMAPHORE_AGENT_INSTALLATION_USER
 WorkingDirectory=$AGENT_INSTALLATION_DIRECTORY
 ExecStart=$AGENT_INSTALLATION_DIRECTORY/agent start --config-file $AGENT_CONFIG_PATH
 
