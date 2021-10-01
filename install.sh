@@ -48,7 +48,6 @@ mv toolbox $USER_HOME_DIRECTORY/.toolbox
 sudo chown -R $AGENT_INSTALLATION_USER:$AGENT_INSTALLATION_USER $USER_HOME_DIRECTORY/.toolbox
 
 sudo -u $AGENT_INSTALLATION_USER -H bash $USER_HOME_DIRECTORY/.toolbox/install-toolbox
-sudo -u $AGENT_INSTALLATION_USER -H bash -c 'source ~/.toolbox/toolbox'
 echo "source ~/.toolbox/toolbox" >> $USER_HOME_DIRECTORY/.bash_profile
 rm toolbox.tar
 
