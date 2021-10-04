@@ -5,7 +5,6 @@ set -o pipefail
 
 AGENT_INSTALLATION_DIRECTORY=$(pwd)
 LOGGED_IN_USER=$(logname)
-TOOLBOX_VERSION="v1.14.8"
 
 if [[ "$EUID" -ne 0 ]]; then
   echo "Please run with sudo."
@@ -43,7 +42,7 @@ fi
 #
 echo "Installing toolbox..."
 USER_HOME_DIRECTORY=$(sudo -u $SEMAPHORE_AGENT_INSTALLATION_USER -H bash -c 'echo $HOME')
-curl -sL "https://github.com/semaphoreci/toolbox/releases/download/$TOOLBOX_VERSION/self-hosted-linux.tar" -o toolbox.tar
+curl -sL "https://github.com/semaphoreci/toolbox/releases/latest/download/self-hosted-linux.tar" -o toolbox.tar
 tar -xf toolbox.tar
 
 mv toolbox $USER_HOME_DIRECTORY/.toolbox
