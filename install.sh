@@ -3,7 +3,7 @@
 set -e
 set -o pipefail
 
-AGENT_INSTALLATION_DIRECTORY=$(pwd)
+AGENT_INSTALLATION_DIRECTORY="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 LOGGED_IN_USER=$(logname)
 
 if [[ "$EUID" -ne 0 ]]; then
