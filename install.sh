@@ -3,7 +3,7 @@
 set -e
 set -o pipefail
 
-AGENT_INSTALLATION_DIRECTORY=$(pwd)
+AGENT_INSTALLATION_DIRECTORY="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 LOGGED_IN_USER=$(logname)
 
 if [[ "$EUID" -ne 0 ]]; then
@@ -42,13 +42,19 @@ fi
 #
 echo "Installing toolbox..."
 USER_HOME_DIRECTORY=$(sudo -u $SEMAPHORE_AGENT_INSTALLATION_USER -H bash -c 'echo $HOME')
+TOOLBOX_DIRECTORY="$USER_HOME_DIRECTORY/.toolbox"
+if [[ -d "$TOOLBOX_DIRECTORY" ]]; then
+  echo "Toolbox was already installed at $TOOLBOX_DIRECTORY. Overriding it..."
+  rm -rf "$TOOLBOX_DIRECTORY"
+fi
+
 curl -sL "https://github.com/semaphoreci/toolbox/releases/latest/download/self-hosted-linux.tar" -o toolbox.tar
 tar -xf toolbox.tar
 
-mv toolbox $USER_HOME_DIRECTORY/.toolbox
-sudo chown -R $SEMAPHORE_AGENT_INSTALLATION_USER:$SEMAPHORE_AGENT_INSTALLATION_USER $USER_HOME_DIRECTORY/.toolbox
+mv toolbox $TOOLBOX_DIRECTORY
+sudo chown -R $SEMAPHORE_AGENT_INSTALLATION_USER:$SEMAPHORE_AGENT_INSTALLATION_USER $TOOLBOX_DIRECTORY
 
-sudo -u $SEMAPHORE_AGENT_INSTALLATION_USER -H bash $USER_HOME_DIRECTORY/.toolbox/install-toolbox
+sudo -u $SEMAPHORE_AGENT_INSTALLATION_USER -H bash $TOOLBOX_DIRECTORY/install-toolbox
 echo "source ~/.toolbox/toolbox" >> $USER_HOME_DIRECTORY/.bash_profile
 rm toolbox.tar
 
@@ -99,9 +105,17 @@ SERVICE_NAME=semaphore-agent
 SYSTEMD_SERVICE_PATH=$SYSTEMD_PATH/$SERVICE_NAME.service
 
 echo "Creating $SYSTEMD_SERVICE_PATH..."
-echo "$SYSTEMD_SERVICE" > $SYSTEMD_SERVICE_PATH
 
-echo "Starting semaphore-agent service..."
-systemctl start semaphore-agent
+if [[ -f "$SYSTEMD_SERVICE_PATH" ]]; then
+  echo "systemd service already exists at $SYSTEMD_SERVICE_PATH. Overriding it..."
+  echo "$SYSTEMD_SERVICE" > $SYSTEMD_SERVICE_PATH
+  systemctl daemon-reload
+  echo "Restarting semaphore-agent service..."
+  systemctl restart semaphore-agent
+else
+  echo "$SYSTEMD_SERVICE" > $SYSTEMD_SERVICE_PATH
+  echo "Starting semaphore-agent service..."
+  systemctl start semaphore-agent
+fi
 
 echo "Done."
