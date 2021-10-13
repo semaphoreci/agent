@@ -54,7 +54,7 @@ assert_job_log <<-LOG
   {"directive":"Setting up image pull credentials","event":"cmd_started","timestamp":"*"}
   {"event":"cmd_output","output":"Setting up credentials for GCR\\n","timestamp":"*"}
   {"event":"cmd_output","output":"cat /tmp/gcr/keyfile.json | docker login -u _json_key --password-stdin https://$GCR_HOSTNAME\\n","timestamp":"*"}
-  {"event":"cmd_output","output":"Error response from daemon: Get https://gcr.io/v2/: unauthorized: GCR login failed. You may have invalid credentials. To login successfully, follow the steps in: https://cloud.google.com/container-registry/docs/advanced-authentication\\n","timestamp":"*"}
+  {"event":"cmd_output","output":"Error response from daemon: Get \"https://gcr.io/v2/\": unauthorized: GCR login failed. You may have invalid credentials. To login successfully, follow the steps in: https://cloud.google.com/container-registry/docs/advanced-authentication\\n","timestamp":"*"}
   {"event":"cmd_output","output":"\\n","timestamp":"*"}
   {"directive":"Setting up image pull credentials","event":"cmd_finished","exit_code":1,"finished_at":"*","started_at":"*","timestamp":"*"}
   {"event":"job_finished","result":"failed","timestamp":"*"}
