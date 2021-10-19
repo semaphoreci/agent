@@ -2,13 +2,14 @@ package shell
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
 
-	pty "github.com/kr/pty"
+	pty "github.com/creack/pty"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -176,7 +177,7 @@ func (s *Shell) Close() error {
 
 	if s.BootCommand.Process != nil {
 		err := s.BootCommand.Process.Kill()
-		if err != nil {
+		if err != nil && !errors.Is(err, os.ErrProcessDone) {
 			log.Errorf("Process killing procedure returned an error %+v", err)
 			return err
 		}
