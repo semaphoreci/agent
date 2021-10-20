@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	pty "github.com/kr/pty"
+	pty "github.com/creack/pty"
 	watchman "github.com/renderedtext/go-watchman"
 	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
