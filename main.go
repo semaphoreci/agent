@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mitchellh/panicwrap"
 	watchman "github.com/renderedtext/go-watchman"
 	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
@@ -24,15 +25,27 @@ import (
 var VERSION = "dev"
 
 func main() {
-	// Initialize global randomness
-	rand.Seed(time.Now().UnixNano())
-
-	action := os.Args[1]
-
 	logfile := OpenLogfile()
 	log.SetOutput(logfile)
 	log.SetFormatter(new(eventlogger.CustomFormatter))
 	log.SetLevel(getLogLevel())
+
+	exitStatus, err := panicwrap.BasicWrap(panicHandler)
+	if err != nil {
+		panic(err)
+	}
+
+	// If exitStatus >= 0, then we're the parent process and the panicwrap
+	// re-executed ourselves and completed. Just exit with the proper status.
+	if exitStatus >= 0 {
+		os.Exit(exitStatus)
+	}
+
+	// Otherwise, exitStatus < 0 means we're the child. Continue executing as normal...
+	// Initialize global randomness
+	rand.Seed(time.Now().UnixNano())
+
+	action := os.Args[1]
 
 	httpClient := &http.Client{}
 
@@ -259,4 +272,9 @@ func RunSingleJob(httpClient *http.Client) {
 	job.JobLogArchived = true
 
 	job.Run()
+}
+
+func panicHandler(output string) {
+	log.Printf("Child agent process panicked:\n\n%s\n", output)
+	os.Exit(1)
 }
