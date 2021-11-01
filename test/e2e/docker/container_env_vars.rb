@@ -15,7 +15,7 @@ start_job <<-JSON
           "name": "main",
           "image": "ruby:2.6",
           "env_vars": [
-            { "name": "FOO", "value": "#{`echo "bar" | base64`}" }
+            { "name": "FOO", "value": "#{`echo "bar" | base64 | tr -d '\n'`}" }
           ]
         }
       ]
@@ -30,9 +30,10 @@ start_job <<-JSON
     "epilogue_always_commands": [],
 
     "callbacks": {
-      "finished": "https://httpbin.org/status/200",
-      "teardown_finished": "https://httpbin.org/status/200"
-    }
+      "finished": "#{finished_callback_url}",
+      "teardown_finished": "#{teardown_callback_url}"
+    },
+    "logger": #{$LOGGER}
   }
 JSON
 

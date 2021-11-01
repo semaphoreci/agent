@@ -1,0 +1,8 @@
+endpoint: ""
+token: ""
+no-https: false
+shutdown-hook-path: ""
+disconnect-after-job: false
+env-vars: []
+files: []
+fail-on-missing-files: false

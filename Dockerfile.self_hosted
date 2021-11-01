@@ -1,0 +1,12 @@
+FROM ubuntu:20.04
+
+RUN apt-get update -qy
+RUN apt-get install -y ca-certificates openssh-client
+RUN update-ca-certificates
+
+ADD build/agent /app/agent
+RUN chmod +x /app/agent
+
+WORKDIR /app
+
+CMD /app/agent start --endpoint $ENDPOINT --token $TOKEN

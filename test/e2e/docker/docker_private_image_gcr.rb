@@ -20,8 +20,8 @@ start_job <<-JSON
       "image_pull_credentials": [
         {
           "env_vars": [
-            { "name": "DOCKER_CREDENTIAL_TYPE", "value": "#{Base64.encode64("GCR")}" },
-            { "name": "GCR_HOSTNAME", "value": "#{Base64.encode64(ENV['GCR_HOSTNAME'])}" }
+            { "name": "DOCKER_CREDENTIAL_TYPE", "value": "#{Base64.strict_encode64("GCR")}" },
+            { "name": "GCR_HOSTNAME", "value": "#{Base64.strict_encode64(ENV['GCR_HOSTNAME'])}" }
           ],
           "files": [
             { "path": "/tmp/gcr/keyfile.json", "content": "#{ENV['GCR_KEYFILE']}", "mode": "0755" }
@@ -41,9 +41,10 @@ start_job <<-JSON
     "epilogue_always_commands": [],
 
     "callbacks": {
-      "finished": "https://httpbin.org/status/200",
-      "teardown_finished": "https://httpbin.org/status/200"
-    }
+      "finished": "#{finished_callback_url}",
+      "teardown_finished": "#{teardown_callback_url}"
+    },
+    "logger": #{$LOGGER}
   }
 JSON
 

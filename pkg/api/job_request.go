@@ -51,6 +51,12 @@ type Callbacks struct {
 	TeardownFinished string `json:"teardown_finished" yaml:"teardown_finished"`
 }
 
+type Logger struct {
+	Method string `json:"method" yaml:"method"`
+	URL    string `json:"url" yaml:"url"`
+	Token  string `json:"token" yaml:"token"`
+}
+
 type PublicKey string
 
 func (p *PublicKey) Decode() ([]byte, error) {
@@ -71,6 +77,7 @@ type JobRequest struct {
 	EnvVars   []EnvVar  `json:"env_vars" yaml:"env_vars"`
 	Files     []File    `json:"files" yaml:"file"`
 	Callbacks Callbacks `json:"callbacks" yaml:"callbacks"`
+	Logger    Logger    `json:"logger" yaml:"logger"`
 }
 
 func NewRequestFromJSON(content []byte) (*JobRequest, error) {

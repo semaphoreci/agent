@@ -4,18 +4,19 @@ import (
 	"bufio"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"path"
 	"strings"
 	"time"
 
-	pty "github.com/kr/pty"
+	pty "github.com/creack/pty"
 	watchman "github.com/renderedtext/go-watchman"
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	shell "github.com/semaphoreci/agent/pkg/shell"
+	log "github.com/sirupsen/logrus"
 )
 
 type DockerComposeExecutor struct {
@@ -27,18 +28,30 @@ type DockerComposeExecutor struct {
 	dockerConfiguration       api.Compose
 	dockerComposeManifestPath string
 	mainContainerName         string
+	exposeKvmDevice           bool
+	fileInjections            []config.FileInjection
+	FailOnMissingFiles        bool
 }
 
-func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logger) *DockerComposeExecutor {
+type DockerComposeExecutorOptions struct {
+	ExposeKvmDevice    bool
+	FileInjections     []config.FileInjection
+	FailOnMissingFiles bool
+}
+
+func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logger, options DockerComposeExecutorOptions) *DockerComposeExecutor {
 	return &DockerComposeExecutor{
 		Logger:                    logger,
 		jobRequest:                request,
 		dockerConfiguration:       request.Compose,
+		exposeKvmDevice:           options.ExposeKvmDevice,
+		fileInjections:            options.FileInjections,
+		FailOnMissingFiles:        options.FailOnMissingFiles,
 		dockerComposeManifestPath: "/tmp/docker-compose.yml",
 		tmpDirectory:              "/tmp/agent-temp-directory", // make a better random name
 
 		// during testing the name main gets taken up, if we make it random we avoid headaches
-		mainContainerName: fmt.Sprintf("%s", request.Compose.Containers[0].Name),
+		mainContainerName: request.Compose.Containers[0].Name,
 	}
 }
 
@@ -53,27 +66,51 @@ func (e *DockerComposeExecutor) Prepare() int {
 		return 1
 	}
 
-	compose := ConstructDockerComposeFile(e.dockerConfiguration)
-	log.Println("Compose File:")
-	log.Println(compose)
+	filesToInject, err := e.findValidFilesToInject()
+	if err != nil {
+		log.Errorf("Error injecting files: %v", err)
+		return 1
+	}
+
+	compose := ConstructDockerComposeFile(e.dockerConfiguration, e.exposeKvmDevice, filesToInject)
+	log.Debug("Compose File:")
+	log.Debug(compose)
 
 	ioutil.WriteFile(e.dockerComposeManifestPath, []byte(compose), 0644)
 
 	return e.setUpSSHJumpPoint()
 }
 
+func (e *DockerComposeExecutor) findValidFilesToInject() ([]config.FileInjection, error) {
+	filesToInject := []config.FileInjection{}
+	for _, fileInjection := range e.fileInjections {
+		err := fileInjection.CheckFileExists()
+		if err == nil {
+			filesToInject = append(filesToInject, fileInjection)
+		} else {
+			if e.FailOnMissingFiles {
+				return nil, err
+			}
+
+			log.Warningf("Error injecting file %s - ignoring it: %v", fileInjection.HostPath, err)
+		}
+	}
+
+	return filesToInject, nil
+}
+
 func (e *DockerComposeExecutor) executeHostCommands() error {
 	hostCommands := e.jobRequest.Compose.HostSetupCommands
 
 	for _, c := range hostCommands {
-		log.Println("Executing Host Command:", c.Directive)
+		log.Debug("Executing Host Command:", c.Directive)
 		cmd := exec.Command("bash", "-c", c.Directive)
 
 		out, err := cmd.CombinedOutput()
-		log.Println(string(out))
+		log.Debug(string(out))
 
 		if err != nil {
-			log.Println("Error:", err)
+			log.Errorf("Error: %v", err)
 			return err
 		}
 	}
@@ -84,7 +121,7 @@ func (e *DockerComposeExecutor) setUpSSHJumpPoint() int {
 	err := InjectEntriesToAuthorizedKeys(e.jobRequest.SSHPublicKeys)
 
 	if err != nil {
-		log.Printf("Failed to inject authorized keys: %+v", err)
+		log.Errorf("Failed to inject authorized keys: %+v", err)
 		return 1
 	}
 
@@ -117,7 +154,7 @@ func (e *DockerComposeExecutor) setUpSSHJumpPoint() int {
 
 	err = SetUpSSHJumpPoint(script)
 	if err != nil {
-		log.Printf("Failed to set up SSH jump point: %+v", err)
+		log.Errorf("Failed to set up SSH jump point: %+v", err)
 		return 1
 	}
 
@@ -127,13 +164,13 @@ func (e *DockerComposeExecutor) setUpSSHJumpPoint() int {
 func (e *DockerComposeExecutor) Start() int {
 	exitCode := e.injectImagePullSecrets()
 	if exitCode != 0 {
-		log.Printf("[SHELL] Failed to set up image pull secrets")
+		log.Error("[SHELL] Failed to set up image pull secrets")
 		return exitCode
 	}
 
 	exitCode = e.pullDockerImages()
 	if exitCode != 0 {
-		log.Printf("Failed to pull images")
+		log.Error("Failed to pull images")
 		return exitCode
 	}
 
@@ -157,14 +194,16 @@ func (e *DockerComposeExecutor) startBashSession() int {
 
 	e.Logger.LogCommandOutput("Starting a new bash session.\n")
 
-	log.Printf("Starting stateful shell")
+	log.Debug("Starting stateful shell")
 
 	cmd := exec.Command(
 		"docker-compose",
-		"--no-ansi",
+		"--ansi",
+		"never",
 		"-f",
 		e.dockerComposeManifestPath,
 		"run",
+		"--rm",
 		"--name",
 		e.mainContainerName,
 		"-v",
@@ -177,7 +216,7 @@ func (e *DockerComposeExecutor) startBashSession() int {
 
 	shell, err := shell.NewShell(cmd, e.tmpDirectory)
 	if err != nil {
-		log.Printf("Failed to start stateful shell err: %+v", err)
+		log.Errorf("Failed to start stateful shell err: %+v", err)
 
 		e.Logger.LogCommandOutput("Failed to start the docker image\n")
 		e.Logger.LogCommandOutput(err.Error())
@@ -188,7 +227,7 @@ func (e *DockerComposeExecutor) startBashSession() int {
 
 	err = shell.Start()
 	if err != nil {
-		log.Printf("Failed to start stateful shell err: %+v", err)
+		log.Errorf("Failed to start stateful shell err: %+v", err)
 
 		e.Logger.LogCommandOutput("Failed to start the docker image\n")
 		e.Logger.LogCommandOutput(err.Error())
@@ -450,7 +489,7 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForGCR(envVars []api.EnvVa
 }
 
 func (e *DockerComposeExecutor) pullDockerImages() int {
-	log.Printf("Pulling docker images")
+	log.Debug("Pulling docker images")
 	directive := "Pulling docker images..."
 	commandStartedAt := int(time.Now().Unix())
 	e.SubmitDockerStats("compose.docker.pull.rate")
@@ -474,16 +513,18 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 
 	cmd := exec.Command(
 		"docker-compose",
-		"--no-ansi",
+		"--ansi",
+		"never",
 		"-f",
 		e.dockerComposeManifestPath,
 		"run",
+		"--rm",
 		e.mainContainerName,
 		"true")
 
 	tty, err := pty.Start(cmd)
 	if err != nil {
-		log.Printf("Failed to initialize docker pull, err: %+v", err)
+		log.Errorf("Failed to initialize docker pull, err: %+v", err)
 		return 1
 	}
 
@@ -494,7 +535,7 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 			break
 		}
 
-		log.Println("(tty) ", line)
+		log.Debug("(tty) ", line)
 
 		e.Logger.LogCommandOutput(line + "\n")
 	}
@@ -502,12 +543,12 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	exitCode := 0
 
 	if err := cmd.Wait(); err != nil {
-		log.Println("Docker pull failed", err)
+		log.Errorf("Docker pull failed: %v", err)
 		e.SubmitDockerStats("compose.docker.error.rate")
 		exitCode = 1
 	}
 
-	log.Println("Docker pull finished. Exit Code", exitCode)
+	log.Infof("Docker pull finished. Exit Code: %d", exitCode)
 
 	commandFinishedAt := int(time.Now().Unix())
 	e.SubmitDockerPullTime(commandFinishedAt - commandStartedAt)
@@ -516,9 +557,9 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	return exitCode
 }
 
-func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar) int {
+func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config.HostEnvVar) int {
 	commandStartedAt := int(time.Now().Unix())
-	directive := fmt.Sprintf("Exporting environment variables")
+	directive := "Exporting environment variables"
 	exitCode := 0
 
 	e.Logger.LogCommandStarted(directive)
@@ -542,6 +583,11 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar) int {
 		}
 
 		envFile += fmt.Sprintf("export %s=%s\n", env.Name, ShellQuote(string(value)))
+	}
+
+	for _, env := range hostEnvVars {
+		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", env.Name))
+		envFile += fmt.Sprintf("export %s=%s\n", env.Name, ShellQuote(env.Value))
 	}
 
 	envPath := fmt.Sprintf("%s/.env", e.tmpDirectory)
@@ -568,7 +614,7 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar) int {
 }
 
 func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
-	directive := fmt.Sprintf("Injecting Files")
+	directive := "Injecting Files"
 	commandStartedAt := int(time.Now().Unix())
 	exitCode := 0
 
@@ -668,16 +714,18 @@ func (e *DockerComposeExecutor) RunCommand(command string, silent bool, alias st
 }
 
 func (e *DockerComposeExecutor) Stop() int {
-	log.Println("Starting the process killing procedure")
+	log.Debug("Starting the process killing procedure")
 
-	err := e.Shell.Close()
-	if err != nil {
-		log.Printf("Process killing procedure returned an erorr %+v\n", err)
+	if e.Shell != nil {
+		err := e.Shell.Close()
+		if err != nil {
+			log.Errorf("Process killing procedure returned an error %+v\n", err)
 
-		return 0
+			return 0
+		}
 	}
 
-	log.Printf("Process killing finished without errors")
+	log.Debug("Process killing finished without errors")
 
 	return 0
 }

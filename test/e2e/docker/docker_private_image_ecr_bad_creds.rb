@@ -20,10 +20,10 @@ start_job <<-JSON
       "image_pull_credentials": [
         {
           "env_vars": [
-            { "name": "DOCKER_CREDENTIAL_TYPE", "value": "#{Base64.encode64("AWS_ECR")}" },
-            { "name": "AWS_REGION", "value": "#{Base64.encode64(ENV['AWS_REGION'])}" },
-            { "name": "AWS_ACCESS_KEY_ID", "value": "#{Base64.encode64("AAABBBCCCDDDEEEFFF")}" },
-            { "name": "AWS_SECRET_ACCESS_KEY", "value": "#{Base64.encode64('abcdefghijklmnop')}" }
+            { "name": "DOCKER_CREDENTIAL_TYPE", "value": "#{Base64.strict_encode64("AWS_ECR")}" },
+            { "name": "AWS_REGION", "value": "#{Base64.strict_encode64(ENV['AWS_REGION'])}" },
+            { "name": "AWS_ACCESS_KEY_ID", "value": "#{Base64.strict_encode64("AAABBBCCCDDDEEEFFF")}" },
+            { "name": "AWS_SECRET_ACCESS_KEY", "value": "#{Base64.strict_encode64('abcdefghijklmnop')}" }
           ]
         }
       ]
@@ -40,9 +40,10 @@ start_job <<-JSON
     "epilogue_always_commands": [],
 
     "callbacks": {
-      "finished": "https://httpbin.org/status/200",
-      "teardown_finished": "https://httpbin.org/status/200"
-    }
+      "finished": "#{finished_callback_url}",
+      "teardown_finished": "#{teardown_callback_url}"
+    },
+    "logger": #{$LOGGER}
   }
 JSON
 

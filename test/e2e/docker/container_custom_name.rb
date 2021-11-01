@@ -19,10 +19,10 @@ start_job <<-JSON
     },
 
     "env_vars": [
-      { "name": "A", "value": "#{`echo "hello" | base64`}" },
-      { "name": "B", "value": "#{`echo "how are you?" | base64`}" },
-      { "name": "C", "value": "#{`echo "quotes ' quotes" | base64`}" },
-      { "name": "D", "value": "#{`echo '$PATH:/etc/a' | base64`}" }
+      { "name": "A", "value": "#{`echo "hello" | base64 | tr -d '\n'`}" },
+      { "name": "B", "value": "#{`echo "how are you?" | base64 | tr -d '\n'`}" },
+      { "name": "C", "value": "#{`echo "quotes ' quotes" | base64 | tr -d '\n'`}" },
+      { "name": "D", "value": "#{`echo '$PATH:/etc/a' | base64 | tr -d '\n'`}" }
     ],
 
     "files": [],
@@ -37,9 +37,10 @@ start_job <<-JSON
     "epilogue_always_commands": [],
 
     "callbacks": {
-      "finished": "https://httpbin.org/status/200",
-      "teardown_finished": "https://httpbin.org/status/200"
-    }
+      "finished": "#{finished_callback_url}",
+      "teardown_finished": "#{teardown_callback_url}"
+    },
+    "logger": #{$LOGGER}
   }
 JSON
 

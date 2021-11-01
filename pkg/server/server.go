@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -14,8 +13,10 @@ import (
 	mux "github.com/gorilla/mux"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
+	log "github.com/sirupsen/logrus"
 )
 
 type Server struct {
@@ -33,12 +34,14 @@ type Server struct {
 
 	ActiveJob *jobs.Job
 	router    *mux.Router
+
+	HTTPClient *http.Client
 }
 
 const ServerStateWaitingForJob = "waiting-for-job"
 const ServerStateJobReceived = "job-received"
 
-func NewServer(host string, port int, tlsCertPath, tlsKeyPath, version string, logfile io.Writer, jwtSecret []byte) *Server {
+func NewServer(host string, port int, tlsCertPath, tlsKeyPath, version string, logfile io.Writer, jwtSecret []byte, httpClient *http.Client) *Server {
 	router := mux.NewRouter().StrictSlash(true)
 
 	server := &Server{
@@ -51,6 +54,7 @@ func NewServer(host string, port int, tlsCertPath, tlsKeyPath, version string, l
 		Logfile:     logfile,
 		router:      router,
 		Version:     version,
+		HTTPClient:  httpClient,
 	}
 
 	jwtMiddleware := CreateJwtMiddleware(jwtSecret)
@@ -78,7 +82,7 @@ func NewServer(host string, port int, tlsCertPath, tlsKeyPath, version string, l
 func (s *Server) Serve() {
 	address := fmt.Sprintf("%s:%d", s.Host, s.Port)
 
-	fmt.Printf("Agent %s listening on https://%s\n", s.Version, address)
+	log.Infof("Agent %s listening on https://%s\n", s.Version, address)
 
 	loggedRouter := handlers.LoggingHandler(s.Logfile, s.router)
 
@@ -118,15 +122,15 @@ func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 
 	logFile, ok := s.ActiveJob.Logger.Backend.(*eventlogger.FileBackend)
 	if !ok {
-		log.Printf("Failed to stream job logs")
+		log.Error("Failed to stream job logs")
 
 		http.Error(w, err.Error(), 500)
 		fmt.Fprintf(w, `{"message": "%s"}`, "Failed to open logfile")
 	}
 
-	err = logFile.Stream(startFromLine, w)
+	_, err = logFile.Stream(startFromLine, w)
 	if err != nil {
-		log.Printf("Error while streaming logs")
+		log.Errorf("Error while streaming logs: %v", err)
 
 		http.Error(w, err.Error(), 500)
 		fmt.Fprintf(w, `{"message": "%s"}`, err)
@@ -152,26 +156,25 @@ func (s *Server) AgentLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
-	log.Printf("New job arrived. Agent version %s.", s.Version)
+	log.Infof("New job arrived. Agent version %s.", s.Version)
 
-	log.Printf("Reading content of the request")
+	log.Debug("Reading content of the request")
 	body, err := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 	if err != nil {
 
-		log.Printf("Failed to read the content of the job, returning 500")
+		log.Errorf("Failed to read the content of the job, returning 500: %v", err)
 		http.Error(w, err.Error(), 500)
 		return
 	}
 
-	log.Printf("Parsing job request")
+	log.Debug("Parsing job request")
 	request, err := api.NewRequestFromJSON(body)
 
 	if err != nil {
-		log.Printf("Failed to parse job request, returning 422")
-		log.Printf("%+v", err)
+		log.Errorf("Failed to parse job request, returning 422: %v", err)
 
-		http.Error(w, err.Error(), 422)
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 		fmt.Fprintf(w, `{"message": "%s"}`, err)
 		return
 	}
@@ -181,36 +184,40 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 			// idempotent call
 			fmt.Fprint(w, `{"message": "ok"}`)
 			return
-		} else {
-			log.Printf("A job is already running, returning 422")
-
-			w.WriteHeader(422)
-			fmt.Fprintf(w, `{"message": "a job is already running"}`)
-			return
 		}
+
+		log.Warn("A job is already running, returning 422")
+
+		w.WriteHeader(422)
+		fmt.Fprintf(w, `{"message": "a job is already running"}`)
+		return
 	}
 
-	log.Printf("Creating new job")
-	job, err := jobs.NewJob(request)
+	log.Debug("Creating new job")
+	job, err := jobs.NewJobWithOptions(&jobs.JobOptions{
+		Request:         request,
+		Client:          s.HTTPClient,
+		ExposeKvmDevice: true,
+		FileInjections:  []config.FileInjection{},
+	})
 
 	if err != nil {
-		log.Printf("Failed to create a new job, returning 500")
+		log.Errorf("Failed to create a new job, returning 500: %v", err)
 
 		http.Error(w, err.Error(), 500)
 		fmt.Fprintf(w, `{"message": "%s"}`, err)
 		return
 	}
 
-	log.Printf("Setting up Active Job context")
+	log.Debug("Setting up Active Job context")
 	s.ActiveJob = job
 
-	log.Printf("Starting job execution")
+	log.Debug("Starting job execution")
 	go s.ActiveJob.Run()
 
-	log.Printf("Setting state to '%s'", ServerStateJobReceived)
+	log.Debugf("Setting state to '%s'", ServerStateJobReceived)
 	s.State = ServerStateJobReceived
 
-	log.Printf("Respongind with OK")
 	fmt.Fprint(w, `{"message": "ok"}`)
 }
 
@@ -218,9 +225,4 @@ func (s *Server) Stop(w http.ResponseWriter, r *http.Request) {
 	go s.ActiveJob.Stop()
 
 	w.WriteHeader(200)
-}
-
-func (s *Server) unsuported(w http.ResponseWriter) {
-	w.WriteHeader(400)
-	fmt.Fprintf(w, `{"message": "not supported"}`)
 }

@@ -1,3 +1,4 @@
+.PHONY: e2e
 AGENT_PORT_IN_TESTS=30000
 AGENT_SSH_PORT_IN_TESTS=2222
 
@@ -7,6 +8,9 @@ go.install:
 	sudo tar -xf go1.11.linux-amd64.tar.gz
 	sudo mv go /usr/local
 	cd -
+
+lint:
+	revive -formatter friendly -config lint.toml ./...
 
 run:
 	go run *.go run $(JOB)
@@ -22,29 +26,37 @@ test:
 
 build:
 	rm -rf build
-	go build -o build/agent main.go
+	env GOOS=linux GOARCH=386 go build -o build/agent main.go
 .PHONY: build
 
-docker.build: build
-	-docker stop agent
-	-docker rm agent
-	docker build -t agent -f Dockerfile.test .
-.PHONY: docker.build
-
-docker.run: docker.build
-	-docker stop agent
-	docker run --privileged --device /dev/ptmx -v /tmp/agent-temp-directory/:/tmp/agent-temp-directory -v /var/run/docker.sock:/var/run/docker.sock -p $(AGENT_PORT_IN_TESTS):8000 -p $(AGENT_SSH_PORT_IN_TESTS):22 --name agent -tdi agent bash -c "service ssh restart && nohup ./agent serve --auth-token-secret 'TzRVcspTmxhM9fUkdi1T/0kVXNETCi8UdZ8dLM8va4E' & sleep infinity"
-	sleep 2
-.PHONY: docker.run
-
-docker.clean:
-	-docker stop $$(docker ps -q)
-	-docker rm $$(docker ps -qa)
-.PHONY: docker.clean
-
-e2e: docker.clean docker.run
+e2e: build
 	ruby test/e2e/$(TEST).rb
-.PHONY: e2e
+
+e2e.listen.mode.logs:
+	docker-compose -f test/e2e_support/docker-compose-listen.yml logs -f
+
+#
+# An ubuntu environment that has the ./build/agent CLI mounted.
+# This environment is ideal for testing self-hosted agents without the fear
+# that some runaway command will mess up your dev environment.
+#
+empty.ubuntu.machine:
+	docker run --rm -v $(PWD):/app -ti empty-ubuntu-self-hosted-agent /bin/bash
+
+empty.ubuntu.machine.build:
+	docker build -f Dockerfile.empty_ubuntu -t empty-ubuntu-self-hosted-agent .
+
+#
+# Docker Release
+#
+docker.build:
+	$(MAKE) build
+	docker build -f Dockerfile.self_hosted -t semaphoreci/agent:latest .
+
+docker.push:
+	docker tag semaphoreci/agent:latest semaphoreci/agent:$$(git rev-parse HEAD)
+	docker push semaphoreci/agent:$$(git rev-parse HEAD)
+	docker push semaphoreci/agent:latest
 
 release.major:
 	git fetch --tags

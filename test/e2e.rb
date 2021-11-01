@@ -4,160 +4,91 @@ Encoding.default_external = Encoding::UTF_8
 
 require 'tempfile'
 require 'json'
+require 'yaml'
 require 'timeout'
 require 'base64'
 
+require_relative "./e2e_support/api_mode"
+require_relative "./e2e_support/listener_mode"
+
 $JOB_ID = `uuidgen`.strip
+$LOGGER = ""
 
-# based on secret passed to the running server
-$TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.gLEycyHdyRRzUpauBxdDFmxT5KoOApFO5MHuvWPgFtY"
+$strategy = nil
 
-$AGENT_PORT_IN_TESTS = 30000
+case ENV["TEST_MODE"]
+when "api" then
+  $strategy = ApiMode.new
+  $LOGGER = '{ "method": "pull" }'
+when "listen" then
+  $strategy = ListenerMode.new
+
+  $LOGGER = <<-JSON
+  {
+    "method": "push",
+    "url": "http://hub:4567/api/v1/logs/#{$JOB_ID}",
+    "token": "jwtToken"
+  }
+  JSON
+
+  if !$AGENT_CONFIG
+    $AGENT_CONFIG = {
+      "endpoint" => "hub:4567",
+      "token" => "321h1l2jkh1jk42341",
+      "no-https" => true,
+      "shutdown-hook-path" => "",
+      "disconnect-after-job" => false,
+      "env-vars" => [],
+      "files" => [],
+      "fail-on-missing-files" => false
+    }
+  end
+else
+  raise "Testing Mode not set"
+end
+
+$strategy.boot_up_agent
 
 def start_job(request)
-  r = Tempfile.new
-  r.write(request)
-  r.close
-
-  puts "============================"
-  puts "Sending job request to Agent"
-
-  output = `curl -H "Authorization: Bearer #{$TOKEN}" --fail -X POST -k "https://0.0.0.0:30000/jobs" --data @#{r.path}`
-
-  abort "Failed to send: #{output}" if $?.exitstatus != 0
+  $strategy.start_job(request)
 end
 
 def stop_job
-  puts "============================"
-  puts "Stopping job..."
-
-  output = `curl -H "Authorization: Bearer #{$TOKEN}" --fail -X POST -k "https://0.0.0.0:30000/jobs/terminate"`
-
-  abort "Failed to stob job: #{output}" if $?.exitstatus != 0
+  $strategy.stop_job()
 end
 
 def wait_for_command_to_start(cmd)
-  puts "========================="
-  puts "Waiting for command to start '#{cmd}'"
-
-  Timeout.timeout(60 * 2) do
-    loop do
-      `curl -H "Authorization: Bearer #{$TOKEN}" --fail -k "https://0.0.0.0:30000/job_logs" | grep "#{cmd}"`
-
-      if $?.exitstatus == 0
-        break
-      else
-        sleep 1
-      end
-    end
-  end
+  $strategy.wait_for_command_to_start(cmd)
 end
 
 def wait_for_job_to_finish
-  puts "========================="
-  puts "Waiting for job to finish"
-
-  Timeout.timeout(60 * 2) do
-    loop do
-      `curl -H "Authorization: Bearer #{$TOKEN}" --fail -k "https://0.0.0.0:30000/job_logs" | grep "job_finished"`
-
-      if $?.exitstatus == 0
-        break
-      else
-        sleep 1
-      end
-    end
-  end
+  $strategy.wait_for_job_to_finish()
 end
 
 def assert_job_log(expected_log)
-  puts "========================="
-  puts "Asserting Job Logs"
+  $strategy.assert_job_log(expected_log)
+end
 
-  actual_log = `curl -H "Authorization: Bearer #{$TOKEN}" -k "https://0.0.0.0:30000/jobs/#{$JOB_ID}/log"`
+def finished_callback_url
+  $strategy.finished_callback_url
+end
 
-  puts "-----------------------------------"
-  puts actual_log
-  puts "-----------------------------------"
+def teardown_callback_url
+  $strategy.teardown_callback_url
+end
 
-  abort "Failed to fetch logs: #{actual_log}" if $?.exitstatus != 0
+def wait_for_job_to_get_stuck
+  $strategy.wait_for_job_to_get_stuck
+end
 
-  actual_log   = actual_log.split("\n").map(&:strip).reject(&:empty?)
-  expected_log = expected_log.split("\n").map(&:strip).reject(&:empty?)
+def shutdown_agent
+  $strategy.shutdown_agent
+end
 
-  index_in_actual_logs = 0
-  index_in_expected_logs = 0
+def wait_for_agent_to_shutdown
+  $strategy.wait_for_agent_to_shutdown
+end
 
-  while index_in_actual_logs < actual_log.length && index_in_expected_logs < expected_log.length
-    begin
-      puts "Comparing log lines Actual=#{index_in_actual_logs} Expected=#{index_in_expected_logs}"
-
-      expected_log_line = expected_log[index_in_expected_logs]
-      actual_log_line   = actual_log[index_in_actual_logs]
-
-      puts "  actual:   #{actual_log_line}"
-      puts "  expected: #{expected_log_line}"
-
-      actual_log_line_json = Hash[JSON.parse(actual_log_line).sort]
-
-      if expected_log_line =~ /\*\*\* LONG_OUTPUT \*\*\*/
-        if actual_log_line_json["event"] == "cmd_output"
-          # if we have a *** LONG_OUTPUT *** marker
-
-          # we go to next actual log line
-          # but we stay on the same expected log line
-
-          index_in_actual_logs += 1
-
-          next
-        else
-          # end of the LONG_OUTPUT marker, we increase the expected log line
-          # and in the next iteration we will compare regularly again
-          index_in_expected_logs += 1
-
-          next
-        end
-      else
-        # if there is no marker, we compare the JSONs
-        # we ignore the timestamps because they change every time
-
-        expected_log_line_json = Hash[JSON.parse(expected_log_line).sort]
-
-        if expected_log_line_json.keys != actual_log_line_json.keys
-          abort "(fail) JSON keys are different."
-        end
-
-        expected_log_line_json.keys.each do |key|
-          # Special case when we want to ignore only the output
-          # ignore expected entries with '*'
-
-          next if expected_log_line_json[key] == "*"
-
-          if expected_log_line_json[key] != actual_log_line_json[key]
-            abort "(fail) Values for '#{key}' are not equal."
-          end
-        end
-
-        index_in_actual_logs += 1
-        index_in_expected_logs += 1
-      end
-
-      puts "success"
-    rescue
-      puts ""
-      puts "Line Number: Actual=#{index_in_actual_logs} Expected=#{index_in_expected_logs}"
-      puts "Expected: '#{expected_log_line}'"
-      puts "Actual:   '#{actual_log_line}'"
-
-      abort "(fail) Failed to parse log line"
-    end
-  end
-
-  if index_in_actual_logs != actual_log.length
-    abort "(fail) There are unchecked log lines from the actual log"
-  end
-
-  if index_in_expected_logs != expected_log.length
-    abort "(fail) There are unchecked log lines from the expected log"
-  end
+def bad_callback_url
+  "https://httpbin.org/status/500"
 end

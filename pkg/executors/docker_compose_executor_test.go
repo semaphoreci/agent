@@ -7,6 +7,7 @@ import (
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	assert "github.com/stretchr/testify/assert"
 )
@@ -48,7 +49,10 @@ func startComposeExecutor() (*DockerComposeExecutor, *eventlogger.Logger, *event
 
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 
-	e := NewDockerComposeExecutor(request, testLogger)
+	e := NewDockerComposeExecutor(request, testLogger, DockerComposeExecutorOptions{
+		ExposeKvmDevice: true,
+		FileInjections:  []config.FileInjection{},
+	})
 
 	if code := e.Prepare(); code != 0 {
 		panic("Prapare failed")
@@ -77,7 +81,7 @@ func Test__DockerComposeExecutor(t *testing.T) {
 		api.EnvVar{Name: "A", Value: "Zm9vCg=="},
 	}
 
-	e.ExportEnvVars(envVars)
+	e.ExportEnvVars(envVars, []config.HostEnvVar{})
 	e.RunCommand("echo $A", false, "")
 
 	files := []api.File{

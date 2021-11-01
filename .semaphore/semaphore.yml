@@ -5,7 +5,32 @@ agent:
     type: e1-standard-2
     os_image: ubuntu1804
 
+execution_time_limit:
+  minutes: 15
+
+fail_fast:
+  stop:
+    when: true
+
 blocks:
+  - name: "Lint"
+    dependencies: []
+    task:
+      env_vars:
+        - name: GO111MODULE
+          value: "on"
+
+      prologue:
+        commands:
+          - sem-version go 1.16
+          - checkout
+
+      jobs:
+        - name: Lint
+          commands:
+            - go get -u github.com/mgechev/revive
+            - make lint
+
   - name: "Tests"
     dependencies: []
     task:
@@ -15,7 +40,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.13
+          - sem-version go 1.16
           - checkout
           - go version
           - go get
@@ -35,27 +60,34 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.13
+          - sem-version go 1.16
           - checkout
           - go version
           - go get
           - go build
+          - mkdir /tmp/agent
 
       epilogue:
         commands:
-          - docker exec -ti agent cat /tmp/agent_log
+          - if [ "$TEST_MODE" = "api" ]; then docker exec -ti agent cat /tmp/agent_log; else docker logs e2e_support_agent_1; fi
+          - if [ "$TEST_MODE" = "api" ]; then echo "No hub"; else docker logs e2e_support_hub_1; fi
 
       jobs:
         - name: Shell
           commands:
             - "make e2e TEST=shell/$TEST"
           matrix:
+            - env_var: TEST_MODE
+              values:
+                - api
+                - listen
             - env_var: TEST
               values:
                 - command_aliases
                 - env_vars
                 - failed_job
                 - job_stopping
+                - job_stopping_on_epilogue
                 - file_injection
                 - file_injection_broken_file_mode
                 - stty_restoration
@@ -84,21 +116,27 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.13
+          - sem-version go 1.16
           - checkout
           - go version
           - go get
           - go build
+          - mkdir /tmp/agent
 
       epilogue:
         commands:
-          - docker exec -ti agent cat /tmp/agent_log
+          - if [ "$TEST_MODE" = "api" ]; then docker exec -ti agent cat /tmp/agent_log; else docker logs e2e_support_agent_1; fi
+          - if [ "$TEST_MODE" = "api" ]; then echo "No hub"; else docker logs e2e_support_hub_1; fi
 
       jobs:
         - name: Docker
           commands:
             - "make e2e TEST=docker/$TEST"
           matrix:
+            - env_var: TEST_MODE
+              values:
+                - api
+                - listen
             - env_var: TEST
               values:
                 - hello_world
@@ -106,6 +144,7 @@ blocks:
                 - env_vars
                 - failed_job
                 - job_stopping
+                - job_stopping_on_epilogue
                 - file_injection
                 - file_injection_broken_file_mode
                 - stty_restoration
@@ -131,6 +170,47 @@ blocks:
                 - check_dev_kvm
                 - host_setup_commands
                 - multiple_containers
+
+  - name: "Self hosted E2E"
+    dependencies: []
+    task:
+      env_vars:
+        - name: GO111MODULE
+          value: "on"
+        - name: TEST_MODE
+          value: "listen"
+
+      prologue:
+        commands:
+          - sem-version go 1.16
+          - checkout
+          - go version
+          - go get
+          - go build
+          - mkdir /tmp/agent
+
+      epilogue:
+        commands:
+          - docker logs e2e_support_agent_1
+          - docker logs e2e_support_hub_1
+
+      jobs:
+        - name: Self hosted
+          commands:
+            - "make e2e TEST=self-hosted/$TEST"
+          matrix:
+            - env_var: TEST
+              values:
+                - broken_finished_callback
+                - broken_teardown_callback
+                - broken_get_job
+                - docker_compose_host_env_vars
+                - docker_compose_host_files
+                - docker_compose_missing_host_files
+                - docker_compose_fail_on_missing_host_files
+                - shell_host_env_vars
+                - shutdown
+                - shutdown_while_waiting
 
 promotions:
   - name: Release

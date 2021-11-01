@@ -1,0 +1,7 @@
+FROM ubuntu:20.04
+
+RUN apt-get update -qy
+RUN apt-get install -y ca-certificates openssh-client
+RUN update-ca-certificates
+
+WORKDIR /app

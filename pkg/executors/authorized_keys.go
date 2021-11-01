@@ -8,6 +8,10 @@ import (
 )
 
 func InjectEntriesToAuthorizedKeys(keys []api.PublicKey) error {
+	if len(keys) == 0 {
+		return nil
+	}
+
 	sshDirectory := filepath.Join(UserHomeDir(), ".ssh")
 
 	err := os.MkdirAll(sshDirectory, os.ModePerm)

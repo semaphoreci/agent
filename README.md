@@ -1,44 +1,54 @@
-# Semaphore 2.0 Agents
+# Semaphore 2.0 Agent
 
 Base agent responsibilities:
 
-- [x] Run jobs
-- [x] Provide output logs
-- [x] Run a server
-- [x] Inject env variables
-- [x] Inject files
-- [x] Run epilogue commands
-- [x] Set up an SSH jump-point
+- Run jobs
+- Provide output logs
+- Run a server
+- Inject env variables
+- Inject files
+- Run epilogue commands
+- Set up an SSH jump-point (only available in hosted environment)
 
 Docker Based CI/CD:
 
-- [x] Run commands in docker container
-- [x] Start multiple docker containers, connect them via DNS
-- [x] Checkout source code, run tests
-- [x] Inject files and environments variables
-- [x] Pull private docker images
-- [x] Store and restore files from cache
-- [x] Build docker in docker
-- [x] Upload docker images from docker
-- [x] Set up an SSH jump-point
+- Run commands in docker container
+- Start multiple docker containers, connect them via DNS
+- Checkout source code, run tests
+- Inject files and environments variables
+- Pull private docker images
+- Store and restore files from cache (only available in hosted environment for now)
+- Build docker in docker
+- Upload docker images from docker
+- Set up an SSH jump-point (only available in hosted version)
 
 ## Usage
 
-``` bash
-agent [command] [flag]
-```
+This agent is intended to be used in two environments: hosted or self hosted.
 
-Commands:
+### Hosted environment
 
-``` txt
-  version   Print Agent version
-  serve     Start server
-  run       Runs a single job
-```
+In the hosted environment, the agent runs inside Semaphore's infrastructure, starting an HTTP server that receives jobs in HTTP requests. The [`agent serve`](#agent-serve-flags) command is used to run the agent in that scenario.
+
+### Self hosted environment
+
+In the self hosted environment, you control where you run it and no HTTP server is started; that way, all communication happens from the agent to Semaphore and no HTTP endpoint is required to exist inside your infrastructure.
+
+The [`agent start`](#agent-start-flags) command is used to run the agent in that scenario.
+
+## Commands
+
+### `agent start [flags]`
+
+Starts the agent in a self hosted environment. The agent will register itself with Semaphore and periodically sync with Semaphore. No HTTP server is started and exposed. Read more about it [in the docs](https://docs.semaphoreci.com/ci-cd-environment/self-hosted-agents-overview).
+
+### `agent serve [flags]`
+
+Starts the agent as an HTTP server that receives requests in HTTP requests. Intended only to run jobs in Semaphore's own infrastructure. If you are looking for the command to run the agent in a self hosted environment, check [`agent start`](#agent-start-params).
 
 Flags:
 
-``` txt
+```txt
  --auth-token-secret  Auth token for accessing the server (required)
  --port               Set a custom port (default 8000)
  --host               Set the bind address to a specific IP (default 0.0.0.0)
@@ -47,6 +57,7 @@ Flags:
  --statsd-host        The host where to send StatsD metrics.
  --statsd-port        The port where to send StatsD metrics.
  --statsd-namespace   The prefix to be added to every StatsD metric.
+```
 
 Start with defaults:
 
@@ -54,10 +65,7 @@ Start with defaults:
 agent serve --auth-token-secret 'myJwtToken'
 ```
 
-## SSH jump-points
-
-When a job starts, the public SSH keys sent with the Job Request are injected
-into the '~/.ssh/authorized_keys'.
+When a job starts, the public SSH keys sent with the Job Request are injected into the `~/.ssh/authorized_keys`.
 
 After that, a jump point for accessing the job is set up. For shell based
 executors this is a simple `bash --login`. For docker compose based executors,
@@ -66,11 +74,9 @@ executes `docker-compose exec <name> bash --login`.
 
 To SSH into an agent, use:
 
-``` bash
+```bash
 ssh -t -p <port> <ip> bash /tmp/ssh_jump_point
 ```
-
-### Collecting Statds Metrics from the Agent
 
 If configured, the Agent can publish the following StatsD metrics:
 
@@ -85,7 +91,16 @@ To configure Statsd publishing provide the following command-line flags to the A
 
 Example Usage:
 
-agent start --statsd-host "192.1.1.9" --statsd-port 8192 --statsd-namespace "agent.prod"
+```
+agent serve --statsd-host "192.1.1.9" --statsd-port 8192 --statsd-namespace "agent.prod"
+```
 
 If StatsD flags are not provided, the Agent will not publish any StatsD metric.
 
+### `agent run [path]`
+
+Runs a single job. Useful for debugging or agent development. It takes the path to the job request YAML file as an argument
+
+### `agent version`
+
+Prints out the agent version
