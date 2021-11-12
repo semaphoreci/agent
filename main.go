@@ -72,7 +72,7 @@ func OpenLogfile() io.Writer {
 }
 
 func getLogLevel() log.Level {
-	logLevel := os.Getenv("LOG_LEVEL")
+	logLevel := os.Getenv("SEMAPHORE_AGENT_LOG_LEVEL")
 	if logLevel == "" {
 		return log.InfoLevel
 	}
