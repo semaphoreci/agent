@@ -31,19 +31,19 @@ func InjectEntriesToAuthorizedKeys(keys []api.PublicKey) error {
 		return err
 	}
 
-	defer authorizedKeys.Close()
-
 	for _, key := range keys {
 		authorizedKeysEntry, err := key.Decode()
 		if err != nil {
+			_ = authorizedKeys.Close()
 			return err
 		}
 
 		_, err = authorizedKeys.WriteString(string(authorizedKeysEntry) + "\n")
 		if err != nil {
+			_ = authorizedKeys.Close()
 			return err
 		}
 	}
 
-	return nil
+	return authorizedKeys.Close()
 }

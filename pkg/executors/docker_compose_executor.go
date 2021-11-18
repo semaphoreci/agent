@@ -435,6 +435,8 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForGCR(envVars []api.EnvVa
 		}
 
 		fileCmd := fmt.Sprintf("mkdir -p %s", path.Dir(destPath))
+
+		// #nosec
 		cmd := exec.Command("bash", "-c", fileCmd)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
@@ -444,6 +446,8 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForGCR(envVars []api.EnvVa
 		}
 
 		fileCmd = fmt.Sprintf("cp %s %s", tmpPath, destPath)
+
+		// #nosec
 		cmd = exec.Command("bash", "-c", fileCmd)
 		out, err = cmd.CombinedOutput()
 		if err != nil {
@@ -453,6 +457,8 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForGCR(envVars []api.EnvVa
 		}
 
 		fileCmd = fmt.Sprintf("chmod %s %s", f.Mode, destPath)
+
+		// #nosec
 		cmd = exec.Command("bash", "-c", fileCmd)
 		out, err = cmd.CombinedOutput()
 		if err != nil {

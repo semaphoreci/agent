@@ -77,7 +77,8 @@ func (l *Listener) DisplayHelloMessage() {
 	fmt.Println("                                      ")
 }
 
-const nameLength = 20
+// base64 gives you 4 chars every 3 bytes, we want 20 chars, so 15 bytes
+const nameLength = 15
 
 func (l *Listener) Name() (string, error) {
 	buffer := make([]byte, nameLength)
