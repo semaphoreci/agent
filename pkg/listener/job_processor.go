@@ -236,7 +236,10 @@ func (p *JobProcessor) Shutdown(reason string, code int) {
 func (p *JobProcessor) executeShutdownHook() {
 	if p.ShutdownHookPath != "" {
 		log.Infof("Executing shutdown hook from %s", p.ShutdownHookPath)
+
+		// #nosec
 		cmd := exec.Command("bash", p.ShutdownHookPath)
+
 		output, err := cmd.Output()
 		if err != nil {
 			log.Errorf("Error executing shutdown hook: %v", err)

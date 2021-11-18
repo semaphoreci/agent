@@ -117,8 +117,13 @@ func (p *Process) Run() {
 		return
 	}
 
-	p.Shell.Write(instruction)
-	p.scan()
+	_, err = p.Shell.Write(instruction)
+	if err != nil {
+		log.Errorf("Error writing instruction: %v", err)
+		return
+	}
+
+	_ = p.scan()
 }
 
 func (p *Process) constructShellInstruction() string {
@@ -143,6 +148,7 @@ func (p *Process) loadCommand() error {
 	// scheme.  To circumvent this, we are storing the command in a file
 	//
 
+	// #nosec
 	err := ioutil.WriteFile(p.cmdFilePath, []byte(p.Command), 0644)
 	if err != nil {
 		// TODO: log something

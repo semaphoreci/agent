@@ -21,6 +21,7 @@ func InjectEntriesToAuthorizedKeys(keys []api.PublicKey) error {
 
 	authorizedKeysPath := filepath.Join(sshDirectory, "authorized_keys")
 
+	// #nosec
 	authorizedKeys, err := os.OpenFile(
 		authorizedKeysPath,
 		os.O_APPEND|os.O_WRONLY|os.O_CREATE,

@@ -8,6 +8,7 @@ import (
 )
 
 func SetupTestLogs() {
+	// #nosec
 	f, err := os.OpenFile("/tmp/test.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
 	if err != nil {
 		fmt.Printf("error opening file: %v", err)

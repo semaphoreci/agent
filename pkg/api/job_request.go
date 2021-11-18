@@ -94,6 +94,8 @@ func NewRequestFromJSON(content []byte) (*JobRequest, error) {
 
 func NewRequestFromYamlFile(path string) (*JobRequest, error) {
 	filename, _ := filepath.Abs(path)
+
+	// #nosec
 	yamlFile, err := ioutil.ReadFile(filename)
 
 	jobRequest := &JobRequest{}
