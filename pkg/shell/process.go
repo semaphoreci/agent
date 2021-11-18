@@ -175,6 +175,7 @@ func (p *Process) readBufferSize() int {
 	min := 1
 	max := 20
 
+	// #nosec
 	return rand.Intn(max-min) + min
 }
 
