@@ -105,7 +105,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 
 	err := viper.BindPFlags(pflag.CommandLine)
 	if err != nil {
-		log.Fatal("Error binding pflags: %v", err)
+		log.Fatalf("Error binding pflags: %v", err)
 	}
 
 	validateConfiguration()
