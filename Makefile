@@ -2,7 +2,7 @@
 AGENT_PORT_IN_TESTS=30000
 AGENT_SSH_PORT_IN_TESTS=2222
 
-SECURITY_TOOLBOX_BRANCH ?= better-automatic-installs
+SECURITY_TOOLBOX_BRANCH ?= master
 SECURITY_TOOLBOX_TMP_DIR ?= /tmp/security-toolbox
 
 check.prepare:
