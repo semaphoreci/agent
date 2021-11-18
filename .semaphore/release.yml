@@ -11,7 +11,7 @@ blocks:
         - name: GO111MODULE
           value: "on"
       secrets:
-        - name: sem-robot-ghtoken
+        - name: github-release-bot-agent
       prologue:
         commands:
           - sem-version go 1.16
@@ -21,4 +21,5 @@ blocks:
       jobs:
         - name: Sem Agent
           commands:
+            - export GITHUB_TOKEN=$ACCESS_TOKEN
             - curl -sL https://git.io/goreleaser | bash -s -- --rm-dist
