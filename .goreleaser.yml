@@ -43,6 +43,9 @@ brews:
   - tap:
       owner: semaphoreci
       name: homebrew-tap
+    commit_author:
+      name: release-bot-agent
+      email: contact+release-bot-agent@renderedtext.com
     folder: Formula
     homepage:  https://semaphoreci.com
     description: Semaphore 2.0 agent.
