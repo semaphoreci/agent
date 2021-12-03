@@ -151,7 +151,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 
 		content, err := f.Decode()
 		if err != nil {
-			e.Logger.LogCommandOutput("Failed to decode content of file.\n")
+			e.Logger.LogCommandOutput("Failed to decode the content of the file.\n")
 			exitCode = 1
 			return exitCode
 		}
