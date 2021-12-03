@@ -4,7 +4,6 @@ set -e
 set -o pipefail
 
 AGENT_INSTALLATION_DIRECTORY="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-LOGGED_IN_USER=$(logname)
 
 if [[ "$EUID" -ne 0 ]]; then
   echo "Please run with sudo."
@@ -28,6 +27,7 @@ if [[ -z $SEMAPHORE_REGISTRATION_TOKEN ]]; then
 fi
 
 if [[ -z $SEMAPHORE_AGENT_INSTALLATION_USER ]]; then
+  LOGGED_IN_USER=$(logname)
   read -p "Enter user [$LOGGED_IN_USER]: " SEMAPHORE_AGENT_INSTALLATION_USER
   SEMAPHORE_AGENT_INSTALLATION_USER="${SEMAPHORE_AGENT_INSTALLATION_USER:=$LOGGED_IN_USER}"
 fi
@@ -61,12 +61,13 @@ rm toolbox.tar
 #
 # Create agent config
 #
+SEMAPHORE_AGENT_DISCONNECT_AFTER_JOB=${SEMAPHORE_AGENT_DISCONNECT_AFTER_JOB:-false}
 AGENT_CONFIG=$(cat <<-END
 endpoint: "$SEMAPHORE_ORGANIZATION.semaphoreci.com"
 token: "$SEMAPHORE_REGISTRATION_TOKEN"
 no-https: false
-shutdown-hook-path: ""
-disconnect-after-job: false
+shutdown-hook-path: "$SEMAPHORE_AGENT_SHUTDOWN_HOOK"
+disconnect-after-job: $SEMAPHORE_AGENT_DISCONNECT_AFTER_JOB
 env-vars: []
 files: []
 fail-on-missing-files: false
