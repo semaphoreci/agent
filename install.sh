@@ -4,7 +4,6 @@ set -e
 set -o pipefail
 
 AGENT_INSTALLATION_DIRECTORY="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-LOGGED_IN_USER=$(logname)
 
 if [[ "$EUID" -ne 0 ]]; then
   echo "Please run with sudo."
@@ -28,6 +27,7 @@ if [[ -z $SEMAPHORE_REGISTRATION_TOKEN ]]; then
 fi
 
 if [[ -z $SEMAPHORE_AGENT_INSTALLATION_USER ]]; then
+  LOGGED_IN_USER=$(logname)
   read -p "Enter user [$LOGGED_IN_USER]: " SEMAPHORE_AGENT_INSTALLATION_USER
   SEMAPHORE_AGENT_INSTALLATION_USER="${SEMAPHORE_AGENT_INSTALLATION_USER:=$LOGGED_IN_USER}"
 fi
