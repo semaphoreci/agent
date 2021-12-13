@@ -72,7 +72,7 @@ post "/api/v1/self_hosted_agents/sync" do
             when "stopping-job"
               {"action" => "continue"}
             when "finished-job"
-              $should_shutdown ? {"action" => "shutdown"} : {"action" => "continue"}
+              $should_shutdown ? {"action" => "shutdown"} : {"action" => "wait-for-jobs"}
             when "starting-job"
               {"action" => "continue"}
             when "failed-to-send-callback"
