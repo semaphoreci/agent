@@ -96,7 +96,8 @@ func (p *JobProcessor) shutdownIfIdle() {
 
 	idleFor := time.Since(p.LastStateChangeAt)
 	if idleFor > p.DisconnectAfterIdleTimeout {
-		p.Shutdown(fmt.Sprintf("Agent has been idle for the past %v.", idleFor), 0)
+		log.Infof("Agent has been idle for the past %v.", idleFor)
+		p.Shutdown(ShutdownReasonIdle, 0)
 	}
 }
 
@@ -126,7 +127,8 @@ func (p *JobProcessor) HandleSyncError(err error) {
 	p.LastSyncErrorAt = &now
 
 	if time.Now().Add(-10 * time.Minute).After(p.LastSuccessfulSync) {
-		p.Shutdown("Unable to sync with Semaphore for over 10 minutes.", 1)
+		log.Error("Unable to sync with Semaphore for over 10 minutes.")
+		p.Shutdown(ShutdownReasonUnableToSync, 1)
 	}
 }
 
@@ -145,7 +147,8 @@ func (p *JobProcessor) ProcessSyncResponse(response *selfhostedapi.SyncResponse)
 		return
 
 	case selfhostedapi.AgentActionShutdown:
-		p.Shutdown("Agent Shutdown requested by Semaphore", 0)
+		log.Info("Agent shutdown requested by Semaphore")
+		p.Shutdown(ShutdownReasonRequested, 0)
 
 	case selfhostedapi.AgentActionWaitForJobs:
 		p.WaitForJobs()
@@ -186,7 +189,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 		OnSuccessfulTeardown: p.JobFinished,
 		OnFailedTeardown: func() {
 			if p.DisconnectAfterJob {
-				p.Shutdown("Job finished with error", 1)
+				p.Shutdown(ShutdownReasonJobFinished, 1)
 			} else {
 				p.setState(selfhostedapi.AgentStateFailedToSendCallback)
 			}
@@ -218,7 +221,7 @@ func (p *JobProcessor) StopJob(jobID string) {
 
 func (p *JobProcessor) JobFinished() {
 	if p.DisconnectAfterJob {
-		p.Shutdown("Job finished", 0)
+		p.Shutdown(ShutdownReasonJobFinished, 0)
 	} else {
 		p.setState(selfhostedapi.AgentStateFinishedJob)
 	}
@@ -235,7 +238,8 @@ func (p *JobProcessor) SetupInteruptHandler() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		p.Shutdown("Ctrl+C pressed in Terminal", 0)
+		log.Info("Ctrl+C pressed in Terminal")
+		p.Shutdown(ShutdownReasonInterrupted, 0)
 	}()
 }
 
@@ -257,16 +261,18 @@ func (p *JobProcessor) disconnect() {
 
 func (p *JobProcessor) Shutdown(reason string, code int) {
 	p.disconnect()
-	p.executeShutdownHook()
-	log.Info(reason)
-	log.Info("Shutting down... Good bye!")
+	p.executeShutdownHook(reason)
+	log.Infof("Agent shutting down due to: %s", reason)
 	os.Exit(code)
 }
 
-func (p *JobProcessor) executeShutdownHook() {
+func (p *JobProcessor) executeShutdownHook(reason string) {
 	if p.ShutdownHookPath != "" {
 		log.Infof("Executing shutdown hook from %s", p.ShutdownHookPath)
 		cmd := exec.Command("bash", p.ShutdownHookPath)
+		cmd.Env = os.Environ()
+		cmd.Env = append(cmd.Env, fmt.Sprintf("SEMAPHORE_AGENT_SHUTDOWN_REASON=%s", reason))
+
 		output, err := cmd.Output()
 		if err != nil {
 			log.Errorf("Error executing shutdown hook: %v", err)
