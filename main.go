@@ -92,7 +92,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	_ = pflag.Bool(config.NoHTTPS, false, "Use http for communication")
 	_ = pflag.String(config.ShutdownHookPath, "", "Shutdown hook path")
 	_ = pflag.Bool(config.DisconnectAfterJob, false, "Disconnect after job")
-	_ = pflag.Duration(config.DisconnectAfterIdleTimeout, 0, "Disconnect after idle timeout")
+	_ = pflag.Int(config.DisconnectAfterIdleTimeout, 0, "Disconnect after idle timeout, in seconds")
 	_ = pflag.StringSlice(config.EnvVars, []string{}, "Export environment variables in jobs")
 	_ = pflag.StringSlice(config.Files, []string{}, "Inject files into container, when using docker compose executor")
 	_ = pflag.Bool(config.FailOnMissingFiles, false, "Fail job if files specified using --files are missing")
@@ -115,6 +115,10 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		log.Fatal("Agent registration token was not specified. Exiting...")
 	}
 
+	if viper.GetInt(config.DisconnectAfterIdleTimeout) < 0 {
+		log.Fatal("Idle timeout can't be negative. Exiting...")
+	}
+
 	scheme := "https"
 	if viper.GetBool(config.NoHTTPS) {
 		scheme = "http"
@@ -130,6 +134,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		log.Fatalf("Error parsing --files: %v", err)
 	}
 
+	idleTimeout := viper.GetInt(config.DisconnectAfterIdleTimeout)
 	config := listener.Config{
 		Endpoint:                   viper.GetString(config.Endpoint),
 		Token:                      viper.GetString(config.Token),
@@ -137,7 +142,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		Scheme:                     scheme,
 		ShutdownHookPath:           viper.GetString(config.ShutdownHookPath),
 		DisconnectAfterJob:         viper.GetBool(config.DisconnectAfterJob),
-		DisconnectAfterIdleTimeout: viper.GetDuration(config.DisconnectAfterIdleTimeout),
+		DisconnectAfterIdleTimeout: time.Duration(int64(idleTimeout) * int64(time.Second)),
 		EnvVars:                    hostEnvVars,
 		FileInjections:             fileInjections,
 		FailOnMissingFiles:         viper.GetBool(config.FailOnMissingFiles),
