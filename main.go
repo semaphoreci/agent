@@ -92,7 +92,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	_ = pflag.Bool(config.NoHTTPS, false, "Use http for communication")
 	_ = pflag.String(config.ShutdownHookPath, "", "Shutdown hook path")
 	_ = pflag.Bool(config.DisconnectAfterJob, false, "Disconnect after job")
-	_ = pflag.Duration(config.DisconnectAfterIdleTimeout, 0, "Disconnect after idle timeout, in seconds")
+	_ = pflag.Duration(config.DisconnectAfterIdleTimeout, 0, "Disconnect after idle timeout")
 	_ = pflag.StringSlice(config.EnvVars, []string{}, "Export environment variables in jobs")
 	_ = pflag.StringSlice(config.Files, []string{}, "Inject files into container, when using docker compose executor")
 	_ = pflag.Bool(config.FailOnMissingFiles, false, "Fail job if files specified using --files are missing")
