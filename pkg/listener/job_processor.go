@@ -1,6 +1,7 @@
 package listener
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
@@ -18,17 +19,19 @@ import (
 
 func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, config Config) (*JobProcessor, error) {
 	p := &JobProcessor{
-		HTTPClient:              httpClient,
-		APIClient:               apiClient,
-		LastSuccessfulSync:      time.Now(),
-		State:                   selfhostedapi.AgentStateWaitingForJobs,
-		SyncInterval:            5 * time.Second,
-		DisconnectRetryAttempts: 100,
-		ShutdownHookPath:        config.ShutdownHookPath,
-		DisconnectAfterJob:      config.DisconnectAfterJob,
-		EnvVars:                 config.EnvVars,
-		FileInjections:          config.FileInjections,
-		FailOnMissingFiles:      config.FailOnMissingFiles,
+		HTTPClient:                 httpClient,
+		APIClient:                  apiClient,
+		LastSuccessfulSync:         time.Now(),
+		LastStateChangeAt:          time.Now(),
+		State:                      selfhostedapi.AgentStateWaitingForJobs,
+		SyncInterval:               5 * time.Second,
+		DisconnectRetryAttempts:    100,
+		ShutdownHookPath:           config.ShutdownHookPath,
+		DisconnectAfterJob:         config.DisconnectAfterJob,
+		DisconnectAfterIdleTimeout: config.DisconnectAfterIdleTimeout,
+		EnvVars:                    config.EnvVars,
+		FileInjections:             config.FileInjections,
+		FailOnMissingFiles:         config.FailOnMissingFiles,
 	}
 
 	go p.Start()
@@ -39,21 +42,23 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 }
 
 type JobProcessor struct {
-	HTTPClient              *http.Client
-	APIClient               *selfhostedapi.API
-	State                   selfhostedapi.AgentState
-	CurrentJobID            string
-	CurrentJob              *jobs.Job
-	SyncInterval            time.Duration
-	LastSyncErrorAt         *time.Time
-	LastSuccessfulSync      time.Time
-	DisconnectRetryAttempts int
-	ShutdownHookPath        string
-	StopSync                bool
-	DisconnectAfterJob      bool
-	EnvVars                 []config.HostEnvVar
-	FileInjections          []config.FileInjection
-	FailOnMissingFiles      bool
+	HTTPClient                 *http.Client
+	APIClient                  *selfhostedapi.API
+	State                      selfhostedapi.AgentState
+	CurrentJobID               string
+	CurrentJob                 *jobs.Job
+	SyncInterval               time.Duration
+	LastSyncErrorAt            *time.Time
+	LastSuccessfulSync         time.Time
+	LastStateChangeAt          time.Time
+	DisconnectRetryAttempts    int
+	ShutdownHookPath           string
+	StopSync                   bool
+	DisconnectAfterJob         bool
+	DisconnectAfterIdleTimeout time.Duration
+	EnvVars                    []config.HostEnvVar
+	FileInjections             []config.FileInjection
+	FailOnMissingFiles         bool
 }
 
 func (p *JobProcessor) Start() {
@@ -71,7 +76,33 @@ func (p *JobProcessor) SyncLoop() {
 	}
 }
 
+func (p *JobProcessor) isIdle() bool {
+	return p.State == selfhostedapi.AgentStateWaitingForJobs
+}
+
+func (p *JobProcessor) setState(newState selfhostedapi.AgentState) {
+	p.State = newState
+	p.LastStateChangeAt = time.Now()
+}
+
+func (p *JobProcessor) shutdownIfIdle() {
+	if !p.isIdle() {
+		return
+	}
+
+	if p.DisconnectAfterIdleTimeout == 0 {
+		return
+	}
+
+	idleFor := time.Since(p.LastStateChangeAt)
+	if idleFor > p.DisconnectAfterIdleTimeout {
+		p.Shutdown(fmt.Sprintf("Agent has been idle for the past %v.", idleFor), 0)
+	}
+}
+
 func (p *JobProcessor) Sync() {
+	p.shutdownIfIdle()
+
 	request := &selfhostedapi.SyncRequest{
 		State: p.State,
 		JobID: p.CurrentJobID,
@@ -122,13 +153,13 @@ func (p *JobProcessor) ProcessSyncResponse(response *selfhostedapi.SyncResponse)
 }
 
 func (p *JobProcessor) RunJob(jobID string) {
-	p.State = selfhostedapi.AgentStateStartingJob
+	p.setState(selfhostedapi.AgentStateStartingJob)
 	p.CurrentJobID = jobID
 
 	jobRequest, err := p.getJobWithRetries(p.CurrentJobID)
 	if err != nil {
 		log.Errorf("Could not get job %s: %v", jobID, err)
-		p.State = selfhostedapi.AgentStateFailedToFetchJob
+		p.setState(selfhostedapi.AgentStateFailedToFetchJob)
 		return
 	}
 
@@ -142,12 +173,11 @@ func (p *JobProcessor) RunJob(jobID string) {
 
 	if err != nil {
 		log.Errorf("Could not construct job %s: %v", jobID, err)
-		p.State = selfhostedapi.AgentStateFailedToConstructJob
+		p.setState(selfhostedapi.AgentStateFailedToConstructJob)
 		return
 	}
 
-	p.State = selfhostedapi.AgentStateRunningJob
-	p.CurrentJobID = jobID
+	p.setState(selfhostedapi.AgentStateRunningJob)
 	p.CurrentJob = job
 
 	go job.RunWithOptions(jobs.RunOptions{
@@ -158,7 +188,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 			if p.DisconnectAfterJob {
 				p.Shutdown("Job finished with error", 1)
 			} else {
-				p.State = selfhostedapi.AgentStateFailedToSendCallback
+				p.setState(selfhostedapi.AgentStateFailedToSendCallback)
 			}
 		},
 	})
@@ -181,7 +211,7 @@ func (p *JobProcessor) getJobWithRetries(jobID string) (*api.JobRequest, error) 
 
 func (p *JobProcessor) StopJob(jobID string) {
 	p.CurrentJobID = jobID
-	p.State = selfhostedapi.AgentStateStoppingJob
+	p.setState(selfhostedapi.AgentStateStoppingJob)
 
 	p.CurrentJob.Stop()
 }
@@ -190,14 +220,14 @@ func (p *JobProcessor) JobFinished() {
 	if p.DisconnectAfterJob {
 		p.Shutdown("Job finished", 0)
 	} else {
-		p.State = selfhostedapi.AgentStateFinishedJob
+		p.setState(selfhostedapi.AgentStateFinishedJob)
 	}
 }
 
 func (p *JobProcessor) WaitForJobs() {
 	p.CurrentJobID = ""
 	p.CurrentJob = nil
-	p.State = selfhostedapi.AgentStateWaitingForJobs
+	p.setState(selfhostedapi.AgentStateWaitingForJobs)
 }
 
 func (p *JobProcessor) SetupInteruptHandler() {

@@ -3,15 +3,16 @@ package config
 import "os"
 
 const (
-	ConfigFile         = "config-file"
-	Endpoint           = "endpoint"
-	Token              = "token"
-	NoHTTPS            = "no-https"
-	ShutdownHookPath   = "shutdown-hook-path"
-	DisconnectAfterJob = "disconnect-after-job"
-	EnvVars            = "env-vars"
-	Files              = "files"
-	FailOnMissingFiles = "fail-on-missing-files"
+	ConfigFile                 = "config-file"
+	Endpoint                   = "endpoint"
+	Token                      = "token"
+	NoHTTPS                    = "no-https"
+	ShutdownHookPath           = "shutdown-hook-path"
+	DisconnectAfterJob         = "disconnect-after-job"
+	DisconnectAfterIdleTimeout = "disconnect-after-idle-timeout"
+	EnvVars                    = "env-vars"
+	Files                      = "files"
+	FailOnMissingFiles         = "fail-on-missing-files"
 )
 
 var ValidConfigKeys = []string{
@@ -21,6 +22,7 @@ var ValidConfigKeys = []string{
 	NoHTTPS,
 	ShutdownHookPath,
 	DisconnectAfterJob,
+	DisconnectAfterIdleTimeout,
 	EnvVars,
 	Files,
 	FailOnMissingFiles,
