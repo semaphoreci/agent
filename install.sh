@@ -62,12 +62,14 @@ rm toolbox.tar
 # Create agent config
 #
 SEMAPHORE_AGENT_DISCONNECT_AFTER_JOB=${SEMAPHORE_AGENT_DISCONNECT_AFTER_JOB:-false}
+SEMAPHORE_AGENT_DISCONNECT_AFTER_IDLE_TIMEOUT=${SEMAPHORE_AGENT_DISCONNECT_AFTER_IDLE_TIMEOUT:-0}
 AGENT_CONFIG=$(cat <<-END
 endpoint: "$SEMAPHORE_ORGANIZATION.semaphoreci.com"
 token: "$SEMAPHORE_REGISTRATION_TOKEN"
 no-https: false
 shutdown-hook-path: "$SEMAPHORE_AGENT_SHUTDOWN_HOOK"
 disconnect-after-job: $SEMAPHORE_AGENT_DISCONNECT_AFTER_JOB
+disconnect-after-idle-timeout: $SEMAPHORE_AGENT_DISCONNECT_AFTER_IDLE_TIMEOUT
 env-vars: []
 files: []
 fail-on-missing-files: false
