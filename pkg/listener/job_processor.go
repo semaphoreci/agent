@@ -259,14 +259,14 @@ func (p *JobProcessor) disconnect() {
 	}
 }
 
-func (p *JobProcessor) Shutdown(reason string, code int) {
+func (p *JobProcessor) Shutdown(reason ShutdownReason, code int) {
 	p.disconnect()
 	p.executeShutdownHook(reason)
 	log.Infof("Agent shutting down due to: %s", reason)
 	os.Exit(code)
 }
 
-func (p *JobProcessor) executeShutdownHook(reason string) {
+func (p *JobProcessor) executeShutdownHook(reason ShutdownReason) {
 	if p.ShutdownHookPath != "" {
 		log.Infof("Executing shutdown hook from %s", p.ShutdownHookPath)
 		cmd := exec.Command("bash", p.ShutdownHookPath)
