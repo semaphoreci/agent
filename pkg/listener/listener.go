@@ -23,16 +23,17 @@ type Listener struct {
 }
 
 type Config struct {
-	Endpoint           string
-	RegisterRetryLimit int
-	Token              string
-	Scheme             string
-	ShutdownHookPath   string
-	DisconnectAfterJob bool
-	EnvVars            []config.HostEnvVar
-	FileInjections     []config.FileInjection
-	FailOnMissingFiles bool
-	AgentVersion       string
+	Endpoint                   string
+	RegisterRetryLimit         int
+	Token                      string
+	Scheme                     string
+	ShutdownHookPath           string
+	DisconnectAfterJob         bool
+	DisconnectAfterIdleTimeout time.Duration
+	EnvVars                    []config.HostEnvVar
+	FileInjections             []config.FileInjection
+	FailOnMissingFiles         bool
+	AgentVersion               string
 }
 
 func Start(httpClient *http.Client, config Config, logger io.Writer) (*Listener, error) {
