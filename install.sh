@@ -113,12 +113,20 @@ if [[ -f "$SYSTEMD_SERVICE_PATH" ]]; then
   echo "systemd service already exists at $SYSTEMD_SERVICE_PATH. Overriding it..."
   echo "$SYSTEMD_SERVICE" > $SYSTEMD_SERVICE_PATH
   systemctl daemon-reload
-  echo "Restarting semaphore-agent service..."
-  systemctl restart semaphore-agent
+  if [[ "$SEMAPHORE_AGENT_START" == "false" ]]; then
+    echo "Not restarting agent."
+  else
+    echo "Restarting semaphore-agent service..."
+    systemctl restart semaphore-agent
+  fi
 else
   echo "$SYSTEMD_SERVICE" > $SYSTEMD_SERVICE_PATH
-  echo "Starting semaphore-agent service..."
-  systemctl start semaphore-agent
+  if [[ "$SEMAPHORE_AGENT_START" == "false" ]]; then
+    echo "Not starting agent."
+  else
+    echo "Starting semaphore-agent service..."
+    systemctl start semaphore-agent
+  fi
 fi
 
 echo "Done."
