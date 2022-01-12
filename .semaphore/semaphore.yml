@@ -31,6 +31,24 @@ blocks:
             - go get -u github.com/mgechev/revive
             - make lint
 
+  - name: "Security checks"
+    dependencies: []
+    task:
+      secrets:
+        - name: security-toolbox-shared-read-access
+      prologue:
+        commands:
+          - checkout
+          - mv ~/.ssh/security-toolbox ~/.ssh/id_rsa
+          - sudo chmod 600 ~/.ssh/id_rsa
+      jobs:
+        - name: Check dependencies
+          commands:
+            - make check.deps
+        - name: Check code
+          commands:
+            - make check.static
+
   - name: "Tests"
     dependencies: []
     task:

@@ -62,6 +62,7 @@ func main() {
 }
 
 func OpenLogfile() io.Writer {
+	// #nosec
 	f, err := os.OpenFile("/tmp/agent_log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 
 	if err != nil {
@@ -103,7 +104,10 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		loadConfigFile(*configFile)
 	}
 
-	viper.BindPFlags(pflag.CommandLine)
+	err := viper.BindPFlags(pflag.CommandLine)
+	if err != nil {
+		log.Fatalf("Error binding pflags: %v", err)
+	}
 
 	validateConfiguration()
 

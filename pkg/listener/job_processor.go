@@ -269,6 +269,8 @@ func (p *JobProcessor) Shutdown(reason ShutdownReason, code int) {
 func (p *JobProcessor) executeShutdownHook(reason ShutdownReason) {
 	if p.ShutdownHookPath != "" {
 		log.Infof("Executing shutdown hook from %s", p.ShutdownHookPath)
+
+		// #nosec
 		cmd := exec.Command("bash", p.ShutdownHookPath)
 		cmd.Env = os.Environ()
 		cmd.Env = append(cmd.Env, fmt.Sprintf("SEMAPHORE_AGENT_SHUTDOWN_REASON=%s", reason))

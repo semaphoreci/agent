@@ -1,6 +1,10 @@
 package eventlogger
 
-import "time"
+import (
+	"time"
+
+	log "github.com/sirupsen/logrus"
+)
 
 type Logger struct {
 	Backend Backend
@@ -18,46 +22,58 @@ func (l *Logger) Close() error {
 	return l.Backend.Close()
 }
 
-func (l *Logger) LogJobStarted() error {
+func (l *Logger) LogJobStarted() {
 	event := &JobStartedEvent{
 		Timestamp: int(time.Now().Unix()),
 		Event:     "job_started",
 	}
 
-	return l.Backend.Write(event)
+	err := l.Backend.Write(event)
+	if err != nil {
+		log.Errorf("Error writing job_started log: %v", err)
+	}
 }
 
-func (l *Logger) LogJobFinished(result string) error {
+func (l *Logger) LogJobFinished(result string) {
 	event := &JobFinishedEvent{
 		Timestamp: int(time.Now().Unix()),
 		Event:     "job_finished",
 		Result:    result,
 	}
 
-	return l.Backend.Write(event)
+	err := l.Backend.Write(event)
+	if err != nil {
+		log.Errorf("Error writing job_finished log: %v", err)
+	}
 }
 
-func (l *Logger) LogCommandStarted(directive string) error {
+func (l *Logger) LogCommandStarted(directive string) {
 	event := &CommandStartedEvent{
 		Timestamp: int(time.Now().Unix()),
 		Event:     "cmd_started",
 		Directive: directive,
 	}
 
-	return l.Backend.Write(event)
+	err := l.Backend.Write(event)
+	if err != nil {
+		log.Errorf("Error writing cmd_started log: %v", err)
+	}
 }
 
-func (l *Logger) LogCommandOutput(output string) error {
+func (l *Logger) LogCommandOutput(output string) {
 	event := &CommandOutputEvent{
 		Timestamp: int(time.Now().Unix()),
 		Event:     "cmd_output",
 		Output:    output,
 	}
 
-	return l.Backend.Write(event)
+	err := l.Backend.Write(event)
+	if err != nil {
+		log.Errorf("Error writing cmd_output log: %v", err)
+	}
 }
 
-func (l *Logger) LogCommandFinished(directive string, exitCode int, startedAt int, finishedAt int) error {
+func (l *Logger) LogCommandFinished(directive string, exitCode int, startedAt int, finishedAt int) {
 	event := &CommandFinishedEvent{
 		Timestamp:  int(time.Now().Unix()),
 		Event:      "cmd_finished",
@@ -67,5 +83,8 @@ func (l *Logger) LogCommandFinished(directive string, exitCode int, startedAt in
 		FinishedAt: finishedAt,
 	}
 
-	return l.Backend.Write(event)
+	err := l.Backend.Write(event)
+	if err != nil {
+		log.Errorf("Error writing cmd_finished log: %v", err)
+	}
 }

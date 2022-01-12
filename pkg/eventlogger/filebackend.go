@@ -31,10 +31,20 @@ func (l *FileBackend) Open() error {
 }
 
 func (l *FileBackend) Write(event interface{}) error {
-	jsonString, _ := json.Marshal(event)
+	jsonString, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
 
-	l.file.Write([]byte(jsonString))
-	l.file.Write([]byte("\n"))
+	_, err = l.file.Write([]byte(jsonString))
+	if err != nil {
+		return err
+	}
+
+	_, err = l.file.Write([]byte("\n"))
+	if err != nil {
+		return err
+	}
 
 	log.Debugf("%s", jsonString)
 
@@ -51,8 +61,6 @@ func (l *FileBackend) Stream(startLine int, writer io.Writer) (int, error) {
 		return startLine, err
 	}
 
-	defer fd.Close()
-
 	reader := bufio.NewReader(fd)
 	lineIndex := 0
 
@@ -60,6 +68,7 @@ func (l *FileBackend) Stream(startLine int, writer io.Writer) (int, error) {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err != io.EOF {
+				_ = fd.Close()
 				return lineIndex, err
 			}
 
@@ -75,5 +84,5 @@ func (l *FileBackend) Stream(startLine int, writer io.Writer) (int, error) {
 		}
 	}
 
-	return lineIndex, nil
+	return lineIndex, fd.Close()
 }

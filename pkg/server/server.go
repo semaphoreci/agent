@@ -150,9 +150,16 @@ func (s *Server) AgentLogs(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
 		return
 	}
-	defer logfile.Close()
 
-	io.Copy(w, logfile)
+	_, err = io.Copy(w, logfile)
+	if err != nil {
+		log.Errorf("Error writing agent logs: %v", err)
+	}
+
+	err = logfile.Close()
+	if err != nil {
+		log.Errorf("Error closing agent logs file: %v", err)
+	}
 }
 
 func (s *Server) Run(w http.ResponseWriter, r *http.Request) {

@@ -117,6 +117,7 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 		envFile += fmt.Sprintf("export %s=%s\n", env.Name, ShellQuote(env.Value))
 	}
 
+	// #nosec
 	err := ioutil.WriteFile("/tmp/.env", []byte(envFile), 0644)
 
 	if err != nil {
@@ -158,6 +159,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 
 		tmpPath := fmt.Sprintf("%s/file", e.tmpDirectory)
 
+		// #nosec
 		err = ioutil.WriteFile(tmpPath, []byte(content), 0644)
 		if err != nil {
 			e.Logger.LogCommandOutput(err.Error() + "\n")

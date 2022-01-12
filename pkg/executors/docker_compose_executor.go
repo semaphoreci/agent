@@ -76,7 +76,11 @@ func (e *DockerComposeExecutor) Prepare() int {
 	log.Debug("Compose File:")
 	log.Debug(compose)
 
-	ioutil.WriteFile(e.dockerComposeManifestPath, []byte(compose), 0644)
+	err = ioutil.WriteFile(e.dockerComposeManifestPath, []byte(compose), 0600)
+	if err != nil {
+		log.Errorf("Error writing docker compose manifest file: %v", err)
+		return 1
+	}
 
 	return e.setUpSSHJumpPoint()
 }
@@ -104,6 +108,8 @@ func (e *DockerComposeExecutor) executeHostCommands() error {
 
 	for _, c := range hostCommands {
 		log.Debug("Executing Host Command:", c.Directive)
+
+		// #nosec
 		cmd := exec.Command("bash", "-c", c.Directive)
 
 		out, err := cmd.CombinedOutput()
@@ -196,6 +202,7 @@ func (e *DockerComposeExecutor) startBashSession() int {
 
 	log.Debug("Starting stateful shell")
 
+	// #nosec
 	cmd := exec.Command(
 		"docker-compose",
 		"--ansi",
@@ -412,6 +419,7 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForGCR(envVars []api.EnvVa
 
 		tmpPath := fmt.Sprintf("%s/file", e.tmpDirectory)
 
+		// #nosec
 		err = ioutil.WriteFile(tmpPath, []byte(content), 0644)
 		if err != nil {
 			e.Logger.LogCommandOutput(err.Error() + "\n")
@@ -427,6 +435,8 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForGCR(envVars []api.EnvVa
 		}
 
 		fileCmd := fmt.Sprintf("mkdir -p %s", path.Dir(destPath))
+
+		// #nosec
 		cmd := exec.Command("bash", "-c", fileCmd)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
@@ -436,6 +446,8 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForGCR(envVars []api.EnvVa
 		}
 
 		fileCmd = fmt.Sprintf("cp %s %s", tmpPath, destPath)
+
+		// #nosec
 		cmd = exec.Command("bash", "-c", fileCmd)
 		out, err = cmd.CombinedOutput()
 		if err != nil {
@@ -445,6 +457,8 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForGCR(envVars []api.EnvVa
 		}
 
 		fileCmd = fmt.Sprintf("chmod %s %s", f.Mode, destPath)
+
+		// #nosec
 		cmd = exec.Command("bash", "-c", fileCmd)
 		out, err = cmd.CombinedOutput()
 		if err != nil {
@@ -511,6 +525,7 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	// are not present locally.
 	//
 
+	// #nosec
 	cmd := exec.Command(
 		"docker-compose",
 		"--ansi",
@@ -591,7 +606,7 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars 
 	}
 
 	envPath := fmt.Sprintf("%s/.env", e.tmpDirectory)
-	err := ioutil.WriteFile(envPath, []byte(envFile), 0644)
+	err := ioutil.WriteFile(envPath, []byte(envFile), 0600)
 
 	if err != nil {
 		exitCode = 255
@@ -635,6 +650,7 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 
 		tmpPath := fmt.Sprintf("%s/file", e.tmpDirectory)
 
+		// #nosec
 		err = ioutil.WriteFile(tmpPath, []byte(content), 0644)
 		if err != nil {
 			e.Logger.LogCommandOutput(err.Error() + "\n")
@@ -740,13 +756,19 @@ func (e *DockerComposeExecutor) SubmitDockerStats(metricName string) {
 
 func (e *DockerComposeExecutor) SubmitStats(imageName, metricName string, tags []string, value int) {
 	if strings.Contains(e.jobRequest.Compose.Containers[0].Image, imageName) {
-		watchman.SubmitWithTags(metricName, tags, value)
+		err := watchman.SubmitWithTags(metricName, tags, value)
+		if err != nil {
+			log.Errorf("Error submiting metrics: %v", err)
+		}
 	}
 }
 
 func (e *DockerComposeExecutor) SubmitDockerPullTime(duration int) {
 	if strings.Contains(e.jobRequest.Compose.Containers[0].Image, "semaphoreci/android") {
 		// only submiting android metrics.
-		watchman.SubmitWithTags("compose.docker.pull.duration", []string{"semaphoreci/android"}, duration)
+		err := watchman.SubmitWithTags("compose.docker.pull.duration", []string{"semaphoreci/android"}, duration)
+		if err != nil {
+			log.Errorf("Error submiting metrics: %v", err)
+		}
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	jwt "github.com/dgrijalva/jwt-go"
+	jwt "github.com/golang-jwt/jwt/v4"
 )
 
 //
@@ -24,7 +24,7 @@ func CreateJwtMiddleware(jwtSecret []byte) func(http.HandlerFunc) http.HandlerFu
 
 			if authorizationHeader == "" {
 				w.WriteHeader(401)
-				json.NewEncoder(w).Encode("An authorization header is required")
+				_ = json.NewEncoder(w).Encode("An authorization header is required")
 				return
 			}
 
@@ -32,13 +32,13 @@ func CreateJwtMiddleware(jwtSecret []byte) func(http.HandlerFunc) http.HandlerFu
 
 			if len(bearerToken) != 2 {
 				w.WriteHeader(401)
-				json.NewEncoder(w).Encode("Invalid authorization token")
+				_ = json.NewEncoder(w).Encode("Invalid authorization token")
 				return
 			}
 
 			token, err := jwt.Parse(bearerToken[1], func(token *jwt.Token) (interface{}, error) {
 				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-					return nil, fmt.Errorf("Invalid authorization token")
+					return nil, fmt.Errorf("invalid authorization token")
 				}
 
 				return jwtSecret, nil
@@ -46,13 +46,14 @@ func CreateJwtMiddleware(jwtSecret []byte) func(http.HandlerFunc) http.HandlerFu
 
 			if err != nil {
 				w.WriteHeader(401)
-				json.NewEncoder(w).Encode(err.Error())
+				_ = json.NewEncoder(w).Encode(err.Error())
 				return
 			}
 
 			if !token.Valid {
 				w.WriteHeader(401)
-				json.NewEncoder(w).Encode("Invalid authorization token")
+				_ = json.NewEncoder(w).Encode("Invalid authorization token")
+				return
 			}
 
 			next(w, req)

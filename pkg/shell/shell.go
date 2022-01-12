@@ -69,7 +69,7 @@ func (s *Shell) handleAbruptShellCloses() {
 		}
 
 		log.Debugf("Shell closed with %s. Closing associated TTY", msg)
-		s.TTY.Close()
+		_ = s.TTY.Close()
 
 		log.Debugf("Publishing an exit signal: %s", msg)
 		s.ExitSignal <- msg
@@ -119,11 +119,30 @@ func (s *Shell) Write(instruction string) (int, error) {
 func (s *Shell) silencePromptAndDisablePS1() error {
 	everythingIsReadyMark := "87d140552e404df69f6472729d2b2c3"
 
-	s.TTY.Write([]byte("export PS1=''\n"))
-	s.TTY.Write([]byte("stty -echo\n"))
-	s.TTY.Write([]byte("echo stty `stty -g` > /tmp/restore-tty\n"))
-	s.TTY.Write([]byte("cd ~\n"))
-	s.TTY.Write([]byte("echo '" + everythingIsReadyMark + "'\n"))
+	_, err := s.TTY.Write([]byte("export PS1=''\n"))
+	if err != nil {
+		return err
+	}
+
+	_, err = s.TTY.Write([]byte("stty -echo\n"))
+	if err != nil {
+		return err
+	}
+
+	_, err = s.TTY.Write([]byte("echo stty `stty -g` > /tmp/restore-tty\n"))
+	if err != nil {
+		return err
+	}
+
+	_, err = s.TTY.Write([]byte("cd ~\n"))
+	if err != nil {
+		return err
+	}
+
+	_, err = s.TTY.Write([]byte("echo '" + everythingIsReadyMark + "'\n"))
+	if err != nil {
+		return err
+	}
 
 	stdoutScanner := bufio.NewScanner(s.TTY)
 

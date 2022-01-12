@@ -1,9 +1,10 @@
 package listener
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"os"
 	"time"
@@ -77,28 +78,37 @@ func (l *Listener) DisplayHelloMessage() {
 	fmt.Println("                                      ")
 }
 
-const nameLetters = "abcdefghijklmnopqrstuvwxyz123456789"
-const nameLength = 20
+// base64 gives you 4 chars every 3 bytes, we want 20 chars, so 15 bytes
+const nameLength = 15
 
-func (l *Listener) Name() string {
-	b := make([]byte, nameLength)
-	for i := range b {
-		b[i] = nameLetters[rand.Intn(len(nameLetters))]
+func (l *Listener) Name() (string, error) {
+	buffer := make([]byte, nameLength)
+	_, err := rand.Read(buffer)
+
+	if err != nil {
+		return "", err
 	}
-	return string(b)
+
+	return base64.URLEncoding.EncodeToString(buffer), nil
 }
 
 func (l *Listener) Register() error {
+	name, err := l.Name()
+	if err != nil {
+		log.Errorf("Error generating name for agent: %v", err)
+		return err
+	}
+
 	req := &selfhostedapi.RegisterRequest{
 		Version:  l.Config.AgentVersion,
-		Name:     l.Name(),
+		Name:     name,
 		PID:      os.Getpid(),
 		OS:       osinfo.Name(),
 		Arch:     osinfo.Arch(),
 		Hostname: osinfo.Hostname(),
 	}
 
-	err := retry.RetryWithConstantWait("Register", l.Config.RegisterRetryLimit, time.Second, func() error {
+	err = retry.RetryWithConstantWait("Register", l.Config.RegisterRetryLimit, time.Second, func() error {
 		resp, err := l.Client.Register(req)
 		if err != nil {
 			return err
