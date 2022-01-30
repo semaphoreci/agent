@@ -275,7 +275,7 @@ func (p *JobProcessor) executeShutdownHook(reason ShutdownReason) {
 		cmd.Env = os.Environ()
 		cmd.Env = append(cmd.Env, fmt.Sprintf("SEMAPHORE_AGENT_SHUTDOWN_REASON=%s", reason))
 
-		output, err := cmd.Output()
+		output, err := cmd.CombinedOutput()
 		if err != nil {
 			log.Errorf("Error executing shutdown hook: %v", err)
 			log.Errorf("Output: %s", string(output))
