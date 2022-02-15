@@ -13,6 +13,7 @@ const (
 	EnvVars                    = "env-vars"
 	Files                      = "files"
 	FailOnMissingFiles         = "fail-on-missing-files"
+	NoPTY                      = "no-pty"
 )
 
 var ValidConfigKeys = []string{

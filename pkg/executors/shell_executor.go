@@ -17,19 +17,19 @@ import (
 
 type ShellExecutor struct {
 	Executor
-
-	Logger     *eventlogger.Logger
-	Shell      *shell.Shell
-	jobRequest *api.JobRequest
-
+	Logger       *eventlogger.Logger
+	Shell        *shell.Shell
+	jobRequest   *api.JobRequest
 	tmpDirectory string
+	NoPTY        bool
 }
 
-func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger) *ShellExecutor {
+func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger, noPTY bool) *ShellExecutor {
 	return &ShellExecutor{
 		Logger:       logger,
 		jobRequest:   request,
 		tmpDirectory: "/tmp",
+		NoPTY:        noPTY,
 	}
 }
 
@@ -67,7 +67,7 @@ func (e *ShellExecutor) setUpSSHJumpPoint() int {
 func (e *ShellExecutor) Start() int {
 	cmd := exec.Command("bash", "--login")
 
-	shell, err := shell.NewShell(cmd, e.tmpDirectory)
+	shell, err := shell.NewShell(cmd, e.tmpDirectory, e.NoPTY)
 	if err != nil {
 		log.Debug(shell)
 		return 1

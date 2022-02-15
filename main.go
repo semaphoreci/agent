@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"os"
@@ -63,7 +64,7 @@ func main() {
 
 func OpenLogfile() io.Writer {
 	// #nosec
-	f, err := os.OpenFile("/tmp/agent_log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	f, err := ioutil.TempFile("", "agent_log")
 
 	if err != nil {
 		log.Fatal(err)
@@ -150,6 +151,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		EnvVars:                    hostEnvVars,
 		FileInjections:             fileInjections,
 		FailOnMissingFiles:         viper.GetBool(config.FailOnMissingFiles),
+		NoPTY:                      viper.GetBool(config.NoPTY),
 		AgentVersion:               VERSION,
 	}
 
@@ -274,6 +276,7 @@ func RunSingleJob(httpClient *http.Client) {
 		Client:          httpClient,
 		ExposeKvmDevice: true,
 		FileInjections:  []config.FileInjection{},
+		NoPTY:           true,
 	})
 
 	if err != nil {

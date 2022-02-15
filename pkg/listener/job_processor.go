@@ -32,6 +32,7 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		EnvVars:                    config.EnvVars,
 		FileInjections:             config.FileInjections,
 		FailOnMissingFiles:         config.FailOnMissingFiles,
+		NoPTY:                      config.NoPTY,
 	}
 
 	go p.Start()
@@ -59,6 +60,7 @@ type JobProcessor struct {
 	EnvVars                    []config.HostEnvVar
 	FileInjections             []config.FileInjection
 	FailOnMissingFiles         bool
+	NoPTY                      bool
 }
 
 func (p *JobProcessor) Start() {
@@ -172,6 +174,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 		ExposeKvmDevice:    false,
 		FileInjections:     p.FileInjections,
 		FailOnMissingFiles: p.FailOnMissingFiles,
+		NoPTY:              p.NoPTY,
 	})
 
 	if err != nil {

@@ -82,7 +82,7 @@ func bashShell() *Shell {
 	dir := tempStorageFolder()
 	cmd := exec.Command("bash", "--login")
 
-	shell, _ := NewShell(cmd, dir)
+	shell, _ := NewShell(cmd, dir, false)
 	shell.Start()
 
 	return shell

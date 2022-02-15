@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	pty "github.com/creack/pty"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -18,22 +17,28 @@ type Shell struct {
 	StoragePath string
 	TTY         *os.File
 	ExitSignal  chan string
+	NoPTY       bool
 }
 
-func NewShell(bootCommand *exec.Cmd, storagePath string) (*Shell, error) {
+func NewShell(bootCommand *exec.Cmd, storagePath string, noPTY bool) (*Shell, error) {
 	exitChannel := make(chan string, 1)
 
 	return &Shell{
 		BootCommand: bootCommand,
 		StoragePath: storagePath,
 		ExitSignal:  exitChannel,
+		NoPTY:       noPTY,
 	}, nil
 }
 
 func (s *Shell) Start() error {
+	if s.NoPTY {
+		return nil
+	}
+
 	log.Debug("Starting stateful shell")
 
-	tty, err := pty.Start(s.BootCommand)
+	tty, err := StartPTY(s.BootCommand)
 	if err != nil {
 		log.Errorf("Failed to start stateful shell: %v", err)
 		return err
@@ -182,7 +187,13 @@ func (s *Shell) silencePromptAndDisablePS1() error {
 }
 
 func (s *Shell) NewProcess(command string) *Process {
-	return NewProcess(command, s.StoragePath, s)
+	return NewProcess(
+		Config{
+			Command:         command,
+			TempStoragePath: s.StoragePath,
+			Shell:           s,
+			noPTY:           s.NoPTY,
+		})
 }
 
 func (s *Shell) Close() error {

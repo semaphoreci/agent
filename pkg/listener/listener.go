@@ -33,6 +33,7 @@ type Config struct {
 	EnvVars                    []config.HostEnvVar
 	FileInjections             []config.FileInjection
 	FailOnMissingFiles         bool
+	NoPTY                      bool
 	AgentVersion               string
 }
 

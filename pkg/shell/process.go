@@ -1,63 +1,60 @@
 package shell
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 )
 
+type Config struct {
+	noPTY           bool
+	Command         string
+	Shell           *Shell
+	TempStoragePath string
+}
+
 type Process struct {
-	Command string
-	Shell   *Shell
-
-	StartedAt  int
-	FinishedAt int
-	ExitCode   int
-
+	Config           Config
+	StartedAt        int
+	FinishedAt       int
+	ExitCode         int
 	OnStdoutCallback func(string)
-
-	startMark       string
-	endMark         string
-	commandEndRegex *regexp.Regexp
-
-	tempStoragePath string
-	cmdFilePath     string
-
-	inputBuffer  []byte
-	outputBuffer *OutputBuffer
+	startMark        string
+	endMark          string
+	commandEndRegex  *regexp.Regexp
+	cmdFilePath      string
+	inputBuffer      []byte
+	outputBuffer     *OutputBuffer
 }
 
 func randomMagicMark() string {
 	return fmt.Sprintf("949556c7-%d", time.Now().Unix())
 }
 
-func NewProcess(cmd string, tempStoragePath string, shell *Shell) *Process {
+func NewProcess(config Config) *Process {
 	startMark := randomMagicMark() + "-start"
 	endMark := randomMagicMark() + "-end"
 
 	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d+)` + "[\r\n]+")
 
 	return &Process{
-		Command:  cmd,
-		ExitCode: 1,
-
-		Shell: shell,
-
-		startMark: startMark,
-		endMark:   endMark,
-
+		Config:          config,
+		ExitCode:        1,
+		startMark:       startMark,
+		endMark:         endMark,
 		commandEndRegex: commandEndRegex,
-		tempStoragePath: tempStoragePath,
-		cmdFilePath:     tempStoragePath + "/current-agent-cmd",
-
-		outputBuffer: NewOutputBuffer(),
+		cmdFilePath:     config.TempStoragePath + "/current-agent-cmd",
+		outputBuffer:    NewOutputBuffer(),
 	}
 }
 
@@ -103,7 +100,59 @@ func (p *Process) flushInputBufferTill(index int) {
 	p.outputBuffer.Append(data)
 }
 
+func (p *Process) Shell() *Shell {
+	return p.Config.Shell
+}
+
 func (p *Process) Run() {
+	if p.Config.noPTY {
+		p.runWithoutPTY()
+	} else {
+		p.runWithPTY()
+	}
+}
+
+func (p *Process) runWithoutPTY() {
+	instruction := p.constructShellInstruction()
+	p.StartedAt = int(time.Now().Unix())
+	defer func() {
+		p.FinishedAt = int(time.Now().Unix())
+	}()
+
+	err := p.loadCommand()
+	if err != nil {
+		log.Errorf("Err: %v", err)
+		return
+	}
+
+	var stdoutBuf bytes.Buffer
+	cmd := exec.Command("bash", "-c", instruction)
+	cmd.Stdout = &stdoutBuf
+
+	err = cmd.Start()
+	if err != nil {
+		log.Errorf("Error starting command: %v\n", err)
+		p.ExitCode = 1
+		return
+	}
+
+	waitResult := cmd.Wait()
+	if waitResult != nil {
+		if err, ok := waitResult.(*exec.ExitError); ok {
+			if s, ok := err.Sys().(syscall.WaitStatus); ok {
+				p.ExitCode = s.ExitStatus()
+			} else {
+				log.Error("Unimplemented for system where exec.ExitError.Sys() is not syscall.WaitStatus.")
+			}
+		} else {
+			log.Errorf("Unexpected error type %T", waitResult)
+		}
+	}
+
+	p.OnStdoutCallback(stdoutBuf.String())
+}
+
+func (p *Process) runWithPTY() {
 	instruction := p.constructShellInstruction()
 
 	p.StartedAt = int(time.Now().Unix())
@@ -117,7 +166,7 @@ func (p *Process) Run() {
 		return
 	}
 
-	_, err = p.Shell.Write(instruction)
+	_, err = p.Shell().Write(instruction)
 	if err != nil {
 		log.Errorf("Error writing instruction: %v", err)
 		return
@@ -149,7 +198,7 @@ func (p *Process) loadCommand() error {
 	//
 
 	// #nosec
-	err := ioutil.WriteFile(p.cmdFilePath, []byte(p.Command), 0644)
+	err := ioutil.WriteFile(p.cmdFilePath, []byte(p.Config.Command), 0644)
 	if err != nil {
 		// TODO: log something
 		// e.Logger.LogCommandStarted(command)
@@ -186,7 +235,7 @@ func (p *Process) read() error {
 	buffer := make([]byte, p.readBufferSize())
 
 	log.Debug("Reading started")
-	n, err := p.Shell.Read(&buffer)
+	n, err := p.Shell().Read(&buffer)
 	if err != nil {
 		log.Errorf("Error while reading from the tty. Error: '%s'.", err.Error())
 		return err

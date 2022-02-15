@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	pty "github.com/creack/pty"
 	watchman "github.com/renderedtext/go-watchman"
 	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
@@ -221,7 +220,7 @@ func (e *DockerComposeExecutor) startBashSession() int {
 		"bash",
 	)
 
-	shell, err := shell.NewShell(cmd, e.tmpDirectory)
+	shell, err := shell.NewShell(cmd, e.tmpDirectory, false)
 	if err != nil {
 		log.Errorf("Failed to start stateful shell err: %+v", err)
 
@@ -537,7 +536,7 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 		e.mainContainerName,
 		"true")
 
-	tty, err := pty.Start(cmd)
+	tty, err := shell.StartPTY(cmd)
 	if err != nil {
 		log.Errorf("Failed to initialize docker pull, err: %+v", err)
 		return 1

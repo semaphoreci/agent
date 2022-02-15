@@ -50,7 +50,7 @@ build:
 
 build.windows:
 	rm -rf build
-	env GOOS=windows GOARCH=amd64 go build -o build/agent main.go
+	env GOOS=windows GOARCH=amd64 go build -o build/agent.exe main.go
 
 e2e: build
 	ruby test/e2e/$(TEST).rb
