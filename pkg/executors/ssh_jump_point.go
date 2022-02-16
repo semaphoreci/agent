@@ -1,12 +1,15 @@
 package executors
 
-import "os"
+import (
+	"os"
 
-const SSHJumpPointPath = "/tmp/ssh_jump_point"
+	"github.com/semaphoreci/agent/pkg/osinfo"
+)
 
 func SetUpSSHJumpPoint(script string) error {
 	// #nosec
-	f, err := os.OpenFile(SSHJumpPointPath, os.O_WRONLY|os.O_CREATE, 0644)
+	path := osinfo.FormTempDirPath("ssh_jump_point")
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return err
 	}

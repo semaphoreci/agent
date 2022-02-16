@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/osinfo"
 )
 
 const LoggerMethodPull = "pull"
@@ -22,7 +23,7 @@ func CreateLogger(request *api.JobRequest) (*Logger, error) {
 }
 
 func Default() (*Logger, error) {
-	backend, err := NewFileBackend("/tmp/job_log.json")
+	backend, err := NewFileBackend(osinfo.FormTempDirPath("job_log.json"))
 	if err != nil {
 		return nil, err
 	}

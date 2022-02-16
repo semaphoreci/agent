@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/semaphoreci/agent/pkg/osinfo"
 	"github.com/semaphoreci/agent/pkg/retry"
 	log "github.com/sirupsen/logrus"
 )
@@ -22,7 +23,7 @@ type HTTPBackend struct {
 }
 
 func NewHTTPBackend(url, token string) (*HTTPBackend, error) {
-	fileBackend, err := NewFileBackend("/tmp/job_log.json")
+	fileBackend, err := NewFileBackend(osinfo.FormTempDirPath("job_log.json"))
 	if err != nil {
 		return nil, err
 	}

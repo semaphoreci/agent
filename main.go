@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -17,6 +17,7 @@ import (
 	"github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	listener "github.com/semaphoreci/agent/pkg/listener"
+	"github.com/semaphoreci/agent/pkg/osinfo"
 	server "github.com/semaphoreci/agent/pkg/server"
 	log "github.com/sirupsen/logrus"
 	pflag "github.com/spf13/pflag"
@@ -64,7 +65,8 @@ func main() {
 
 func OpenLogfile() io.Writer {
 	// #nosec
-	f, err := ioutil.TempFile("", "agent_log")
+	logFilePath := osinfo.FormTempDirPath("agent_log")
+	f, err := os.OpenFile(logFilePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 
 	if err != nil {
 		log.Fatal(err)
@@ -153,6 +155,11 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		FailOnMissingFiles:         viper.GetBool(config.FailOnMissingFiles),
 		NoPTY:                      viper.GetBool(config.NoPTY),
 		AgentVersion:               VERSION,
+	}
+
+	if runtime.GOOS == "windows" {
+		log.Info("Windows does not support jobs running through a PTY session, jobs will run in non-PTY mode instead")
+		config.NoPTY = true
 	}
 
 	go func() {

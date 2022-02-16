@@ -16,6 +16,7 @@ import (
 	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
+	"github.com/semaphoreci/agent/pkg/osinfo"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -144,7 +145,8 @@ func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 func (s *Server) AgentLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain")
 
-	logfile, err := os.Open("/tmp/agent_log")
+	logsPath := osinfo.FormTempDirPath("agent_log")
+	logfile, err := os.Open(logsPath)
 
 	if err != nil {
 		w.WriteHeader(404)

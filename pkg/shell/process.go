@@ -13,14 +13,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/semaphoreci/agent/pkg/osinfo"
 	log "github.com/sirupsen/logrus"
 )
 
 type Config struct {
-	noPTY           bool
-	Command         string
-	Shell           *Shell
-	TempStoragePath string
+	noPTY   bool
+	Command string
+	Shell   *Shell
 }
 
 type Process struct {
@@ -53,7 +53,7 @@ func NewProcess(config Config) *Process {
 		startMark:       startMark,
 		endMark:         endMark,
 		commandEndRegex: commandEndRegex,
-		cmdFilePath:     config.TempStoragePath + "/current-agent-cmd",
+		cmdFilePath:     osinfo.FormTempDirPath("current-agent-cmd"),
 		outputBuffer:    NewOutputBuffer(),
 	}
 }

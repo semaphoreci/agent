@@ -11,25 +11,24 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
+	"github.com/semaphoreci/agent/pkg/osinfo"
 	shell "github.com/semaphoreci/agent/pkg/shell"
 	log "github.com/sirupsen/logrus"
 )
 
 type ShellExecutor struct {
 	Executor
-	Logger       *eventlogger.Logger
-	Shell        *shell.Shell
-	jobRequest   *api.JobRequest
-	tmpDirectory string
-	NoPTY        bool
+	Logger     *eventlogger.Logger
+	Shell      *shell.Shell
+	jobRequest *api.JobRequest
+	NoPTY      bool
 }
 
 func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger, noPTY bool) *ShellExecutor {
 	return &ShellExecutor{
-		Logger:       logger,
-		jobRequest:   request,
-		tmpDirectory: "/tmp",
-		NoPTY:        noPTY,
+		Logger:     logger,
+		jobRequest: request,
+		NoPTY:      noPTY,
 	}
 }
 
@@ -67,7 +66,7 @@ func (e *ShellExecutor) setUpSSHJumpPoint() int {
 func (e *ShellExecutor) Start() int {
 	cmd := exec.Command("bash", "--login")
 
-	shell, err := shell.NewShell(cmd, e.tmpDirectory, e.NoPTY)
+	shell, err := shell.NewShell(cmd, e.NoPTY)
 	if err != nil {
 		log.Debug(shell)
 		return 1
@@ -118,7 +117,7 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 	}
 
 	// #nosec
-	err := ioutil.WriteFile("/tmp/.env", []byte(envFile), 0644)
+	err := ioutil.WriteFile(osinfo.FormTempDirPath(".env"), []byte(envFile), 0644)
 
 	if err != nil {
 		exitCode = 1
@@ -157,7 +156,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 			return exitCode
 		}
 
-		tmpPath := fmt.Sprintf("%s/file", e.tmpDirectory)
+		tmpPath := osinfo.FormTempDirPath("file")
 
 		// #nosec
 		err = ioutil.WriteFile(tmpPath, []byte(content), 0644)

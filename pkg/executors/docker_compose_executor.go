@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"runtime"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
+	"github.com/semaphoreci/agent/pkg/osinfo"
 	shell "github.com/semaphoreci/agent/pkg/shell"
 	log "github.com/sirupsen/logrus"
 )
@@ -46,8 +48,8 @@ func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logge
 		exposeKvmDevice:           options.ExposeKvmDevice,
 		fileInjections:            options.FileInjections,
 		FailOnMissingFiles:        options.FailOnMissingFiles,
-		dockerComposeManifestPath: "/tmp/docker-compose.yml",
-		tmpDirectory:              "/tmp/agent-temp-directory", // make a better random name
+		dockerComposeManifestPath: osinfo.FormTempDirPath("docker-compose.yml"),
+		tmpDirectory:              osinfo.FormTempDirPath("agent-temp-directory"), // make a better random name
 
 		// during testing the name main gets taken up, if we make it random we avoid headaches
 		mainContainerName: request.Compose.Containers[0].Name,
@@ -215,12 +217,12 @@ func (e *DockerComposeExecutor) startBashSession() int {
 		"-v",
 		"/var/run/docker.sock:/var/run/docker.sock",
 		"-v",
-		fmt.Sprintf("%s:%s:ro", e.tmpDirectory, e.tmpDirectory),
+		fmt.Sprintf("%s:%s:ro", os.TempDir(), os.TempDir()),
 		e.mainContainerName,
 		"bash",
 	)
 
-	shell, err := shell.NewShell(cmd, e.tmpDirectory, false)
+	shell, err := shell.NewShell(cmd, false)
 	if err != nil {
 		log.Errorf("Failed to start stateful shell err: %+v", err)
 
@@ -416,7 +418,12 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForGCR(envVars []api.EnvVa
 			return 1
 		}
 
-		tmpPath := fmt.Sprintf("%s/file", e.tmpDirectory)
+		var tmpPath string
+		if runtime.GOOS == "windows" {
+			tmpPath = fmt.Sprintf("%s\\file", e.tmpDirectory)
+		} else {
+			tmpPath = fmt.Sprintf("%s/file", e.tmpDirectory)
+		}
 
 		// #nosec
 		err = ioutil.WriteFile(tmpPath, []byte(content), 0644)
@@ -604,9 +611,14 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars 
 		envFile += fmt.Sprintf("export %s=%s\n", env.Name, ShellQuote(env.Value))
 	}
 
-	envPath := fmt.Sprintf("%s/.env", e.tmpDirectory)
-	err := ioutil.WriteFile(envPath, []byte(envFile), 0600)
+	var envPath string
+	if runtime.GOOS == "windows" {
+		envPath = fmt.Sprintf("%s\\.env", e.tmpDirectory)
+	} else {
+		envPath = fmt.Sprintf("%s/.env", e.tmpDirectory)
+	}
 
+	err := ioutil.WriteFile(envPath, []byte(envFile), 0600)
 	if err != nil {
 		exitCode = 255
 		return exitCode
@@ -647,7 +659,12 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 			return exitCode
 		}
 
-		tmpPath := fmt.Sprintf("%s/file", e.tmpDirectory)
+		var tmpPath string
+		if runtime.GOOS == "windows" {
+			tmpPath = fmt.Sprintf("%s\\file", e.tmpDirectory)
+		} else {
+			tmpPath = fmt.Sprintf("%s/file", e.tmpDirectory)
+		}
 
 		// #nosec
 		err = ioutil.WriteFile(tmpPath, []byte(content), 0644)
