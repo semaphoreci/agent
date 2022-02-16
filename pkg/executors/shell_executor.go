@@ -115,7 +115,8 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 
 	if e.NoPTY {
 		e.Shell.Env = environment
-		return 0
+		exitCode = 0
+		return exitCode
 	}
 
 	envFileName := osinfo.FormTempDirPath(".env")

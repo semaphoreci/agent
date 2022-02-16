@@ -2,8 +2,6 @@ package shell
 
 import (
 	"bytes"
-	"io/ioutil"
-	"log"
 	"os/exec"
 	"testing"
 
@@ -69,20 +67,10 @@ func Test__Shell__HandlingBashProcessKillThatHasBackgroundJobs(t *testing.T) {
 	assert.Equal(t, output.String(), "Hello\n")
 }
 
-func tempStorageFolder() string {
-	dir, err := ioutil.TempDir("", "agent-test")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return dir
-}
-
 func bashShell() *Shell {
-	dir := tempStorageFolder()
 	cmd := exec.Command("bash", "--login")
 
-	shell, _ := NewShell(cmd, dir, false)
+	shell, _ := NewShell(cmd, false)
 	shell.Start()
 
 	return shell

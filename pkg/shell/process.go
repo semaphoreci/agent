@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"os"
 	"os/exec"
 	"regexp"
 	"runtime"
@@ -133,10 +134,10 @@ func (p *Process) runWithoutPTY() {
 		cmd = exec.Command("bash", "-c", instruction)
 	}
 
-	cmd.Env = p.Shell().Env.ToArray()
-
-	var stdoutBuf bytes.Buffer
+	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+	cmd.Env = append(os.Environ(), p.Shell().Env.ToArray()...)
 
 	err = cmd.Start()
 	if err != nil {
@@ -156,9 +157,12 @@ func (p *Process) runWithoutPTY() {
 		} else {
 			log.Errorf("Unexpected error type %T", waitResult)
 		}
+	} else {
+		p.ExitCode = 0
 	}
 
 	p.OnStdoutCallback(stdoutBuf.String())
+	p.OnStdoutCallback(stderrBuf.String())
 }
 
 func (p *Process) runWithPTY() {
@@ -185,13 +189,8 @@ func (p *Process) runWithPTY() {
 }
 
 func (p *Process) constructShellInstruction() string {
-	// If not using a PTY, there's no need to use the magic-header and end markers
-	if p.Shell().NoPTY {
-		if runtime.GOOS == "windows" {
-			return fmt.Sprintf(`call %s.bat`, p.cmdFilePath)
-		} else {
-			return fmt.Sprintf(`source %s`, p.cmdFilePath)
-		}
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf(`%s.bat`, p.cmdFilePath)
 	}
 
 	//
@@ -215,15 +214,20 @@ func (p *Process) loadCommand() error {
 	// scheme. To circumvent this, we are storing the command in a file
 	//
 
-	var cmdFilePath string
+	var cmdFilePath, command string
 	if runtime.GOOS == "windows" {
 		cmdFilePath = fmt.Sprintf("%s.bat", p.cmdFilePath)
+		command = fmt.Sprintf(`@echo off
+%s
+EXIT \B %%ERRORLEVEL%%
+`, p.Config.Command)
 	} else {
 		cmdFilePath = p.cmdFilePath
+		command = p.Config.Command
 	}
 
 	// #nosec
-	err := ioutil.WriteFile(cmdFilePath, []byte(p.Config.Command), 0644)
+	err := ioutil.WriteFile(cmdFilePath, []byte(command), 0644)
 	if err != nil {
 		return err
 	}
