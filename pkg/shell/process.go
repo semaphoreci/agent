@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -125,8 +126,16 @@ func (p *Process) runWithoutPTY() {
 		return
 	}
 
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("C:\\Windows\\System32\\CMD.exe", "/S", "/C", instruction)
+	} else {
+		cmd = exec.Command("bash", "-c", instruction)
+	}
+
+	cmd.Env = p.Shell().Env.ToArray()
+
 	var stdoutBuf bytes.Buffer
-	cmd := exec.Command("bash", "-c", instruction)
 	cmd.Stdout = &stdoutBuf
 
 	err = cmd.Start()
@@ -176,6 +185,15 @@ func (p *Process) runWithPTY() {
 }
 
 func (p *Process) constructShellInstruction() string {
+	// If not using a PTY, there's no need to use the magic-header and end markers
+	if p.Shell().NoPTY {
+		if runtime.GOOS == "windows" {
+			return fmt.Sprintf(`call %s.bat`, p.cmdFilePath)
+		} else {
+			return fmt.Sprintf(`source %s`, p.cmdFilePath)
+		}
+	}
+
 	//
 	// A process is sending a complex instruction to the shell. The instruction
 	// does the following:
@@ -194,16 +212,19 @@ func (p *Process) constructShellInstruction() string {
 func (p *Process) loadCommand() error {
 	//
 	// Multiline commands don't work very well with the start/finish marker
-	// scheme.  To circumvent this, we are storing the command in a file
+	// scheme. To circumvent this, we are storing the command in a file
 	//
 
-	// #nosec
-	err := ioutil.WriteFile(p.cmdFilePath, []byte(p.Config.Command), 0644)
-	if err != nil {
-		// TODO: log something
-		// e.Logger.LogCommandStarted(command)
-		// e.Logger.LogCommandOutput(fmt.Sprintf("Failed to run command: %+v\n", err))
+	var cmdFilePath string
+	if runtime.GOOS == "windows" {
+		cmdFilePath = fmt.Sprintf("%s.bat", p.cmdFilePath)
+	} else {
+		cmdFilePath = p.cmdFilePath
+	}
 
+	// #nosec
+	err := ioutil.WriteFile(cmdFilePath, []byte(p.Config.Command), 0644)
+	if err != nil {
 		return err
 	}
 

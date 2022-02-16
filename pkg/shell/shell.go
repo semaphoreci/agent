@@ -17,6 +17,7 @@ type Shell struct {
 	TTY         *os.File
 	ExitSignal  chan string
 	NoPTY       bool
+	Env         *Environment
 }
 
 func NewShell(bootCommand *exec.Cmd, noPTY bool) (*Shell, error) {

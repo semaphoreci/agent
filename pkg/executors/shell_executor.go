@@ -2,9 +2,14 @@ package executors
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
+	"io/fs"
+	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,6 +38,10 @@ func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger, noPTY
 }
 
 func (e *ShellExecutor) Prepare() int {
+	if runtime.GOOS == "windows" {
+		return 0
+	}
+
 	return e.setUpSSHJumpPoint()
 }
 
@@ -96,40 +105,35 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 		e.Logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
-	envFile := ""
-
-	for _, env := range envVars {
-		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", env.Name))
-
-		value, err := env.Decode()
-
-		if err != nil {
-			exitCode = 1
-			return exitCode
-		}
-
-		envFile += fmt.Sprintf("export %s=%s\n", env.Name, ShellQuote(string(value)))
+	environment, err := shell.EnvFromApi(envVars)
+	if err != nil {
+		exitCode = 1
+		return exitCode
 	}
 
-	for _, env := range hostEnvVars {
-		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", env.Name))
-		envFile += fmt.Sprintf("export %s=%s\n", env.Name, ShellQuote(env.Value))
+	environment.Merge(hostEnvVars)
+
+	if e.NoPTY {
+		e.Shell.Env = environment
+		return 0
 	}
 
-	// #nosec
-	err := ioutil.WriteFile(osinfo.FormTempDirPath(".env"), []byte(envFile), 0644)
+	envFileName := osinfo.FormTempDirPath(".env")
+	err = environment.ToFile(envFileName, func(name string) {
+		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))
+	})
 
 	if err != nil {
 		exitCode = 1
 		return exitCode
 	}
 
-	exitCode = e.RunCommand("source /tmp/.env", true, "")
+	exitCode = e.RunCommand(fmt.Sprintf("source %s", envFileName), true, "")
 	if exitCode != 0 {
 		return exitCode
 	}
 
-	exitCode = e.RunCommand("echo 'source /tmp/.env' >> ~/.bash_profile", true, "")
+	exitCode = e.RunCommand(fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName), true, "")
 	if exitCode != 0 {
 		return exitCode
 	}
@@ -143,6 +147,12 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 	exitCode := 0
 
 	e.Logger.LogCommandStarted(directive)
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Errorf("Error finding home directory: %v\n", err)
+		return 1
+	}
 
 	for _, f := range files {
 		output := fmt.Sprintf("Injecting %s with file mode %s\n", f.Path, f.Mode)
@@ -159,7 +169,14 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 		tmpPath := osinfo.FormTempDirPath("file")
 
 		// #nosec
-		err = ioutil.WriteFile(tmpPath, []byte(content), 0644)
+		tmpFile, err := os.OpenFile(tmpPath, os.O_RDWR, 0644)
+		if err != nil {
+			e.Logger.LogCommandOutput(err.Error() + "\n")
+			exitCode = 255
+			break
+		}
+
+		_, err = tmpFile.Write(content)
 		if err != nil {
 			e.Logger.LogCommandOutput(err.Error() + "\n")
 			exitCode = 255
@@ -167,34 +184,55 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 		}
 
 		destPath := ""
-
-		if f.Path[0] == '/' || f.Path[0] == '~' {
+		switch p := f.Path; {
+		case p[0] == '/':
 			destPath = f.Path
-		} else {
-			destPath = "~/" + f.Path
+		case p[0] == '~':
+			destPath = strings.ReplaceAll(p, "~", homeDir)
+		default:
+			destPath = fmt.Sprintf("%s/%s", homeDir, f.Path)
 		}
 
-		cmd := fmt.Sprintf("mkdir -p %s", path.Dir(destPath))
-		exitCode = e.RunCommand(cmd, true, "")
-		if exitCode != 0 {
-			output := fmt.Sprintf("Failed to create destination path %s", destPath)
-			e.Logger.LogCommandOutput(output + "\n")
+		destPath = filepath.FromSlash(destPath)
+		err = os.MkdirAll(path.Dir(destPath), 0644)
+		if err != nil {
+			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to create directories for '%s': %v\n", destPath, err))
+			exitCode = 1
 			break
 		}
 
-		cmd = fmt.Sprintf("cp %s %s", tmpPath, destPath)
-		exitCode = e.RunCommand(cmd, true, "")
-		if exitCode != 0 {
-			output := fmt.Sprintf("Failed to move to destination path %s %s", tmpPath, destPath)
-			e.Logger.LogCommandOutput(output + "\n")
+		destFile, err := os.OpenFile(destPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0644)
+		if err != nil {
+			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to create destination path '%s': %v\n", destPath, err))
+			exitCode = 1
 			break
 		}
 
-		cmd = fmt.Sprintf("chmod %s %s", f.Mode, destPath)
-		exitCode = e.RunCommand(cmd, true, "")
-		if exitCode != 0 {
-			output := fmt.Sprintf("Failed to set file mode to %s", f.Mode)
-			e.Logger.LogCommandOutput(output + "\n")
+		_, err = tmpFile.Seek(0, io.SeekStart)
+		if err != nil {
+			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to rewind '%s': %v\n", tmpPath, err))
+			exitCode = 1
+			break
+		}
+
+		_, err = io.Copy(destFile, tmpFile)
+		if err != nil {
+			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to move '%s' to '%s': %v\n", tmpPath, destPath, err))
+			exitCode = 1
+			break
+		}
+
+		fileMode, err := strconv.ParseUint(f.Mode, 8, 32)
+		if err != nil {
+			e.Logger.LogCommandOutput(fmt.Sprintf("Bad file permission '%s' for '%s': %v\n", f.Mode, f.Path, err))
+			exitCode = 1
+			break
+		}
+
+		err = os.Chmod(destPath, fs.FileMode(fileMode))
+		if err != nil {
+			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to set file mode '%s' for '%s': %v\n", f.Mode, destPath, err))
+			exitCode = 1
 			break
 		}
 	}

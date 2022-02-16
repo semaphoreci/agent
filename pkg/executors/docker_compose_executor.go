@@ -591,47 +591,30 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars 
 		e.Logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
-	envFile := ""
-
-	for _, env := range envVars {
-		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", env.Name))
-
-		value, err := env.Decode()
-
-		if err != nil {
-			exitCode = 1
-			return exitCode
-		}
-
-		envFile += fmt.Sprintf("export %s=%s\n", env.Name, ShellQuote(string(value)))
-	}
-
-	for _, env := range hostEnvVars {
-		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", env.Name))
-		envFile += fmt.Sprintf("export %s=%s\n", env.Name, ShellQuote(env.Value))
-	}
-
-	var envPath string
-	if runtime.GOOS == "windows" {
-		envPath = fmt.Sprintf("%s\\.env", e.tmpDirectory)
-	} else {
-		envPath = fmt.Sprintf("%s/.env", e.tmpDirectory)
-	}
-
-	err := ioutil.WriteFile(envPath, []byte(envFile), 0600)
+	environment, err := shell.EnvFromApi(envVars)
 	if err != nil {
-		exitCode = 255
+		exitCode = 1
 		return exitCode
 	}
 
-	cmd := fmt.Sprintf("source %s", envPath)
-	exitCode = e.RunCommand(cmd, true, "")
+	environment.Merge(hostEnvVars)
+
+	envFileName := osinfo.FormTempDirPath(".env")
+	err = environment.ToFile(envFileName, func(name string) {
+		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))
+	})
+
+	if err != nil {
+		exitCode = 1
+		return exitCode
+	}
+
+	exitCode = e.RunCommand(fmt.Sprintf("source %s", envFileName), true, "")
 	if exitCode != 0 {
 		return exitCode
 	}
 
-	cmd = fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envPath)
-	exitCode = e.RunCommand(cmd, true, "")
+	exitCode = e.RunCommand(fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName), true, "")
 	if exitCode != 0 {
 		return exitCode
 	}
