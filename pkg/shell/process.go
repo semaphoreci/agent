@@ -103,16 +103,22 @@ func (p *Process) flushInputBufferTill(index int) {
 	p.outputBuffer.Append(data)
 }
 
-func (p *Process) Shell() *Shell {
-	return p.Config.Shell
-}
-
 func (p *Process) Run() {
 	if p.Config.noPTY {
 		p.runWithoutPTY()
 	} else {
 		p.runWithPTY()
 	}
+
+	after, _ := EnvFromDump(fmt.Sprintf("%s.env.after", p.cmdFilePath))
+	newCwd, _ := after.Get("SEMAPHORE_AGENT_CURRENT_DIR")
+	p.Config.Shell.Chdir(newCwd)
+
+	// Remove variables we added
+	after.Remove("SEMAPHORE_AGENT_CURRENT_DIR")
+	after.Remove("SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS")
+
+	p.Config.Shell.UpdateEnvironment(after)
 }
 
 func (p *Process) runWithoutPTY() {
@@ -141,8 +147,10 @@ func (p *Process) runWithoutPTY() {
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 
-	if p.Shell().Env != nil {
-		cmd.Env = append(os.Environ(), p.Shell().Env.ToArray()...)
+	cmd.Dir = p.Config.Shell.Cwd
+
+	if p.Config.Shell.Env != nil {
+		cmd.Env = append(os.Environ(), p.Config.Shell.Env.ToArray()...)
 	}
 
 	if p.Config.ExtraVars != nil {
@@ -190,7 +198,7 @@ func (p *Process) runWithPTY() {
 		return
 	}
 
-	_, err = p.Shell().Write(instruction)
+	_, err = p.Config.Shell.Write(instruction)
 	if err != nil {
 		log.Errorf("Error writing instruction: %v", err)
 		return
@@ -230,9 +238,13 @@ func (p *Process) loadCommand() error {
 		cmdFilePath = fmt.Sprintf("%s.bat", p.cmdFilePath)
 		command = fmt.Sprintf(`@echo off
 %s
-EXIT \B %%ERRORLEVEL%%
-`, p.Config.Command)
+SET SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS=%%ERRORLEVEL%%
+SET SEMAPHORE_AGENT_CURRENT_DIR=%%CD%%
+SET > "%s.env.after"
+EXIT \B %%SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS%%
+`, p.Config.Command, p.cmdFilePath)
 	} else {
+		// TODO: implement this for Linux as well
 		cmdFilePath = p.cmdFilePath
 		command = p.Config.Command
 	}
@@ -271,7 +283,7 @@ func (p *Process) read() error {
 	buffer := make([]byte, p.readBufferSize())
 
 	log.Debug("Reading started")
-	n, err := p.Shell().Read(&buffer)
+	n, err := p.Config.Shell.Read(&buffer)
 	if err != nil {
 		log.Errorf("Error while reading from the tty. Error: '%s'.", err.Error())
 		return err

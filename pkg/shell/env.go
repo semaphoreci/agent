@@ -28,6 +28,30 @@ func EnvFromAPI(envVars []api.EnvVar) (*Environment, error) {
 	return &newEnv, nil
 }
 
+// TODO: implement this for Linux too
+func EnvFromDump(fileName string) (*Environment, error) {
+	bytes, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		return nil, err
+	}
+
+	contents := string(bytes)
+	contents = strings.TrimSpace(contents)
+	contents = strings.Replace(contents, "\r\n", "\n", -1)
+
+	lines := strings.Split(contents, "\n")
+	environment := Environment{env: map[string]string{}}
+
+	for _, line := range lines {
+		nameAndValue := strings.SplitN(line, "=", 2)
+		if len(nameAndValue) == 2 {
+			environment.Set(nameAndValue[0], nameAndValue[1])
+		}
+	}
+
+	return &environment, nil
+}
+
 func (e *Environment) IsEmpty() bool {
 	return e.env != nil || len(e.env) == 0
 }
@@ -38,6 +62,18 @@ func (e *Environment) Set(name, value string) {
 	}
 
 	e.env[name] = value
+}
+
+func (e *Environment) Get(key string) (string, bool) {
+	v, ok := e.env[key]
+	return v, ok
+}
+
+func (e *Environment) Remove(key string) {
+	_, ok := e.Get(key)
+	if ok {
+		delete(e.env, key)
+	}
 }
 
 func (e *Environment) Merge(envVars []config.HostEnvVar) {

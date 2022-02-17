@@ -19,16 +19,23 @@ type Shell struct {
 	ExitSignal  chan string
 	NoPTY       bool
 	Env         *Environment
+	Cwd         string
 }
 
 func NewShell(bootCommand *exec.Cmd, noPTY bool) (*Shell, error) {
 	exitChannel := make(chan string, 1)
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("error finding current working directory: %v", err)
+	}
 
 	return &Shell{
 		BootCommand: bootCommand,
 		ExitSignal:  exitChannel,
 		NoPTY:       noPTY,
 		Env:         &Environment{},
+		Cwd:         cwd,
 	}, nil
 }
 
@@ -216,4 +223,14 @@ func (s *Shell) Close() error {
 	}
 
 	return nil
+}
+
+func (s *Shell) Chdir(newCwd string) {
+	if newCwd != s.Cwd {
+		s.Cwd = newCwd
+	}
+}
+
+func (s *Shell) UpdateEnvironment(newEnvironment *Environment) {
+	s.Env = newEnvironment
 }
