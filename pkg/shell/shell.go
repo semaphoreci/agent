@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/semaphoreci/agent/pkg/api"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -27,6 +28,7 @@ func NewShell(bootCommand *exec.Cmd, noPTY bool) (*Shell, error) {
 		BootCommand: bootCommand,
 		ExitSignal:  exitChannel,
 		NoPTY:       noPTY,
+		Env:         &Environment{},
 	}, nil
 }
 
@@ -185,12 +187,14 @@ func (s *Shell) silencePromptAndDisablePS1() error {
 	return nil
 }
 
-func (s *Shell) NewProcess(command string) *Process {
+func (s *Shell) NewProcess(command string, extraVars []api.EnvVar) *Process {
+	environment, _ := EnvFromApi(extraVars)
 	return NewProcess(
 		Config{
-			Command: command,
-			Shell:   s,
-			noPTY:   s.NoPTY,
+			Command:   command,
+			Shell:     s,
+			noPTY:     s.NoPTY,
+			ExtraVars: environment,
 		})
 }
 

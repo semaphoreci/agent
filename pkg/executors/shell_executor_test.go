@@ -28,21 +28,21 @@ func Test__ShellExecutor(t *testing.T) {
 	e.Prepare()
 	e.Start()
 
-	e.RunCommand("echo 'here'", false, "")
+	e.RunCommand("echo 'here'", false, "", []api.EnvVar{})
 
 	multilineCmd := `
 	  if [ -d /etc ]; then
 	    echo 'etc exists, multiline huzzahh!'
 	  fi
 	`
-	e.RunCommand(multilineCmd, false, "")
+	e.RunCommand(multilineCmd, false, "", []api.EnvVar{})
 
 	envVars := []api.EnvVar{
 		api.EnvVar{Name: "A", Value: "Zm9vCg=="},
 	}
 
 	e.ExportEnvVars(envVars, []config.HostEnvVar{})
-	e.RunCommand("echo $A", false, "")
+	e.RunCommand("echo $A", false, "", []api.EnvVar{})
 
 	files := []api.File{
 		api.File{
@@ -53,9 +53,9 @@ func Test__ShellExecutor(t *testing.T) {
 	}
 
 	e.InjectFiles(files)
-	e.RunCommand("cat /tmp/random-file.txt", false, "")
+	e.RunCommand("cat /tmp/random-file.txt", false, "", []api.EnvVar{})
 
-	e.RunCommand("echo $?", false, "")
+	e.RunCommand("echo $?", false, "", []api.EnvVar{})
 
 	e.Stop()
 	e.Cleanup()
@@ -108,8 +108,8 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 	e.Start()
 
 	go func() {
-		e.RunCommand("echo 'here'", false, "")
-		e.RunCommand("sleep 5", false, "")
+		e.RunCommand("echo 'here'", false, "", []api.EnvVar{})
+		e.RunCommand("sleep 5", false, "", []api.EnvVar{})
 	}()
 
 	time.Sleep(1 * time.Second)
@@ -145,7 +145,7 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 	e.Start()
 
 	go func() {
-		e.RunCommand("for i in {1..100}; { printf 'hello'; }", false, "")
+		e.RunCommand("for i in {1..100}; { printf 'hello'; }", false, "", []api.EnvVar{})
 	}()
 
 	time.Sleep(5 * time.Second)

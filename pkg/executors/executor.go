@@ -10,7 +10,7 @@ type Executor interface {
 	Start() int
 	ExportEnvVars([]api.EnvVar, []config.HostEnvVar) int
 	InjectFiles([]api.File) int
-	RunCommand(string, bool, string) int
+	RunCommand(string, bool, string, []api.EnvVar) int
 	Stop() int
 	Cleanup() int
 }

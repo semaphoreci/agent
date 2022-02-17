@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"time"
@@ -133,11 +134,6 @@ func (job *Job) RunWithOptions(options RunOptions) {
 	if executorRunning {
 		result = job.RunRegularCommands(options.EnvVars)
 		log.Debug("Exporting job result")
-		job.RunCommandsUntilFirstFailure([]api.Command{
-			{
-				Directive: fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%s", result),
-			},
-		})
 
 		if result != JobStopped {
 			job.handleEpilogues(result)
@@ -190,7 +186,7 @@ func (job *Job) RunRegularCommands(hostEnvVars []config.HostEnvVar) string {
 		return JobFailed
 	}
 
-	exitCode = job.RunCommandsUntilFirstFailure(job.Request.Commands)
+	exitCode = job.RunCommandsUntilFirstFailure(job.Request.Commands, []api.EnvVar{})
 
 	if job.Stopped {
 		log.Info("Regular commands were stopped")
@@ -205,18 +201,22 @@ func (job *Job) RunRegularCommands(hostEnvVars []config.HostEnvVar) string {
 }
 
 func (job *Job) handleEpilogues(result string) {
+	extraVars := []api.EnvVar{
+		{Name: "SEMAPHORE_JOB_RESULT", Value: base64.RawStdEncoding.EncodeToString([]byte(result))},
+	}
+
 	job.executeIfNotStopped(func() {
 		log.Info("Starting epilogue always commands")
-		job.RunCommandsUntilFirstFailure(job.Request.EpilogueAlwaysCommands)
+		job.RunCommandsUntilFirstFailure(job.Request.EpilogueAlwaysCommands, extraVars)
 	})
 
 	job.executeIfNotStopped(func() {
 		if result == JobPassed {
 			log.Info("Starting epilogue on pass commands")
-			job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnPassCommands)
+			job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnPassCommands, extraVars)
 		} else {
 			log.Info("Starting epilogue on fail commands")
-			job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnFailCommands)
+			job.RunCommandsUntilFirstFailure(job.Request.EpilogueOnFailCommands, extraVars)
 		}
 	})
 }
@@ -228,7 +228,7 @@ func (job *Job) executeIfNotStopped(callback func()) {
 }
 
 // returns exit code of last executed command
-func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command) int {
+func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command, extraVars []api.EnvVar) int {
 	lastExitCode := 1
 
 	for _, c := range commands {
@@ -236,7 +236,7 @@ func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command) int {
 			return 1
 		}
 
-		lastExitCode = job.Executor.RunCommand(c.Directive, false, c.Alias)
+		lastExitCode = job.Executor.RunCommand(c.Directive, false, c.Alias, extraVars)
 
 		if lastExitCode != 0 {
 			break

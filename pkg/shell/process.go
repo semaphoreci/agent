@@ -20,9 +20,10 @@ import (
 )
 
 type Config struct {
-	noPTY   bool
-	Command string
-	Shell   *Shell
+	noPTY     bool
+	Command   string
+	Shell     *Shell
+	ExtraVars *Environment
 }
 
 type Process struct {
@@ -137,7 +138,14 @@ func (p *Process) runWithoutPTY() {
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
-	cmd.Env = append(os.Environ(), p.Shell().Env.ToArray()...)
+
+	if p.Shell().Env != nil {
+		cmd.Env = append(os.Environ(), p.Shell().Env.ToArray()...)
+	}
+
+	if p.Config.ExtraVars != nil {
+		cmd.Env = append(cmd.Env, p.Config.ExtraVars.ToArray()...)
+	}
 
 	err = cmd.Start()
 	if err != nil {

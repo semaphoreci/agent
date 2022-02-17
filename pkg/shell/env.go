@@ -28,6 +28,10 @@ func EnvFromApi(envVars []api.EnvVar) (*Environment, error) {
 	return &newEnv, nil
 }
 
+func (e *Environment) IsEmpty() bool {
+	return e.env != nil || len(e.env) == 0
+}
+
 func (e *Environment) Set(name, value string) {
 	if e.env == nil {
 		e.env = map[string]string{}
@@ -39,6 +43,12 @@ func (e *Environment) Set(name, value string) {
 func (e *Environment) Merge(envVars []config.HostEnvVar) {
 	for _, envVar := range envVars {
 		e.Set(envVar.Name, envVar.Value)
+	}
+}
+
+func (e *Environment) Append(otherEnv *Environment) {
+	for name, value := range otherEnv.env {
+		e.Set(name, value)
 	}
 }
 
