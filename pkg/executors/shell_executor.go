@@ -202,6 +202,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 			break
 		}
 
+		// #nosec
 		destFile, err := os.OpenFile(destPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0644)
 		if err != nil {
 			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to create destination path '%s': %v\n", destPath, err))

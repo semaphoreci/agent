@@ -68,6 +68,7 @@ func (e *Environment) ToFile(fileName string, callback func(name string)) error 
 		callback(name)
 	}
 
+	// #nosec
 	err := ioutil.WriteFile(fileName, []byte(fileContent), 0644)
 	if err != nil {
 		return err

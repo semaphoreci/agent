@@ -7,8 +7,9 @@ import (
 )
 
 func SetUpSSHJumpPoint(script string) error {
-	// #nosec
 	path := osinfo.FormTempDirPath("ssh_jump_point")
+
+	// #nosec
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return err

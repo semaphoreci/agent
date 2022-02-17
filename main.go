@@ -64,8 +64,9 @@ func main() {
 }
 
 func OpenLogfile() io.Writer {
-	// #nosec
 	logFilePath := osinfo.FormTempDirPath("agent_log")
+
+	// #nosec
 	f, err := os.OpenFile(logFilePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 
 	if err != nil {

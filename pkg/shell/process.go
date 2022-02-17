@@ -130,8 +130,10 @@ func (p *Process) runWithoutPTY() {
 
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
+		// #nosec
 		cmd = exec.Command("C:\\Windows\\System32\\CMD.exe", "/S", "/C", instruction)
 	} else {
+		// #nosec
 		cmd = exec.Command("bash", "-c", instruction)
 	}
 
@@ -144,6 +146,7 @@ func (p *Process) runWithoutPTY() {
 	}
 
 	if p.Config.ExtraVars != nil {
+		// #nosec
 		cmd.Env = append(cmd.Env, p.Config.ExtraVars.ToArray()...)
 	}
 

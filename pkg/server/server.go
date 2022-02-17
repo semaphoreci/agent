@@ -146,6 +146,8 @@ func (s *Server) AgentLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain")
 
 	logsPath := osinfo.FormTempDirPath("agent_log")
+
+	// #nosec
 	logfile, err := os.Open(logsPath)
 
 	if err != nil {
