@@ -188,7 +188,7 @@ func (s *Shell) silencePromptAndDisablePS1() error {
 }
 
 func (s *Shell) NewProcess(command string, extraVars []api.EnvVar) *Process {
-	environment, _ := EnvFromApi(extraVars)
+	environment, _ := EnvFromAPI(extraVars)
 	return NewProcess(
 		Config{
 			Command:   command,

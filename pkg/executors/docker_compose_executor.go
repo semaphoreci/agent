@@ -591,7 +591,7 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars 
 		e.Logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
-	environment, err := shell.EnvFromApi(envVars)
+	environment, err := shell.EnvFromAPI(envVars)
 	if err != nil {
 		exitCode = 1
 		return exitCode

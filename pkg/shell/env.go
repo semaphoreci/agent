@@ -14,7 +14,7 @@ type Environment struct {
 	env map[string]string
 }
 
-func EnvFromApi(envVars []api.EnvVar) (*Environment, error) {
+func EnvFromAPI(envVars []api.EnvVar) (*Environment, error) {
 	newEnv := Environment{}
 	for _, envVar := range envVars {
 		value, err := envVar.Decode()
