@@ -242,7 +242,7 @@ SET SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS=%%ERRORLEVEL%%
 SET SEMAPHORE_AGENT_CURRENT_DIR=%%CD%%
 SET > "%s.env.after"
 EXIT \B %%SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS%%
-`, p.Config.Command, p.cmdFilePath)
+`, buildCommand(p.Config.Command), p.cmdFilePath)
 	} else {
 		// TODO: implement this for Linux as well
 		cmdFilePath = p.cmdFilePath
@@ -405,4 +405,18 @@ func (p *Process) scan() error {
 	p.ExitCode = code
 
 	return nil
+}
+
+func buildCommand(fullCommand string) string {
+	commandAndArgs := strings.Fields(strings.TrimSpace(fullCommand))
+	if len(commandAndArgs) < 1 {
+		return fullCommand
+	}
+
+	command := strings.ToLower(commandAndArgs[0])
+	if strings.HasSuffix(command, ".bat") || strings.HasSuffix(command, ".cmd") {
+		return fmt.Sprintf("CALL %s", fullCommand)
+	}
+
+	return fullCommand
 }
