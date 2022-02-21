@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -273,8 +274,13 @@ func (p *JobProcessor) executeShutdownHook(reason ShutdownReason) {
 	if p.ShutdownHookPath != "" {
 		log.Infof("Executing shutdown hook from %s", p.ShutdownHookPath)
 
-		// #nosec
-		cmd := exec.Command("bash", p.ShutdownHookPath)
+		var cmd *exec.Cmd
+		if runtime.GOOS == "windows" {
+			cmd = exec.Command("C:\\Windows\\System32\\CMD.exe", "/S", "/C", p.ShutdownHookPath)
+		} else {
+			cmd = exec.Command("bash", p.ShutdownHookPath)
+		}
+
 		cmd.Env = os.Environ()
 		cmd.Env = append(cmd.Env, fmt.Sprintf("SEMAPHORE_AGENT_SHUTDOWN_REASON=%s", reason))
 
