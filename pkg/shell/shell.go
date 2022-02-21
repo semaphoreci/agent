@@ -14,12 +14,13 @@ import (
 )
 
 type Shell struct {
-	BootCommand *exec.Cmd
-	TTY         *os.File
-	ExitSignal  chan string
-	NoPTY       bool
-	Env         *Environment
-	Cwd         string
+	BootCommand    *exec.Cmd
+	TTY            *os.File
+	ExitSignal     chan string
+	NoPTY          bool
+	Env            *Environment
+	Cwd            string
+	CurrentProcess *Process
 }
 
 func NewShell(bootCommand *exec.Cmd, noPTY bool) (*Shell, error) {

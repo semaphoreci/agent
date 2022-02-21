@@ -48,12 +48,16 @@ type Process struct {
 	FinishedAt       int
 	ExitCode         int
 	OnStdoutCallback func(string)
+	Pid              int
 	startMark        string
 	endMark          string
 	commandEndRegex  *regexp.Regexp
 	cmdFilePath      string
 	inputBuffer      []byte
 	outputBuffer     *OutputBuffer
+	SysProcAttr      *syscall.SysProcAttr
+
+	windowsJobObject uintptr
 }
 
 func randomMagicMark() string {
@@ -129,7 +133,9 @@ func (p *Process) Run() {
 	 * If we are not using a PTY, we need to keep track of
 	 * environment variables and the current working directory.
 	 */
+	p.setup()
 	p.runWithoutPTY()
+
 	after, _ := EnvFromDump(fmt.Sprintf("%s.env.after", p.cmdFilePath))
 	newCwd, _ := after.Get("SEMAPHORE_AGENT_CURRENT_DIR")
 	p.Config.Shell.Chdir(newCwd)
@@ -178,11 +184,19 @@ func (p *Process) runWithoutPTY() {
 		cmd.Env = append(cmd.Env, p.Config.ExtraVars.ToArray()...)
 	}
 
+	cmd.SysProcAttr = p.SysProcAttr
+
 	err = cmd.Start()
 	if err != nil {
 		log.Errorf("Error starting command: %v\n", err)
 		p.ExitCode = 1
 		return
+	}
+
+	p.Pid = cmd.Process.Pid
+	err = p.afterCreation()
+	if err != nil {
+		log.Errorf("Process after creation procedure failed: %v", err)
 	}
 
 	waitResult := cmd.Wait()

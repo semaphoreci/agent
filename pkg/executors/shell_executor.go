@@ -260,6 +260,7 @@ func (e *ShellExecutor) RunCommand(command string, silent bool, alias string, ex
 	}
 
 	p := e.Shell.NewProcess(command, extraVars)
+	e.Shell.CurrentProcess = p
 
 	if !silent {
 		e.Logger.LogCommandStarted(directive)
@@ -292,8 +293,13 @@ func (e *ShellExecutor) Stop() int {
 		log.Error(err)
 	}
 
-	log.Debug("Process killing finished without errors")
+	err = e.Shell.CurrentProcess.Terminate()
+	if err != nil {
+		log.Errorf("Error terminating process: %v", err)
+		return 1
+	}
 
+	log.Debug("Process killing finished without errors")
 	return 0
 }
 
