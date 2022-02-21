@@ -173,7 +173,7 @@ blocks:
                 - container_options
                 - dockerhub_private_image
                 - docker_registry_private_image
-                - docker_private_image_ecr
+                # - docker_private_image_ecr
                 - docker_private_image_gcr
                 - dockerhub_private_image_bad_creds
                 - docker_registry_private_image_bad_creds
