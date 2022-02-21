@@ -421,15 +421,23 @@ func (p *Process) scan() error {
 }
 
 func buildCommand(fullCommand string) string {
-	commandAndArgs := strings.Fields(strings.TrimSpace(fullCommand))
-	if len(commandAndArgs) < 1 {
-		return fullCommand
+	commands := strings.Split(fullCommand, "\n")
+	finalCommand := []string{}
+
+	for _, command := range commands {
+		parts := strings.Fields(strings.TrimSpace(command))
+		if len(parts) < 1 {
+			finalCommand = append(finalCommand, command)
+			continue
+		}
+
+		firstPart := strings.ToLower(parts[0])
+		if strings.HasSuffix(firstPart, ".bat") || strings.HasSuffix(firstPart, ".cmd") {
+			finalCommand = append(finalCommand, fmt.Sprintf("CALL %s", command))
+		} else {
+			finalCommand = append(finalCommand, command)
+		}
 	}
 
-	command := strings.ToLower(commandAndArgs[0])
-	if strings.HasSuffix(command, ".bat") || strings.HasSuffix(command, ".cmd") {
-		return fmt.Sprintf("CALL %s", fullCommand)
-	}
-
-	return fullCommand
+	return strings.Join(finalCommand, "\n")
 }
