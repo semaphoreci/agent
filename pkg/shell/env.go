@@ -28,7 +28,6 @@ func EnvFromAPI(envVars []api.EnvVar) (*Environment, error) {
 	return &newEnv, nil
 }
 
-// TODO: implement this for Linux too
 func EnvFromDump(fileName string) (*Environment, error) {
 	bytes, err := ioutil.ReadFile(fileName)
 	if err != nil {

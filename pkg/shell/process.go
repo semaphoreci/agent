@@ -19,6 +19,22 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+/*
+ * Windows does not support a PTY yet. To allow changing directories,
+ * and setting/unsetting environment variables, we need to keep track
+ * of the environment on every command executed. We do that by
+ * getting the whole environment after a command is executed and
+ * updating our shell with it.
+ */
+const WINDOWS_BATCH_SCRIPT = `
+@echo off
+%s
+SET SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS=%%ERRORLEVEL%%
+SET SEMAPHORE_AGENT_CURRENT_DIR=%%CD%%
+SET > "%s.env.after"
+EXIT \B %%SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS%%
+`
+
 type Config struct {
 	noPTY     bool
 	Command   string
@@ -104,12 +120,16 @@ func (p *Process) flushInputBufferTill(index int) {
 }
 
 func (p *Process) Run() {
-	if p.Config.noPTY {
-		p.runWithoutPTY()
-	} else {
+	if !p.Config.noPTY {
 		p.runWithPTY()
+		return
 	}
 
+	/*
+	 * If we are not using a PTY, we need to keep track of
+	 * environment variables and the current working directory.
+	 */
+	p.runWithoutPTY()
 	after, _ := EnvFromDump(fmt.Sprintf("%s.env.after", p.cmdFilePath))
 	newCwd, _ := after.Get("SEMAPHORE_AGENT_CURRENT_DIR")
 	p.Config.Shell.Chdir(newCwd)
@@ -227,28 +247,21 @@ func (p *Process) constructShellInstruction() string {
 	return fmt.Sprintf(template, p.startMark, p.cmdFilePath, p.endMark)
 }
 
+/*
+ * Multiline commands don't work very well with the start/finish marker.
+ * scheme. To circumvent this, we are storing the command in a file.
+ */
 func (p *Process) loadCommand() error {
-	//
-	// Multiline commands don't work very well with the start/finish marker
-	// scheme. To circumvent this, we are storing the command in a file
-	//
-
-	var cmdFilePath, command string
-	if runtime.GOOS == "windows" {
-		cmdFilePath = fmt.Sprintf("%s.bat", p.cmdFilePath)
-		command = fmt.Sprintf(`@echo off
-%s
-SET SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS=%%ERRORLEVEL%%
-SET SEMAPHORE_AGENT_CURRENT_DIR=%%CD%%
-SET > "%s.env.after"
-EXIT \B %%SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS%%
-`, buildCommand(p.Config.Command), p.cmdFilePath)
-	} else {
-		// TODO: implement this for Linux as well
-		cmdFilePath = p.cmdFilePath
-		command = p.Config.Command
+	if runtime.GOOS != "windows" {
+		return p.writeCommand(p.cmdFilePath, p.Config.Command)
 	}
 
+	cmdFilePath := fmt.Sprintf("%s.bat", p.cmdFilePath)
+	command := fmt.Sprintf(WINDOWS_BATCH_SCRIPT, buildCommand(p.Config.Command), p.cmdFilePath)
+	return p.writeCommand(cmdFilePath, command)
+}
+
+func (p *Process) writeCommand(cmdFilePath, command string) error {
 	// #nosec
 	err := ioutil.WriteFile(cmdFilePath, []byte(command), 0644)
 	if err != nil {

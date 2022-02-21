@@ -154,12 +154,10 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		EnvVars:                    hostEnvVars,
 		FileInjections:             fileInjections,
 		FailOnMissingFiles:         viper.GetBool(config.FailOnMissingFiles),
-		NoPTY:                      viper.GetBool(config.NoPTY),
 		AgentVersion:               VERSION,
 	}
 
 	if runtime.GOOS == "windows" {
-		log.Info("Windows does not support jobs running through a PTY session, jobs will run in non-PTY mode instead")
 		config.NoPTY = true
 	}
 
