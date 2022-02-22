@@ -5,7 +5,6 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/semaphoreci/agent/pkg/api"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -14,7 +13,7 @@ func Test__Shell__SimpleHelloWorld(t *testing.T) {
 
 	shell := bashShell()
 
-	p1 := shell.NewProcess("echo Hello", []api.EnvVar{})
+	p1 := shell.NewProcess("echo Hello")
 	p1.OnStdout(func(line string) {
 		output.WriteString(line)
 	})
@@ -28,7 +27,7 @@ func Test__Shell__HandlingBashProcessKill(t *testing.T) {
 
 	shell := bashShell()
 
-	p1 := shell.NewProcess("echo 'Hello' && exit 1", []api.EnvVar{})
+	p1 := shell.NewProcess("echo 'Hello' && exit 1")
 	p1.OnStdout(func(line string) {
 		output.WriteString(line)
 	})
@@ -53,13 +52,13 @@ func Test__Shell__HandlingBashProcessKillThatHasBackgroundJobs(t *testing.T) {
 
 	shell := bashShell()
 
-	p1 := shell.NewProcess("sleep infinity &", []api.EnvVar{})
+	p1 := shell.NewProcess("sleep infinity &")
 	p1.OnStdout(func(line string) {
 		output.WriteString(line)
 	})
 	p1.Run()
 
-	p2 := shell.NewProcess("echo 'Hello' && exit 1", []api.EnvVar{})
+	p2 := shell.NewProcess("echo 'Hello' && exit 1")
 	p2.OnStdout(func(line string) {
 		output.WriteString(line)
 	})

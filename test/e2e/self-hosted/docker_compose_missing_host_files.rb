@@ -87,7 +87,9 @@ assert_job_log <<-LOG
   {"event":"cmd_output",   "timestamp":"*", "output":"cat: /tmp/agent/notfound.txt: No such file or directory\\n"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"cat /tmp/agent/notfound.txt","exit_code":1,"finished_at":"*","started_at":"*"}
 
-  {"event":"cmd_started",  "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=failed"}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=failed","exit_code":0,"finished_at":"*","started_at":"*"}
+  {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"Exporting SEMAPHORE_JOB_RESULT\\n"}
+  {"event":"cmd_finished", "timestamp":"*", "directive":"Exporting environment variables","exit_code":0,"started_at":"*","finished_at":"*"}
+
   {"event":"job_finished", "timestamp":"*", "result":"failed"}
 LOG

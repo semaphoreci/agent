@@ -77,7 +77,9 @@ assert_job_log <<-LOG
   {"directive":"echo Hello World","event":"cmd_started","timestamp":"*"}
   {"event":"cmd_output","output":"Hello World\\n","timestamp":"*"}
   {"directive":"echo Hello World","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
-  {"directive":"export SEMAPHORE_JOB_RESULT=passed","event":"cmd_started","timestamp":"*"}
-  {"directive":"export SEMAPHORE_JOB_RESULT=passed","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
+  {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"Exporting SEMAPHORE_JOB_RESULT\\n"}
+  {"event":"cmd_finished", "timestamp":"*", "directive":"Exporting environment variables","exit_code":0,"started_at":"*","finished_at":"*"}
+
   {"event":"job_finished","result":"passed","timestamp":"*"}
 LOG
