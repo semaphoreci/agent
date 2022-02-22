@@ -276,8 +276,10 @@ func (p *JobProcessor) executeShutdownHook(reason ShutdownReason) {
 
 		var cmd *exec.Cmd
 		if runtime.GOOS == "windows" {
+			// #nosec
 			cmd = exec.Command("C:\\Windows\\System32\\CMD.exe", "/S", "/C", p.ShutdownHookPath)
 		} else {
+			// #nosec
 			cmd = exec.Command("bash", p.ShutdownHookPath)
 		}
 

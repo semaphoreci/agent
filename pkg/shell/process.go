@@ -26,7 +26,7 @@ import (
  * getting the whole environment after a command is executed and
  * updating our shell with it.
  */
-const WINDOWS_BATCH_SCRIPT = `
+const WindowsBatchScript = `
 @echo off
 %s
 SET SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS=%%ERRORLEVEL%%
@@ -303,7 +303,7 @@ func (p *Process) loadCommand() error {
 	}
 
 	cmdFilePath := fmt.Sprintf("%s.bat", p.cmdFilePath)
-	command := fmt.Sprintf(WINDOWS_BATCH_SCRIPT, buildCommand(p.Config.Command), p.cmdFilePath)
+	command := fmt.Sprintf(WindowsBatchScript, buildCommand(p.Config.Command), p.cmdFilePath)
 	return p.writeCommand(cmdFilePath, command)
 }
 

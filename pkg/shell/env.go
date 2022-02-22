@@ -30,6 +30,7 @@ func EnvFromAPI(envVars []api.EnvVar) (*Environment, error) {
 }
 
 func EnvFromDump(fileName string) (*Environment, error) {
+	// #nosec
 	bytes, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		return nil, err
