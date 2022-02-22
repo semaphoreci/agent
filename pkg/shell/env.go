@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/semaphoreci/agent/pkg/api"
@@ -81,8 +82,19 @@ func (e *Environment) Merge(envVars []config.HostEnvVar) {
 	}
 }
 
+func (e *Environment) Keys() []string {
+	var keys []string
+	for k := range e.env {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+	return keys
+}
+
 func (e *Environment) Append(otherEnv *Environment, callback func(name, value string)) {
-	for name, value := range otherEnv.env {
+	for _, name := range otherEnv.Keys() {
+		value, _ := otherEnv.Get(name)
 		e.Set(name, value)
 		if callback != nil {
 			callback(name, value)
@@ -101,7 +113,8 @@ func (e *Environment) ToArray() []string {
 
 func (e *Environment) ToFile(fileName string, callback func(name string)) error {
 	fileContent := ""
-	for name, value := range e.env {
+	for _, name := range e.Keys() {
+		value, _ := e.Get(name)
 		fileContent += fmt.Sprintf("export %s=%s\n", name, shellQuote(value))
 		callback(name)
 	}

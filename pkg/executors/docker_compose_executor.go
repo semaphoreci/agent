@@ -593,6 +593,7 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars 
 
 	environment, err := shell.EnvFromAPI(envVars)
 	if err != nil {
+		log.Errorf("Error creating environment: %v", err)
 		exitCode = 1
 		return exitCode
 	}
@@ -605,17 +606,20 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars 
 	})
 
 	if err != nil {
+		log.Errorf("Error saving environment file: %v", err)
 		exitCode = 1
 		return exitCode
 	}
 
 	exitCode = e.RunCommand(fmt.Sprintf("source %s", envFileName), true, "")
 	if exitCode != 0 {
+		log.Errorf("Error sourcing environment file: %v", err)
 		return exitCode
 	}
 
 	exitCode = e.RunCommand(fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName), true, "")
 	if exitCode != 0 {
+		log.Errorf("Error saving source line to .bash_profile: %v", err)
 		return exitCode
 	}
 
