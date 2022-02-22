@@ -59,8 +59,10 @@ when "api" then
     {"event":"cmd_output",   "timestamp":"*", "output":"kvm\\n"}
     {"event":"cmd_finished", "timestamp":"*", "directive":"ls /dev | grep kvm","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
   
-    {"event":"cmd_started",  "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=passed"}
-    {"event":"cmd_finished", "timestamp":"*", "directive":"export SEMAPHORE_JOB_RESULT=passed","exit_code":0,"finished_at":"*","started_at":"*"}
+    {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
+    {"event":"cmd_output",   "timestamp":"*", "output":"Exporting SEMAPHORE_JOB_RESULT\\n"}
+    {"event":"cmd_finished", "timestamp":"*", "directive":"Exporting environment variables","exit_code":0,"started_at":"*","finished_at":"*"}
+
     {"event":"job_finished", "timestamp":"*", "result":"passed"}
   LOG
 when "listen" then

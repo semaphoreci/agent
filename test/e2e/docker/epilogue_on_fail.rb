@@ -77,7 +77,7 @@ assert_job_log <<-LOG
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"echo Hello On Fail Epilogue $SEMAPHORE_JOB_RESULT"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Hello On Fail Epilogue failed\\n"}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"echo Hello On Fail Epilogue","exit_code":0,"finished_at":"*","started_at":"*"}
+  {"event":"cmd_finished", "timestamp":"*", "directive":"echo Hello On Fail Epilogue $SEMAPHORE_JOB_RESULT","exit_code":0,"finished_at":"*","started_at":"*"}
 
   {"event":"job_finished", "timestamp":"*", "result":"failed"}
 LOG
