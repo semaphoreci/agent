@@ -14,6 +14,7 @@ import (
 
 type Shell struct {
 	BootCommand    *exec.Cmd
+	StoragePath    string
 	TTY            *os.File
 	ExitSignal     chan string
 	NoPTY          bool
@@ -22,7 +23,7 @@ type Shell struct {
 	CurrentProcess *Process
 }
 
-func NewShell(bootCommand *exec.Cmd, noPTY bool) (*Shell, error) {
+func NewShell(bootCommand *exec.Cmd, storagePath string, noPTY bool) (*Shell, error) {
 	exitChannel := make(chan string, 1)
 
 	cwd, err := os.Getwd()
@@ -32,6 +33,7 @@ func NewShell(bootCommand *exec.Cmd, noPTY bool) (*Shell, error) {
 
 	return &Shell{
 		BootCommand: bootCommand,
+		StoragePath: storagePath,
 		ExitSignal:  exitChannel,
 		NoPTY:       noPTY,
 		Env:         &Environment{},
@@ -197,9 +199,10 @@ func (s *Shell) silencePromptAndDisablePS1() error {
 func (s *Shell) NewProcess(command string) *Process {
 	return NewProcess(
 		Config{
-			Command: command,
-			Shell:   s,
-			noPTY:   s.NoPTY,
+			Command:         command,
+			Shell:           s,
+			noPTY:           s.NoPTY,
+			tempStoragePath: s.StoragePath,
 		})
 }
 

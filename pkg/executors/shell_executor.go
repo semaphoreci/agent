@@ -23,17 +23,19 @@ import (
 
 type ShellExecutor struct {
 	Executor
-	Logger     *eventlogger.Logger
-	Shell      *shell.Shell
-	jobRequest *api.JobRequest
-	NoPTY      bool
+	Logger       *eventlogger.Logger
+	Shell        *shell.Shell
+	jobRequest   *api.JobRequest
+	NoPTY        bool
+	tmpDirectory string
 }
 
 func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger, noPTY bool) *ShellExecutor {
 	return &ShellExecutor{
-		Logger:     logger,
-		jobRequest: request,
-		NoPTY:      noPTY,
+		Logger:       logger,
+		jobRequest:   request,
+		NoPTY:        noPTY,
+		tmpDirectory: os.TempDir(),
 	}
 }
 
@@ -75,7 +77,7 @@ func (e *ShellExecutor) setUpSSHJumpPoint() int {
 func (e *ShellExecutor) Start() int {
 	cmd := exec.Command("bash", "--login")
 
-	shell, err := shell.NewShell(cmd, e.NoPTY)
+	shell, err := shell.NewShell(cmd, e.tmpDirectory, e.NoPTY)
 	if err != nil {
 		log.Debug(shell)
 		return 1
@@ -122,7 +124,7 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 		return exitCode
 	}
 
-	envFileName := osinfo.FormTempDirPath(".env")
+	envFileName := osinfo.FormDirPath(e.tmpDirectory, ".env")
 	err = environment.ToFile(envFileName, func(name string) {
 		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))
 	})
@@ -170,7 +172,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 			return exitCode
 		}
 
-		tmpPath := osinfo.FormTempDirPath("file")
+		tmpPath := osinfo.FormDirPath(e.tmpDirectory, "file")
 
 		// #nosec
 		tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_RDWR, 0644)

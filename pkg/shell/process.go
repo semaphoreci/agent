@@ -36,10 +36,11 @@ EXIT \B %%SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS%%
 `
 
 type Config struct {
-	noPTY     bool
-	Command   string
-	Shell     *Shell
-	ExtraVars *Environment
+	noPTY           bool
+	Command         string
+	Shell           *Shell
+	ExtraVars       *Environment
+	tempStoragePath string
 }
 
 type Process struct {
@@ -76,7 +77,7 @@ func NewProcess(config Config) *Process {
 		startMark:       startMark,
 		endMark:         endMark,
 		commandEndRegex: commandEndRegex,
-		cmdFilePath:     osinfo.FormTempDirPath("current-agent-cmd"),
+		cmdFilePath:     osinfo.FormDirPath(config.tempStoragePath, "current-agent-cmd"),
 		outputBuffer:    NewOutputBuffer(),
 	}
 }

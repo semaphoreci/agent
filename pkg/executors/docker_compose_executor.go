@@ -217,12 +217,12 @@ func (e *DockerComposeExecutor) startBashSession() int {
 		"-v",
 		"/var/run/docker.sock:/var/run/docker.sock",
 		"-v",
-		fmt.Sprintf("%s:%s:ro", os.TempDir(), os.TempDir()),
+		fmt.Sprintf("%s:%s:ro", e.tmpDirectory, e.tmpDirectory),
 		e.mainContainerName,
 		"bash",
 	)
 
-	shell, err := shell.NewShell(cmd, false)
+	shell, err := shell.NewShell(cmd, e.tmpDirectory, false)
 	if err != nil {
 		log.Errorf("Failed to start stateful shell err: %+v", err)
 
@@ -600,7 +600,7 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars 
 
 	environment.Merge(hostEnvVars)
 
-	envFileName := osinfo.FormTempDirPath(".env")
+	envFileName := osinfo.FormDirPath(e.tmpDirectory, ".env")
 	err = environment.ToFile(envFileName, func(name string) {
 		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))
 	})
