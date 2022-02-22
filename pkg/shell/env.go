@@ -23,7 +23,7 @@ func EnvFromAPI(envVars []api.EnvVar) (*Environment, error) {
 			return nil, err
 		}
 
-		newEnv.Set(envVar.Name, shellQuote(string(value)))
+		newEnv.Set(envVar.Name, string(value))
 	}
 
 	return &newEnv, nil
