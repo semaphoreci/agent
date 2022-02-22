@@ -114,7 +114,10 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 	environment.Merge(hostEnvVars)
 
 	if e.NoPTY {
-		e.Shell.Env.Append(environment)
+		e.Shell.Env.Append(environment, func(name, value string) {
+			e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))
+		})
+
 		exitCode = 0
 		return exitCode
 	}
@@ -129,12 +132,12 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 		return exitCode
 	}
 
-	exitCode = e.RunCommand(fmt.Sprintf("source %s", envFileName), true, "", []api.EnvVar{})
+	exitCode = e.RunCommand(fmt.Sprintf("source %s", envFileName), true, "")
 	if exitCode != 0 {
 		return exitCode
 	}
 
-	exitCode = e.RunCommand(fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName), true, "", []api.EnvVar{})
+	exitCode = e.RunCommand(fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName), true, "")
 	if exitCode != 0 {
 		return exitCode
 	}
@@ -246,20 +249,13 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 	return exitCode
 }
 
-func (e *ShellExecutor) RunCommand(command string, silent bool, alias string, extraVars []api.EnvVar) int {
-	if len(extraVars) > 0 {
-		exitCode := e.ExportEnvVars(extraVars, []config.HostEnvVar{})
-		if exitCode != 0 {
-			return exitCode
-		}
-	}
-
+func (e *ShellExecutor) RunCommand(command string, silent bool, alias string) int {
 	directive := command
 	if alias != "" {
 		directive = alias
 	}
 
-	p := e.Shell.NewProcess(command, extraVars)
+	p := e.Shell.NewProcess(command)
 	e.Shell.CurrentProcess = p
 
 	if !silent {

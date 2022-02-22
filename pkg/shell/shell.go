@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/semaphoreci/agent/pkg/api"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -195,14 +194,12 @@ func (s *Shell) silencePromptAndDisablePS1() error {
 	return nil
 }
 
-func (s *Shell) NewProcess(command string, extraVars []api.EnvVar) *Process {
-	environment, _ := EnvFromAPI(extraVars)
+func (s *Shell) NewProcess(command string) *Process {
 	return NewProcess(
 		Config{
-			Command:   command,
-			Shell:     s,
-			noPTY:     s.NoPTY,
-			ExtraVars: environment,
+			Command: command,
+			Shell:   s,
+			noPTY:   s.NoPTY,
 		})
 }
 

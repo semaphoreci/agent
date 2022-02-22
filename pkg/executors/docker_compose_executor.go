@@ -609,12 +609,12 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars 
 		return exitCode
 	}
 
-	exitCode = e.RunCommand(fmt.Sprintf("source %s", envFileName), true, "", []api.EnvVar{})
+	exitCode = e.RunCommand(fmt.Sprintf("source %s", envFileName), true, "")
 	if exitCode != 0 {
 		return exitCode
 	}
 
-	exitCode = e.RunCommand(fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName), true, "", []api.EnvVar{})
+	exitCode = e.RunCommand(fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName), true, "")
 	if exitCode != 0 {
 		return exitCode
 	}
@@ -666,7 +666,7 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 		}
 
 		cmd := fmt.Sprintf("mkdir -p %s", path.Dir(destPath))
-		exitCode = e.RunCommand(cmd, true, "", []api.EnvVar{})
+		exitCode = e.RunCommand(cmd, true, "")
 		if exitCode != 0 {
 			output := fmt.Sprintf("Failed to create destination path %s", destPath)
 			e.Logger.LogCommandOutput(output + "\n")
@@ -674,7 +674,7 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 		}
 
 		cmd = fmt.Sprintf("cp %s %s", tmpPath, destPath)
-		exitCode = e.RunCommand(cmd, true, "", []api.EnvVar{})
+		exitCode = e.RunCommand(cmd, true, "")
 		if exitCode != 0 {
 			output := fmt.Sprintf("Failed to move to destination path %s %s", tmpPath, destPath)
 			e.Logger.LogCommandOutput(output + "\n")
@@ -682,7 +682,7 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 		}
 
 		cmd = fmt.Sprintf("chmod %s %s", f.Mode, destPath)
-		exitCode = e.RunCommand(cmd, true, "", []api.EnvVar{})
+		exitCode = e.RunCommand(cmd, true, "")
 		if exitCode != 0 {
 			output := fmt.Sprintf("Failed to set file mode to %s", f.Mode)
 			e.Logger.LogCommandOutput(output + "\n")
@@ -697,13 +697,13 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 	return exitCode
 }
 
-func (e *DockerComposeExecutor) RunCommand(command string, silent bool, alias string, extraVars []api.EnvVar) int {
+func (e *DockerComposeExecutor) RunCommand(command string, silent bool, alias string) int {
 	directive := command
 	if alias != "" {
 		directive = alias
 	}
 
-	p := e.Shell.NewProcess(command, []api.EnvVar{})
+	p := e.Shell.NewProcess(command)
 
 	if !silent {
 		e.Logger.LogCommandStarted(directive)

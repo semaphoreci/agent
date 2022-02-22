@@ -81,9 +81,12 @@ func (e *Environment) Merge(envVars []config.HostEnvVar) {
 	}
 }
 
-func (e *Environment) Append(otherEnv *Environment) {
+func (e *Environment) Append(otherEnv *Environment, callback func(name, value string)) {
 	for name, value := range otherEnv.env {
 		e.Set(name, value)
+		if callback != nil {
+			callback(name, value)
+		}
 	}
 }
 
