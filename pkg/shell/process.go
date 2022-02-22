@@ -1,9 +1,9 @@
 package shell
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -169,11 +169,8 @@ func (p *Process) runWithoutPTY() {
 		cmd = exec.Command("bash", "-c", instruction)
 	}
 
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
-
 	cmd.Dir = p.Config.Shell.Cwd
+	cmd.SysProcAttr = p.SysProcAttr
 
 	if p.Config.Shell.Env != nil {
 		cmd.Env = append(os.Environ(), p.Config.Shell.Env.ToArray()...)
@@ -184,7 +181,9 @@ func (p *Process) runWithoutPTY() {
 		cmd.Env = append(cmd.Env, p.Config.ExtraVars.ToArray()...)
 	}
 
-	cmd.SysProcAttr = p.SysProcAttr
+	reader, writer := io.Pipe()
+	cmd.Stdout = writer
+	cmd.Stderr = writer
 
 	err = cmd.Start()
 	if err != nil {
@@ -199,23 +198,55 @@ func (p *Process) runWithoutPTY() {
 		log.Errorf("Process after creation procedure failed: %v", err)
 	}
 
-	waitResult := cmd.Wait()
-	if waitResult != nil {
-		if err, ok := waitResult.(*exec.ExitError); ok {
-			if s, ok := err.Sys().(syscall.WaitStatus); ok {
-				p.ExitCode = s.ExitStatus()
-			} else {
-				log.Error("Unimplemented for system where exec.ExitError.Sys() is not syscall.WaitStatus.")
+	done := make(chan bool, 1)
+	go func() {
+		for {
+			log.Debug("Reading started")
+			buffer := make([]byte, p.readBufferSize())
+			n, err := reader.Read(buffer)
+			if err != nil && err != io.EOF {
+				log.Errorf("Error while reading. Error: %v", err)
 			}
-		} else {
-			log.Errorf("Unexpected error type %T", waitResult)
+
+			p.inputBuffer = append(p.inputBuffer, buffer[0:n]...)
+			log.Debugf("reading data from command. Input buffer: %#v", string(p.inputBuffer))
+			p.flushInputAll()
+			p.StreamToStdout()
+
+			if err == io.EOF {
+				log.Debug("Finished reading")
+				p.flushOutputBuffer()
+				break
+			}
 		}
-	} else {
-		p.ExitCode = 0
+
+		done <- true
+	}()
+
+	waitResult := cmd.Wait()
+
+	err = writer.Close()
+	if err != nil {
+		log.Errorf("Error closing writer: %v", err)
 	}
 
-	p.OnStdoutCallback(stdoutBuf.String())
-	p.OnStdoutCallback(stderrBuf.String())
+	log.Debug("Waiting for reading to finish...")
+	<-done
+
+	if waitResult == nil {
+		p.ExitCode = 0
+		return
+	}
+
+	if err, ok := waitResult.(*exec.ExitError); ok {
+		if s, ok := err.Sys().(syscall.WaitStatus); ok {
+			p.ExitCode = s.ExitStatus()
+		} else {
+			log.Error("Unimplemented for system where exec.ExitError.Sys() is not syscall.WaitStatus.")
+		}
+	} else {
+		log.Errorf("Unexpected error type %T: %v", waitResult, waitResult)
+	}
 }
 
 func (p *Process) runWithPTY() {
