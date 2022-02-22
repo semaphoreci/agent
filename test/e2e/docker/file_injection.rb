@@ -23,7 +23,7 @@ start_job <<-JSON
     "files": [
       { "path": "test.txt", "content": "#{`echo "hello" | base64 | tr -d '\n'`}", "mode": "0644" },
       { "path": "/a/b/c",   "content": "#{`echo "hello" | base64 | tr -d '\n'`}", "mode": "0644" },
-      { "path": "/tmp/a",   "content": "#{`echo "hello" | base64 | tr -d '\n'`}", "mode": "+x" }
+      { "path": "/tmp/a",   "content": "#{`echo "hello" | base64 | tr -d '\n'`}", "mode": "0600" }
     ],
 
     "commands": [
@@ -61,7 +61,7 @@ assert_job_log <<-LOG
   {"event":"cmd_started",  "timestamp":"*", "directive":"Injecting Files"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Injecting test.txt with file mode 0644\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Injecting /a/b/c with file mode 0644\\n"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"Injecting /tmp/a with file mode +x\\n"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"Injecting /tmp/a with file mode 0600\\n"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"Injecting Files","exit_code":0,"finished_at":"*","started_at":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"cat test.txt"}
@@ -73,7 +73,7 @@ assert_job_log <<-LOG
   {"event":"cmd_finished", "timestamp":"*", "directive":"cat /a/b/c","exit_code":0,"finished_at":"*","started_at":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"stat -c '%a' /tmp/a"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"755\\n"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"600\\n"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"stat -c '%a' /tmp/a","exit_code":0,"finished_at":"*","started_at":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}

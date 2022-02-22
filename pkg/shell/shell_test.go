@@ -70,7 +70,7 @@ func Test__Shell__HandlingBashProcessKillThatHasBackgroundJobs(t *testing.T) {
 func bashShell() *Shell {
 	cmd := exec.Command("bash", "--login")
 
-	shell, _ := NewShell(cmd, false)
+	shell, _ := NewShell(cmd, "/tmp", false)
 	shell.Start()
 
 	return shell
