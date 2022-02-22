@@ -231,7 +231,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 
 		fileMode, err := strconv.ParseUint(f.Mode, 8, 32)
 		if err != nil {
-			e.Logger.LogCommandOutput(fmt.Sprintf("Bad file permission '%s' for '%s'", f.Mode, f.Path))
+			e.Logger.LogCommandOutput(fmt.Sprintf("Bad file permission '%s' for '%s'\n", f.Mode, f.Path))
 			exitCode = 1
 			break
 		}
