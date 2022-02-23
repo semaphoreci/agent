@@ -40,7 +40,7 @@ serve:
 .PHONY: serve
 
 test:
-	go test -short -v ./...
+	go test -p 1 -short -v ./...
 .PHONY: test
 
 build:
