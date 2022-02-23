@@ -58,7 +58,7 @@ func (b *OutputBuffer) Flush() (string, bool) {
 
 	timeSinceLastAppend := 1 * time.Millisecond
 	if b.lastAppend != nil {
-		timeSinceLastAppend = time.Now().Sub(*b.lastAppend)
+		timeSinceLastAppend = time.Since(*b.lastAppend)
 	}
 
 	log.Debugf("Flushing. %d bytes in the buffer", len(b.bytes))
