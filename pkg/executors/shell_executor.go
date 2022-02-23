@@ -175,7 +175,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 		tmpPath := osinfo.FormDirPath(e.tmpDirectory, "file")
 
 		// #nosec
-		tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_RDWR, 0644)
+		tmpFile, err := os.OpenFile(tmpPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 		if err != nil {
 			e.Logger.LogCommandOutput(err.Error() + "\n")
 			exitCode = 255

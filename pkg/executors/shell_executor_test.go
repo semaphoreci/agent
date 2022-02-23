@@ -38,14 +38,14 @@ func Test__ShellExecutor(t *testing.T) {
 	e.RunCommand(multilineCmd, false, "")
 
 	envVars := []api.EnvVar{
-		api.EnvVar{Name: "A", Value: "Zm9vCg=="},
+		{Name: "A", Value: "Zm9vCg=="},
 	}
 
 	e.ExportEnvVars(envVars, []config.HostEnvVar{})
 	e.RunCommand("echo $A", false, "")
 
 	files := []api.File{
-		api.File{
+		{
 			Path:    "/tmp/random-file.txt",
 			Content: "YWFhYmJiCgo=",
 			Mode:    "0600",
