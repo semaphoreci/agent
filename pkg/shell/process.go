@@ -35,6 +35,15 @@ SET > "%s.env.after"
 EXIT \B %%SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS%%
 `
 
+const WindowsPwshScript = `
+$ErrorActionPreference = "STOP"
+%s
+if ($LASTEXITCODE -eq $null) {$Env:SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS = 0} else {$Env:SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS = $LASTEXITCODE}
+$Env:SEMAPHORE_AGENT_CURRENT_DIR = $PWD | Select-Object -ExpandProperty Path
+Get-ChildItem Env: | Foreach-Object {"$($_.Name)=$($_.Value)"} | Set-Content "%s.env.after"
+exit $Env:SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS
+`
+
 type Config struct {
 	noPTY           bool
 	Command         string
@@ -161,15 +170,12 @@ func (p *Process) runWithoutPTY() {
 		return
 	}
 
-	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		// #nosec
-		cmd = exec.Command("C:\\Windows\\System32\\CMD.exe", "/S", "/C", instruction)
-	} else {
-		// #nosec
-		cmd = exec.Command("bash", "-c", instruction)
-	}
+	shell := p.findShell()
+	command := shell[0]
+	args := shell[1:]
+	args = append(args, instruction)
 
+	cmd := exec.Command(command, args...)
 	cmd.Dir = p.Config.Shell.Cwd
 	cmd.SysProcAttr = p.SysProcAttr
 
@@ -250,6 +256,29 @@ func (p *Process) runWithoutPTY() {
 	}
 }
 
+func (p *Process) findShell() []string {
+	if runtime.GOOS == "windows" {
+		shell := os.Getenv("SEMAPHORE_AGENT_SHELL")
+		if shell == "powershell" {
+			return []string{
+				"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+				"-NoProfile",
+				"-NonInteractive",
+			}
+		}
+
+		// CMD.exe is the default
+		return []string{
+			"C:\\Windows\\System32\\CMD.exe",
+			"/S",
+			"/C",
+		}
+	} else {
+		// #nosec
+		return []string{"bash", "-c"}
+	}
+}
+
 func (p *Process) runWithPTY() {
 	instruction := p.constructShellInstruction()
 
@@ -275,6 +304,12 @@ func (p *Process) runWithPTY() {
 
 func (p *Process) constructShellInstruction() string {
 	if runtime.GOOS == "windows" {
+		shell := os.Getenv("SEMAPHORE_AGENT_SHELL")
+		if shell == "powershell" {
+			return fmt.Sprintf(`%s.ps1`, p.cmdFilePath)
+		}
+
+		// CMD.exe is the default on Windows
 		return fmt.Sprintf(`%s.bat`, p.cmdFilePath)
 	}
 
@@ -302,6 +337,14 @@ func (p *Process) loadCommand() error {
 		return p.writeCommand(p.cmdFilePath, p.Config.Command)
 	}
 
+	shell := os.Getenv("SEMAPHORE_AGENT_SHELL")
+	if shell == "powershell" {
+		cmdFilePath := fmt.Sprintf("%s.ps1", p.cmdFilePath)
+		command := fmt.Sprintf(WindowsPwshScript, buildCommand(p.Config.Command), p.cmdFilePath)
+		return p.writeCommand(cmdFilePath, command)
+	}
+
+	// CMD.exe is the default on Windows
 	cmdFilePath := fmt.Sprintf("%s.bat", p.cmdFilePath)
 	command := fmt.Sprintf(WindowsBatchScript, buildCommand(p.Config.Command), p.cmdFilePath)
 	return p.writeCommand(cmdFilePath, command)
