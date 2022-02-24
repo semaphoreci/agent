@@ -62,7 +62,6 @@ type Process struct {
 	startMark        string
 	endMark          string
 	commandEndRegex  *regexp.Regexp
-	cmdFilePath      string
 	inputBuffer      []byte
 	outputBuffer     *OutputBuffer
 	SysProcAttr      *syscall.SysProcAttr
@@ -210,6 +209,7 @@ func (p *Process) runWithoutPTY() {
 	args := shell[1:]
 	args = append(args, instruction)
 
+	// #nosec
 	cmd := exec.Command(command, args...)
 	cmd.Dir = p.Shell.Cwd
 	cmd.SysProcAttr = p.SysProcAttr
@@ -297,16 +297,14 @@ func (p *Process) findShell() []string {
 			}
 		}
 
-		// CMD.exe is the default
 		return []string{
 			"C:\\Windows\\System32\\CMD.exe",
 			"/S",
 			"/C",
 		}
-	} else {
-		// #nosec
-		return []string{"bash", "-c"}
 	}
+
+	return []string{"bash", "-c"}
 }
 
 func (p *Process) runWithPTY() {
@@ -336,11 +334,11 @@ func (p *Process) constructShellInstruction() string {
 	if runtime.GOOS == "windows" {
 		shell := os.Getenv("SEMAPHORE_AGENT_SHELL")
 		if shell == "powershell" {
-			return fmt.Sprintf(`%s.ps1`, p.cmdFilePath)
+			return fmt.Sprintf(`%s.ps1`, p.CmdFilePath())
 		}
 
 		// CMD.exe is the default on Windows
-		return fmt.Sprintf(`%s.bat`, p.cmdFilePath)
+		return fmt.Sprintf(`%s.bat`, p.CmdFilePath())
 	}
 
 	//
@@ -355,7 +353,7 @@ func (p *Process) constructShellInstruction() string {
 	//
 	template := `echo -e "\001 %s"; source %s; AGENT_CMD_RESULT=$?; echo -e "\001 %s $AGENT_CMD_RESULT"; echo "exit $AGENT_CMD_RESULT" | sh`
 
-	return fmt.Sprintf(template, p.startMark, p.cmdFilePath, p.endMark)
+	return fmt.Sprintf(template, p.startMark, p.CmdFilePath(), p.endMark)
 }
 
 /*
@@ -364,23 +362,22 @@ func (p *Process) constructShellInstruction() string {
  */
 func (p *Process) loadCommand() error {
 	if runtime.GOOS != "windows" {
-		return p.writeCommand(p.cmdFilePath, p.Command)
+		return p.writeCommandToFile(p.CmdFilePath(), p.Command)
 	}
 
 	shell := os.Getenv("SEMAPHORE_AGENT_SHELL")
 	if shell == "powershell" {
-		cmdFilePath := fmt.Sprintf("%s.ps1", p.cmdFilePath)
-		command := fmt.Sprintf(WindowsPwshScript, buildCommand(p.Command), p.cmdFilePath)
-		return p.writeCommand(cmdFilePath, command)
+		cmdFilePath := fmt.Sprintf("%s.ps1", p.CmdFilePath())
+		command := fmt.Sprintf(WindowsPwshScript, buildCommand(p.Command), p.CmdFilePath())
+		return p.writeCommandToFile(cmdFilePath, command)
 	}
 
-	// CMD.exe is the default on Windows
-	cmdFilePath := fmt.Sprintf("%s.bat", p.cmdFilePath)
-	command := fmt.Sprintf(WindowsBatchScript, buildCommand(p.Command), p.cmdFilePath)
-	return p.writeCommand(cmdFilePath, command)
+	cmdFilePath := fmt.Sprintf("%s.bat", p.CmdFilePath())
+	command := fmt.Sprintf(WindowsBatchScript, buildCommand(p.Command), p.CmdFilePath())
+	return p.writeCommandToFile(cmdFilePath, command)
 }
 
-func (p *Process) writeCommand(cmdFilePath, command string) error {
+func (p *Process) writeCommandToFile(cmdFilePath, command string) error {
 	// #nosec
 	err := ioutil.WriteFile(cmdFilePath, []byte(command), 0644)
 	if err != nil {

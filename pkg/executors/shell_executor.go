@@ -138,12 +138,14 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 		return exitCode
 	}
 
-	exitCode = e.RunCommand(fmt.Sprintf("source %s", envFileName), true, "")
+	cmd := fmt.Sprintf("source %s", envFileName)
+	exitCode = e.RunCommand(cmd, true, "")
 	if exitCode != 0 {
 		return exitCode
 	}
 
-	exitCode = e.RunCommand(fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName), true, "")
+	cmd = fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName)
+	exitCode = e.RunCommand(cmd, true, "")
 	if exitCode != 0 {
 		return exitCode
 	}
