@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"path"
 	"runtime"
 	"strings"
 	"time"
@@ -64,10 +65,8 @@ func main() {
 }
 
 func OpenLogfile() io.Writer {
-	logFilePath := osinfo.FormTempDirPath("agent_log")
-
 	// #nosec
-	f, err := os.OpenFile(logFilePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	f, err := os.OpenFile(getLogFilePath(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 
 	if err != nil {
 		log.Fatal(err)
@@ -88,6 +87,21 @@ func getLogLevel() log.Level {
 	}
 
 	return level
+}
+
+func getLogFilePath() string {
+	logFilePath := os.Getenv("SEMAPHORE_AGENT_LOG_FILE_PATH")
+	if logFilePath == "" {
+		return osinfo.FormTempDirPath("agent_log")
+	}
+
+	parentDirectory := path.Dir(logFilePath)
+	err := os.MkdirAll(parentDirectory, 0644)
+	if err != nil {
+		log.Panicf("Could not create directories to place log file in '%s': %v", logFilePath, err)
+	}
+
+	return logFilePath
 }
 
 func RunListener(httpClient *http.Client, logfile io.Writer) {
