@@ -26,7 +26,7 @@ func Test__ShellExecutor(t *testing.T) {
 		},
 	}
 
-	e := NewShellExecutor(request, testLogger, runtime.GOOS == "windows")
+	e := NewShellExecutor(request, testLogger)
 
 	e.Prepare()
 	e.Start()
@@ -99,7 +99,7 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 		},
 	}
 
-	e := NewShellExecutor(request, testLogger, runtime.GOOS == "windows")
+	e := NewShellExecutor(request, testLogger)
 
 	e.Prepare()
 	e.Start()
@@ -136,7 +136,7 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 		},
 	}
 
-	e := NewShellExecutor(request, testLogger, runtime.GOOS == "windows")
+	e := NewShellExecutor(request, testLogger)
 
 	e.Prepare()
 	e.Start()

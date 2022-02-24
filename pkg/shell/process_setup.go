@@ -3,10 +3,9 @@
 package shell
 
 /*
- * We don't allow noPTY mode for non-windows agents.
- * Also, on non-windows agents, we handle job termination
+ * For non-windows agents, we handle job termination
  * by closing the TTY associated with the job.
- * Therefore, all the implementations here are empty.
+ * Therefore, no special handling here is necessary.
  */
 
 func (p *Process) setup() {

@@ -45,15 +45,15 @@ exit $Env:SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS
 `
 
 type Config struct {
-	noPTY           bool
-	Command         string
-	Shell           *Shell
-	ExtraVars       *Environment
-	tempStoragePath string
+	Shell       *Shell
+	StoragePath string
+	Command     string
 }
 
 type Process struct {
-	Config           Config
+	Command          string
+	Shell            *Shell
+	StoragePath      string
 	StartedAt        int
 	FinishedAt       int
 	ExitCode         int
@@ -67,6 +67,10 @@ type Process struct {
 	outputBuffer     *OutputBuffer
 	SysProcAttr      *syscall.SysProcAttr
 
+	/*
+	 * A job object handle used to interrupt the command
+	 * process in case of a stop request.
+	 */
 	windowsJobObject uintptr
 }
 
@@ -81,14 +85,23 @@ func NewProcess(config Config) *Process {
 	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d+)` + "[\r\n]+")
 
 	return &Process{
-		Config:          config,
+		Shell:           config.Shell,
+		StoragePath:     config.StoragePath,
+		Command:         config.Command,
 		ExitCode:        1,
 		startMark:       startMark,
 		endMark:         endMark,
 		commandEndRegex: commandEndRegex,
-		cmdFilePath:     osinfo.FormDirPath(config.tempStoragePath, "current-agent-cmd"),
 		outputBuffer:    NewOutputBuffer(),
 	}
+}
+
+func (p *Process) CmdFilePath() string {
+	return osinfo.FormDirPath(p.StoragePath, "current-agent-cmd")
+}
+
+func (p *Process) EnvironmentFilePath() string {
+	return fmt.Sprintf("%s.env.after", p.CmdFilePath())
 }
 
 func (p *Process) OnStdout(callback func(string)) {
@@ -134,27 +147,49 @@ func (p *Process) flushInputBufferTill(index int) {
 }
 
 func (p *Process) Run() {
-	if !p.Config.noPTY {
+	/*
+	 * If the agent is running in an non-windows environment,
+	 * we use a PTY session to run commands.
+	 */
+	if runtime.GOOS != "windows" {
 		p.runWithPTY()
 		return
 	}
 
 	/*
-	 * If we are not using a PTY, we need to keep track of
-	 * environment variables and the current working directory.
+	 * WHen running in windows, we need to create a job object handle,
+	 * which will be assigned a process after the command's process starts.
+	 * This is needed in order to properly terminate the processes in case
+	 * the job is stopped.
 	 */
 	p.setup()
+
+	// In windows, so no PTY support.
 	p.runWithoutPTY()
 
-	after, _ := EnvFromDump(fmt.Sprintf("%s.env.after", p.cmdFilePath))
-	newCwd, _ := after.Get("SEMAPHORE_AGENT_CURRENT_DIR")
-	p.Config.Shell.Chdir(newCwd)
+	/*
+	 * If we are not using a PTY, we need to keep track of shell "state" ourselves.
+	 * We use a file with all the environment variables available after the command
+	 * is executed. From that file, we can update our shell "state".
+	 */
+	after, _ := CreateEnvironmentFromFile(p.EnvironmentFilePath())
 
-	// Remove variables we added
+	/*
+	 * CMD.exe does not have an environment variable such as $PWD,
+	 * so we use a custom one to get the current working directory
+	 * after a command is executed.
+	 */
+	newCwd, _ := after.Get("SEMAPHORE_AGENT_CURRENT_DIR")
+	p.Shell.Chdir(newCwd)
+
+	/*
+	 * We use two custom environment variables to track
+	 * things we need, but we don't want to mess the environment
+	 * so we remove them before updating our shell state.
+	 */
 	after.Remove("SEMAPHORE_AGENT_CURRENT_DIR")
 	after.Remove("SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS")
-
-	p.Config.Shell.UpdateEnvironment(after)
+	p.Shell.UpdateEnvironment(after)
 }
 
 func (p *Process) runWithoutPTY() {
@@ -176,16 +211,11 @@ func (p *Process) runWithoutPTY() {
 	args = append(args, instruction)
 
 	cmd := exec.Command(command, args...)
-	cmd.Dir = p.Config.Shell.Cwd
+	cmd.Dir = p.Shell.Cwd
 	cmd.SysProcAttr = p.SysProcAttr
 
-	if p.Config.Shell.Env != nil {
-		cmd.Env = append(os.Environ(), p.Config.Shell.Env.ToArray()...)
-	}
-
-	if p.Config.ExtraVars != nil {
-		// #nosec
-		cmd.Env = append(cmd.Env, p.Config.ExtraVars.ToArray()...)
+	if p.Shell.Env != nil {
+		cmd.Env = append(os.Environ(), p.Shell.Env.ToArray()...)
 	}
 
 	reader, writer := io.Pipe()
@@ -293,7 +323,7 @@ func (p *Process) runWithPTY() {
 		return
 	}
 
-	_, err = p.Config.Shell.Write(instruction)
+	_, err = p.Shell.Write(instruction)
 	if err != nil {
 		log.Errorf("Error writing instruction: %v", err)
 		return
@@ -334,19 +364,19 @@ func (p *Process) constructShellInstruction() string {
  */
 func (p *Process) loadCommand() error {
 	if runtime.GOOS != "windows" {
-		return p.writeCommand(p.cmdFilePath, p.Config.Command)
+		return p.writeCommand(p.cmdFilePath, p.Command)
 	}
 
 	shell := os.Getenv("SEMAPHORE_AGENT_SHELL")
 	if shell == "powershell" {
 		cmdFilePath := fmt.Sprintf("%s.ps1", p.cmdFilePath)
-		command := fmt.Sprintf(WindowsPwshScript, buildCommand(p.Config.Command), p.cmdFilePath)
+		command := fmt.Sprintf(WindowsPwshScript, buildCommand(p.Command), p.cmdFilePath)
 		return p.writeCommand(cmdFilePath, command)
 	}
 
 	// CMD.exe is the default on Windows
 	cmdFilePath := fmt.Sprintf("%s.bat", p.cmdFilePath)
-	command := fmt.Sprintf(WindowsBatchScript, buildCommand(p.Config.Command), p.cmdFilePath)
+	command := fmt.Sprintf(WindowsBatchScript, buildCommand(p.Command), p.cmdFilePath)
 	return p.writeCommand(cmdFilePath, command)
 }
 
@@ -385,7 +415,7 @@ func (p *Process) read() error {
 	buffer := make([]byte, p.readBufferSize())
 
 	log.Debug("Reading started")
-	n, err := p.Config.Shell.Read(&buffer)
+	n, err := p.Shell.Read(&buffer)
 	if err != nil {
 		log.Errorf("Error while reading from the tty. Error: '%s'.", err.Error())
 		return err

@@ -57,6 +57,11 @@ func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logge
 }
 
 func (e *DockerComposeExecutor) Prepare() int {
+	if runtime.GOOS == "windows" {
+		log.Error("docker-compose executor is not supported in Windows")
+		return 1
+	}
+
 	err := os.MkdirAll(e.tmpDirectory, os.ModePerm)
 	if err != nil {
 		return 1
@@ -222,7 +227,7 @@ func (e *DockerComposeExecutor) startBashSession() int {
 		"bash",
 	)
 
-	shell, err := shell.NewShell(cmd, e.tmpDirectory, false)
+	shell, err := shell.NewShell(cmd, e.tmpDirectory)
 	if err != nil {
 		log.Errorf("Failed to start stateful shell err: %+v", err)
 
@@ -591,14 +596,12 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars 
 		e.Logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
-	environment, err := shell.EnvFromAPI(envVars)
+	environment, err := shell.CreateEnvironment(envVars, hostEnvVars)
 	if err != nil {
 		log.Errorf("Error creating environment: %v", err)
 		exitCode = 1
 		return exitCode
 	}
-
-	environment.Merge(hostEnvVars)
 
 	envFileName := osinfo.FormDirPath(e.tmpDirectory, ".env")
 	err = environment.ToFile(envFileName, func(name string) {

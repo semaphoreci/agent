@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -17,13 +18,12 @@ type Shell struct {
 	StoragePath    string
 	TTY            *os.File
 	ExitSignal     chan string
-	NoPTY          bool
 	Env            *Environment
 	Cwd            string
 	CurrentProcess *Process
 }
 
-func NewShell(bootCommand *exec.Cmd, storagePath string, noPTY bool) (*Shell, error) {
+func NewShell(bootCommand *exec.Cmd, storagePath string) (*Shell, error) {
 	exitChannel := make(chan string, 1)
 
 	cwd, err := os.Getwd()
@@ -35,14 +35,18 @@ func NewShell(bootCommand *exec.Cmd, storagePath string, noPTY bool) (*Shell, er
 		BootCommand: bootCommand,
 		StoragePath: storagePath,
 		ExitSignal:  exitChannel,
-		NoPTY:       noPTY,
 		Env:         &Environment{},
 		Cwd:         cwd,
 	}, nil
 }
 
 func (s *Shell) Start() error {
-	if s.NoPTY {
+
+	/*
+	 * In windows, we don't use a PTY, so there's
+	 * nothing for us to do there.
+	 */
+	if runtime.GOOS == "windows" {
 		return nil
 	}
 
@@ -199,10 +203,9 @@ func (s *Shell) silencePromptAndDisablePS1() error {
 func (s *Shell) NewProcess(command string) *Process {
 	return NewProcess(
 		Config{
-			Command:         command,
-			Shell:           s,
-			noPTY:           s.NoPTY,
-			tempStoragePath: s.StoragePath,
+			Command:     command,
+			Shell:       s,
+			StoragePath: s.StoragePath,
 		})
 }
 

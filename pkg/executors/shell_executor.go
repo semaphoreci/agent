@@ -26,15 +26,13 @@ type ShellExecutor struct {
 	Logger       *eventlogger.Logger
 	Shell        *shell.Shell
 	jobRequest   *api.JobRequest
-	NoPTY        bool
 	tmpDirectory string
 }
 
-func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger, noPTY bool) *ShellExecutor {
+func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger) *ShellExecutor {
 	return &ShellExecutor{
 		Logger:       logger,
 		jobRequest:   request,
-		NoPTY:        noPTY,
 		tmpDirectory: os.TempDir(),
 	}
 }
@@ -77,7 +75,7 @@ func (e *ShellExecutor) setUpSSHJumpPoint() int {
 func (e *ShellExecutor) Start() int {
 	cmd := exec.Command("bash", "--login")
 
-	shell, err := shell.NewShell(cmd, e.tmpDirectory, e.NoPTY)
+	shell, err := shell.NewShell(cmd, e.tmpDirectory)
 	if err != nil {
 		log.Debug(shell)
 		return 1
@@ -107,15 +105,17 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 		e.Logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
-	environment, err := shell.EnvFromAPI(envVars)
+	environment, err := shell.CreateEnvironment(envVars, hostEnvVars)
 	if err != nil {
 		exitCode = 1
 		return exitCode
 	}
 
-	environment.Merge(hostEnvVars)
-
-	if e.NoPTY {
+	/*
+	 * In windows, no PTY is used, so the environment state
+	 * is tracked in the shell itself.
+	 */
+	if runtime.GOOS == "windows" {
 		e.Shell.Env.Append(environment, func(name, value string) {
 			e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))
 		})
@@ -124,6 +124,10 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 		return exitCode
 	}
 
+	/*
+	 * If not windows, we use a PTY, so there's no need to track
+	 * the environment state here.
+	 */
 	envFileName := osinfo.FormDirPath(e.tmpDirectory, ".env")
 	err = environment.ToFile(envFileName, func(name string) {
 		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))

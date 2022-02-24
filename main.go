@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"runtime"
 	"strings"
 	"time"
 
@@ -171,10 +170,6 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		AgentVersion:               VERSION,
 	}
 
-	if runtime.GOOS == "windows" {
-		config.NoPTY = true
-	}
-
 	go func() {
 		_, err := listener.Start(httpClient, config, logfile)
 		if err != nil {
@@ -296,7 +291,6 @@ func RunSingleJob(httpClient *http.Client) {
 		Client:          httpClient,
 		ExposeKvmDevice: true,
 		FileInjections:  []config.FileInjection{},
-		NoPTY:           true,
 	})
 
 	if err != nil {
