@@ -48,8 +48,8 @@ func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logge
 		exposeKvmDevice:           options.ExposeKvmDevice,
 		fileInjections:            options.FileInjections,
 		FailOnMissingFiles:        options.FailOnMissingFiles,
-		dockerComposeManifestPath: osinfo.FormTempDirPath("docker-compose.yml"),
-		tmpDirectory:              osinfo.FormTempDirPath("agent-temp-directory"), // make a better random name
+		dockerComposeManifestPath: "/tmp/docker-compose.yml",
+		tmpDirectory:              "/tmp/agent-temp-directory", // make a better random name
 
 		// during testing the name main gets taken up, if we make it random we avoid headaches
 		mainContainerName: request.Compose.Containers[0].Name,
@@ -423,12 +423,7 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForGCR(envVars []api.EnvVa
 			return 1
 		}
 
-		var tmpPath string
-		if runtime.GOOS == "windows" {
-			tmpPath = fmt.Sprintf("%s\\file", e.tmpDirectory)
-		} else {
-			tmpPath = fmt.Sprintf("%s/file", e.tmpDirectory)
-		}
+		tmpPath := fmt.Sprintf("%s/file", e.tmpDirectory)
 
 		// #nosec
 		err = ioutil.WriteFile(tmpPath, []byte(content), 0644)
@@ -609,20 +604,19 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars 
 	})
 
 	if err != nil {
-		log.Errorf("Error saving environment file: %v", err)
-		exitCode = 1
+		exitCode = 255
 		return exitCode
 	}
 
-	exitCode = e.RunCommand(fmt.Sprintf("source %s", envFileName), true, "")
+	cmd := fmt.Sprintf("source %s", envFileName)
+	exitCode = e.RunCommand(cmd, true, "")
 	if exitCode != 0 {
-		log.Errorf("Error sourcing environment file: %v", err)
 		return exitCode
 	}
 
-	exitCode = e.RunCommand(fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName), true, "")
+	cmd = fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName)
+	exitCode = e.RunCommand(cmd, true, "")
 	if exitCode != 0 {
-		log.Errorf("Error saving source line to .bash_profile: %v", err)
 		return exitCode
 	}
 
@@ -649,12 +643,7 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 			return exitCode
 		}
 
-		var tmpPath string
-		if runtime.GOOS == "windows" {
-			tmpPath = fmt.Sprintf("%s\\file", e.tmpDirectory)
-		} else {
-			tmpPath = fmt.Sprintf("%s/file", e.tmpDirectory)
-		}
+		tmpPath := fmt.Sprintf("%s/file", e.tmpDirectory)
 
 		// #nosec
 		err = ioutil.WriteFile(tmpPath, []byte(content), 0644)
