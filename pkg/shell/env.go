@@ -105,7 +105,7 @@ func (e *Environment) Append(otherEnv *Environment, callback func(name, value st
 	}
 }
 
-func (e *Environment) ToArray() []string {
+func (e *Environment) ToSlice() []string {
 	arr := []string{}
 	for name, value := range e.env {
 		arr = append(arr, fmt.Sprintf("%s=%s", name, value))

@@ -215,7 +215,7 @@ func (p *Process) runWithoutPTY() {
 	cmd.SysProcAttr = p.SysProcAttr
 
 	if p.Shell.Env != nil {
-		cmd.Env = append(os.Environ(), p.Shell.Env.ToArray()...)
+		cmd.Env = append(os.Environ(), p.Shell.Env.ToSlice()...)
 	}
 
 	reader, writer := io.Pipe()
@@ -368,12 +368,12 @@ func (p *Process) loadCommand() error {
 	shell := os.Getenv("SEMAPHORE_AGENT_SHELL")
 	if shell == "powershell" {
 		cmdFilePath := fmt.Sprintf("%s.ps1", p.CmdFilePath())
-		command := fmt.Sprintf(WindowsPwshScript, buildCommand(p.Command), p.CmdFilePath())
+		command := fmt.Sprintf(WindowsPwshScript, p.Command, p.CmdFilePath())
 		return p.writeCommandToFile(cmdFilePath, command)
 	}
 
 	cmdFilePath := fmt.Sprintf("%s.bat", p.CmdFilePath())
-	command := fmt.Sprintf(WindowsBatchScript, buildCommand(p.Command), p.CmdFilePath())
+	command := fmt.Sprintf(WindowsBatchScript, buildWindowsBatchCommand(p.Command), p.CmdFilePath())
 	return p.writeCommandToFile(cmdFilePath, command)
 }
 
@@ -536,7 +536,11 @@ func (p *Process) scan() error {
 	return nil
 }
 
-func buildCommand(fullCommand string) string {
+/*
+ * In a batch script, when another batch is called, it needs to be called using the
+ * CALL keyword. Otherwise, everything after that call will not be executed.
+ */
+func buildWindowsBatchCommand(fullCommand string) string {
 	commands := strings.Split(fullCommand, "\n")
 	finalCommand := []string{}
 
