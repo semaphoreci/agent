@@ -192,7 +192,7 @@ func echoEnvVar(envVar string) string {
 		return fmt.Sprintf("echo %%%s%%", envVar)
 	}
 
-	return fmt.Sprintf("$%s", envVar)
+	return fmt.Sprintf("echo $%s", envVar)
 }
 
 func echoExitCode() string {
