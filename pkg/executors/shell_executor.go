@@ -3,7 +3,6 @@ package executors
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -69,15 +68,13 @@ func (e *ShellExecutor) setUpSSHJumpPoint() int {
 }
 
 func (e *ShellExecutor) Start() int {
-	cmd := exec.Command("bash", "--login")
-
-	shell, err := shell.NewShell(cmd, e.tmpDirectory)
+	sh, err := shell.NewShell(e.tmpDirectory)
 	if err != nil {
-		log.Debug(shell)
+		log.Debug(sh)
 		return 1
 	}
 
-	e.Shell = shell
+	e.Shell = sh
 
 	err = e.Shell.Start()
 	if err != nil {

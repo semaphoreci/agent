@@ -14,6 +14,8 @@ import (
 )
 
 type Shell struct {
+	Executable     string
+	Args           []string
 	BootCommand    *exec.Cmd
 	StoragePath    string
 	TTY            *os.File
@@ -23,7 +25,11 @@ type Shell struct {
 	CurrentProcess *Process
 }
 
-func NewShell(bootCommand *exec.Cmd, storagePath string) (*Shell, error) {
+func NewShell(storagePath string) (*Shell, error) {
+	return NewShellFromExecAndArgs(Executable(), Args(), storagePath)
+}
+
+func NewShellFromExecAndArgs(executable string, args []string, storagePath string) (*Shell, error) {
 	exitChannel := make(chan string, 1)
 
 	cwd, err := os.Getwd()
@@ -32,7 +38,8 @@ func NewShell(bootCommand *exec.Cmd, storagePath string) (*Shell, error) {
 	}
 
 	return &Shell{
-		BootCommand: bootCommand,
+		Executable:  executable,
+		Args:        args,
 		StoragePath: storagePath,
 		ExitSignal:  exitChannel,
 		Env:         &Environment{},
@@ -52,6 +59,7 @@ func (s *Shell) Start() error {
 
 	log.Debug("Starting stateful shell")
 
+	s.BootCommand = exec.Command(s.Executable, s.Args...)
 	tty, err := StartPTY(s.BootCommand)
 	if err != nil {
 		log.Errorf("Failed to start stateful shell: %v", err)
@@ -237,4 +245,20 @@ func (s *Shell) Chdir(newCwd string) {
 
 func (s *Shell) UpdateEnvironment(newEnvironment *Environment) {
 	s.Env = newEnvironment
+}
+
+func Executable() string {
+	if runtime.GOOS == "windows" {
+		return "powershell"
+	}
+
+	return "bash"
+}
+
+func Args() []string {
+	if runtime.GOOS == "windows" {
+		return []string{"-NoProfile", "NonInteractive"}
+	}
+
+	return []string{"--login"}
 }

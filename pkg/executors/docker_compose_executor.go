@@ -209,8 +209,8 @@ func (e *DockerComposeExecutor) startBashSession() int {
 	log.Debug("Starting stateful shell")
 
 	// #nosec
-	cmd := exec.Command(
-		"docker-compose",
+	executable := "docker-compose"
+	args := []string{
 		"--ansi",
 		"never",
 		"-f",
@@ -225,9 +225,9 @@ func (e *DockerComposeExecutor) startBashSession() int {
 		fmt.Sprintf("%s:%s:ro", e.tmpDirectory, e.tmpDirectory),
 		e.mainContainerName,
 		"bash",
-	)
+	}
 
-	shell, err := shell.NewShell(cmd, e.tmpDirectory)
+	shell, err := shell.NewShellFromExecAndArgs(executable, args, e.tmpDirectory)
 	if err != nil {
 		log.Errorf("Failed to start stateful shell err: %+v", err)
 

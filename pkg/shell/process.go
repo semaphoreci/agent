@@ -26,15 +26,6 @@ import (
  * getting the whole environment after a command is executed and
  * updating our shell with it.
  */
-const WindowsBatchScript = `
-@echo off
-%s
-SET SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS=%%ERRORLEVEL%%
-SET SEMAPHORE_AGENT_CURRENT_DIR=%%CD%%
-SET > "%s.env.after"
-EXIT \B %%SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS%%
-`
-
 const WindowsPwshScript = `
 $ErrorActionPreference = "STOP"
 %s
@@ -272,13 +263,10 @@ func (p *Process) runWithoutPTY(instruction string) {
 }
 
 func (p *Process) buildNonPTYCommand(instruction string) (*exec.Cmd, *io.PipeReader, *io.PipeWriter) {
-	shell := p.findShell()
-	command := shell[0]
-	args := shell[1:]
-	args = append(args, instruction)
+	args := append(p.Shell.Args, instruction)
 
 	// #nosec
-	cmd := exec.Command(command, args...)
+	cmd := exec.Command(p.Shell.Executable, args...)
 	cmd.Dir = p.Shell.Cwd
 	cmd.SysProcAttr = p.SysProcAttr
 
@@ -290,27 +278,6 @@ func (p *Process) buildNonPTYCommand(instruction string) (*exec.Cmd, *io.PipeRea
 	cmd.Stdout = writer
 	cmd.Stderr = writer
 	return cmd, reader, writer
-}
-
-func (p *Process) findShell() []string {
-	if runtime.GOOS == "windows" {
-		shell := os.Getenv("SEMAPHORE_AGENT_SHELL")
-		if shell == "powershell" {
-			return []string{
-				"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-				"-NoProfile",
-				"-NonInteractive",
-			}
-		}
-
-		return []string{
-			"C:\\Windows\\System32\\CMD.exe",
-			"/S",
-			"/C",
-		}
-	}
-
-	return []string{"bash", "-c"}
 }
 
 func (p *Process) runWithPTY(instruction string) {
@@ -325,13 +292,7 @@ func (p *Process) runWithPTY(instruction string) {
 
 func (p *Process) constructShellInstruction() string {
 	if runtime.GOOS == "windows" {
-		shell := os.Getenv("SEMAPHORE_AGENT_SHELL")
-		if shell == "powershell" {
-			return fmt.Sprintf(`%s.ps1`, p.CmdFilePath())
-		}
-
-		// CMD.exe is the default on Windows
-		return fmt.Sprintf(`%s.bat`, p.CmdFilePath())
+		return fmt.Sprintf(`%s.ps1`, p.CmdFilePath())
 	}
 
 	//
@@ -358,15 +319,8 @@ func (p *Process) loadCommand() error {
 		return p.writeCommandToFile(p.CmdFilePath(), p.Command)
 	}
 
-	shell := os.Getenv("SEMAPHORE_AGENT_SHELL")
-	if shell == "powershell" {
-		cmdFilePath := fmt.Sprintf("%s.ps1", p.CmdFilePath())
-		command := fmt.Sprintf(WindowsPwshScript, p.Command, p.CmdFilePath())
-		return p.writeCommandToFile(cmdFilePath, command)
-	}
-
-	cmdFilePath := fmt.Sprintf("%s.bat", p.CmdFilePath())
-	command := fmt.Sprintf(WindowsBatchScript, buildWindowsBatchCommand(p.Command), p.CmdFilePath())
+	cmdFilePath := fmt.Sprintf("%s.ps1", p.CmdFilePath())
+	command := fmt.Sprintf(WindowsPwshScript, p.Command, p.CmdFilePath())
 	return p.writeCommandToFile(cmdFilePath, command)
 }
 
@@ -551,30 +505,4 @@ func (p *Process) scan() error {
 	p.ExitCode = code
 
 	return nil
-}
-
-/*
- * In a batch script, when another batch is called, it needs to be called using the
- * CALL keyword. Otherwise, everything after that call will not be executed.
- */
-func buildWindowsBatchCommand(fullCommand string) string {
-	commands := strings.Split(fullCommand, "\n")
-	finalCommand := []string{}
-
-	for _, command := range commands {
-		parts := strings.Fields(strings.TrimSpace(command))
-		if len(parts) < 1 {
-			finalCommand = append(finalCommand, command)
-			continue
-		}
-
-		firstPart := strings.ToLower(parts[0])
-		if strings.HasSuffix(firstPart, ".bat") || strings.HasSuffix(firstPart, ".cmd") {
-			finalCommand = append(finalCommand, fmt.Sprintf("CALL %s", command))
-		} else {
-			finalCommand = append(finalCommand, command)
-		}
-	}
-
-	return strings.Join(finalCommand, "\n")
 }
