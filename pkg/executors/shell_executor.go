@@ -199,7 +199,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 
 		fileMode, err := f.ParseMode()
 		if err != nil {
-			e.Logger.LogCommandOutput(err.Error())
+			e.Logger.LogCommandOutput(err.Error() + "\n")
 			exitCode = 1
 			break
 		}
