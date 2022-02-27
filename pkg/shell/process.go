@@ -146,12 +146,24 @@ func (p *Process) flushInputBufferTill(index int) {
 }
 
 func (p *Process) Run() {
+	instruction := p.constructShellInstruction()
+	p.StartedAt = int(time.Now().Unix())
+	defer func() {
+		p.FinishedAt = int(time.Now().Unix())
+	}()
+
+	err := p.loadCommand()
+	if err != nil {
+		log.Errorf("Err: %v", err)
+		return
+	}
+
 	/*
 	 * If the agent is running in an non-windows environment,
 	 * we use a PTY session to run commands.
 	 */
 	if runtime.GOOS != "windows" {
-		p.runWithPTY()
+		p.runWithPTY(instruction)
 		return
 	}
 
@@ -164,7 +176,7 @@ func (p *Process) Run() {
 	p.setup()
 
 	// In windows, so no PTY support.
-	p.runWithoutPTY()
+	p.runWithoutPTY(instruction)
 
 	/*
 	 * If we are not using a PTY, we need to keep track of shell "state" ourselves.
@@ -191,19 +203,75 @@ func (p *Process) Run() {
 	p.Shell.UpdateEnvironment(after)
 }
 
-func (p *Process) runWithoutPTY() {
-	instruction := p.constructShellInstruction()
-	p.StartedAt = int(time.Now().Unix())
-	defer func() {
-		p.FinishedAt = int(time.Now().Unix())
-	}()
-
-	err := p.loadCommand()
+func (p *Process) runWithoutPTY(instruction string) {
+	cmd, reader, writer := p.buildNonPTYCommand(instruction)
+	err := cmd.Start()
 	if err != nil {
-		log.Errorf("Err: %v", err)
+		log.Errorf("Error starting command: %v\n", err)
+		p.ExitCode = 1
 		return
 	}
 
+	/*
+	 * In Windows, we need to assign the process created by the command
+	 * with the job object handle we created for it earlier,
+	 * for process termination purposes.
+	 */
+	p.Pid = cmd.Process.Pid
+	err = p.afterCreation()
+	if err != nil {
+		log.Errorf("Process after creation procedure failed: %v", err)
+	}
+
+	/*
+	 * Start reading the command's output and wait until it finishes.
+	 */
+	done := make(chan bool, 1)
+	go p.readNonPTY(reader, done)
+	waitResult := cmd.Wait()
+
+	/*
+	 * Command is done, We close our output writer
+	 * so our output reader knows the command is over.
+	 */
+	err = writer.Close()
+	if err != nil {
+		log.Errorf("Error closing writer: %v", err)
+	}
+
+	/*
+	 * Let's wait for the reader to finish, just to make sure
+	 * we don't leave any goroutines hanging around.
+	 */
+	log.Debug("Waiting for reading to finish")
+	<-done
+
+	/*
+	 * The command was successful, so we just return.
+	 */
+	if waitResult == nil {
+		p.ExitCode = 0
+		return
+	}
+
+	/*
+	 * The command returned an error, so we need to figure out the exit code from it.
+	 * If we can't figure it out, we just use 1 and carry on.
+	 */
+	if err, ok := waitResult.(*exec.ExitError); ok {
+		if s, ok := err.Sys().(syscall.WaitStatus); ok {
+			p.ExitCode = s.ExitStatus()
+		} else {
+			log.Errorf("Could not cast *exec.ExitError to syscall.WaitStatus: %v\n", err)
+			p.ExitCode = 1
+		}
+	} else {
+		log.Errorf("Unexpected %T returned after Wait(): %v", waitResult, waitResult)
+		p.ExitCode = 1
+	}
+}
+
+func (p *Process) buildNonPTYCommand(instruction string) (*exec.Cmd, *io.PipeReader, *io.PipeWriter) {
 	shell := p.findShell()
 	command := shell[0]
 	args := shell[1:]
@@ -221,69 +289,7 @@ func (p *Process) runWithoutPTY() {
 	reader, writer := io.Pipe()
 	cmd.Stdout = writer
 	cmd.Stderr = writer
-
-	err = cmd.Start()
-	if err != nil {
-		log.Errorf("Error starting command: %v\n", err)
-		p.ExitCode = 1
-		return
-	}
-
-	p.Pid = cmd.Process.Pid
-	err = p.afterCreation()
-	if err != nil {
-		log.Errorf("Process after creation procedure failed: %v", err)
-	}
-
-	done := make(chan bool, 1)
-	go func() {
-		for {
-			log.Debug("Reading started")
-			buffer := make([]byte, p.readBufferSize())
-			n, err := reader.Read(buffer)
-			if err != nil && err != io.EOF {
-				log.Errorf("Error while reading. Error: %v", err)
-			}
-
-			p.inputBuffer = append(p.inputBuffer, buffer[0:n]...)
-			log.Debugf("reading data from command. Input buffer: %#v", string(p.inputBuffer))
-			p.flushInputAll()
-			p.StreamToStdout()
-
-			if err == io.EOF {
-				log.Debug("Finished reading")
-				p.flushOutputBuffer()
-				break
-			}
-		}
-
-		done <- true
-	}()
-
-	waitResult := cmd.Wait()
-
-	err = writer.Close()
-	if err != nil {
-		log.Errorf("Error closing writer: %v", err)
-	}
-
-	log.Debug("Waiting for reading to finish...")
-	<-done
-
-	if waitResult == nil {
-		p.ExitCode = 0
-		return
-	}
-
-	if err, ok := waitResult.(*exec.ExitError); ok {
-		if s, ok := err.Sys().(syscall.WaitStatus); ok {
-			p.ExitCode = s.ExitStatus()
-		} else {
-			log.Error("Unimplemented for system where exec.ExitError.Sys() is not syscall.WaitStatus.")
-		}
-	} else {
-		log.Errorf("Unexpected error type %T: %v", waitResult, waitResult)
-	}
+	return cmd, reader, writer
 }
 
 func (p *Process) findShell() []string {
@@ -307,21 +313,8 @@ func (p *Process) findShell() []string {
 	return []string{"bash", "-c"}
 }
 
-func (p *Process) runWithPTY() {
-	instruction := p.constructShellInstruction()
-
-	p.StartedAt = int(time.Now().Unix())
-	defer func() {
-		p.FinishedAt = int(time.Now().Unix())
-	}()
-
-	err := p.loadCommand()
-	if err != nil {
-		log.Errorf("Err: %v", err)
-		return
-	}
-
-	_, err = p.Shell.Write(instruction)
+func (p *Process) runWithPTY(instruction string) {
+	_, err := p.Shell.Write(instruction)
 	if err != nil {
 		log.Errorf("Error writing instruction: %v", err)
 		return
@@ -403,6 +396,30 @@ func (p *Process) readBufferSize() int {
 
 	// #nosec
 	return rand.Intn(max-min) + min
+}
+
+func (p *Process) readNonPTY(reader *io.PipeReader, done chan bool) {
+	for {
+		log.Debug("Reading started")
+		buffer := make([]byte, p.readBufferSize())
+		n, err := reader.Read(buffer)
+		if err != nil && err != io.EOF {
+			log.Errorf("Error while reading. Error: %v", err)
+		}
+
+		p.inputBuffer = append(p.inputBuffer, buffer[0:n]...)
+		log.Debugf("reading data from command. Input buffer: %#v", string(p.inputBuffer))
+		p.flushInputAll()
+		p.StreamToStdout()
+
+		if err == io.EOF {
+			log.Debug("Finished reading")
+			p.flushOutputBuffer()
+			break
+		}
+	}
+
+	done <- true
 }
 
 //
