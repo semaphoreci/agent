@@ -59,6 +59,7 @@ func (s *Shell) Start() error {
 
 	log.Debug("Starting stateful shell")
 
+	// #nosec
 	s.BootCommand = exec.Command(s.Executable, s.Args...)
 	tty, err := StartPTY(s.BootCommand)
 	if err != nil {
@@ -226,7 +227,7 @@ func (s *Shell) Close() error {
 		}
 	}
 
-	if s.BootCommand.Process != nil {
+	if s.BootCommand != nil && s.BootCommand.Process != nil {
 		err := s.BootCommand.Process.Kill()
 		if err != nil && !errors.Is(err, os.ErrProcessDone) {
 			log.Errorf("Process killing procedure returned an error %+v", err)
@@ -257,7 +258,7 @@ func Executable() string {
 
 func Args() []string {
 	if runtime.GOOS == "windows" {
-		return []string{"-NoProfile", "NonInteractive"}
+		return []string{"-NoProfile", "-NonInteractive"}
 	}
 
 	return []string{"--login"}
