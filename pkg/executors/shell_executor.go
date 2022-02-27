@@ -16,7 +16,6 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
-	"github.com/semaphoreci/agent/pkg/osinfo"
 	shell "github.com/semaphoreci/agent/pkg/shell"
 	log "github.com/sirupsen/logrus"
 )
@@ -128,7 +127,7 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 	 * If not windows, we use a PTY, so there's no need to track
 	 * the environment state here.
 	 */
-	envFileName := osinfo.FormDirPath(e.tmpDirectory, ".env")
+	envFileName := filepath.Join(e.tmpDirectory, ".env")
 	err = environment.ToFile(envFileName, func(name string) {
 		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))
 	})
@@ -178,7 +177,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 			return exitCode
 		}
 
-		tmpPath := osinfo.FormDirPath(e.tmpDirectory, "file")
+		tmpPath := filepath.Join(e.tmpDirectory, "file")
 
 		// #nosec
 		tmpFile, err := os.OpenFile(tmpPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)

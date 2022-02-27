@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	listener "github.com/semaphoreci/agent/pkg/listener"
-	"github.com/semaphoreci/agent/pkg/osinfo"
 	server "github.com/semaphoreci/agent/pkg/server"
 	log "github.com/sirupsen/logrus"
 	pflag "github.com/spf13/pflag"
@@ -91,7 +91,7 @@ func getLogLevel() log.Level {
 func getLogFilePath() string {
 	logFilePath := os.Getenv("SEMAPHORE_AGENT_LOG_FILE_PATH")
 	if logFilePath == "" {
-		return osinfo.FormTempDirPath("agent_log")
+		return filepath.Join(os.TempDir(), "agent_log")
 	}
 
 	parentDirectory := path.Dir(logFilePath)

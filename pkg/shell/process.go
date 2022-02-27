@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -15,7 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/semaphoreci/agent/pkg/osinfo"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -96,7 +96,7 @@ func NewProcess(config Config) *Process {
 }
 
 func (p *Process) CmdFilePath() string {
-	return osinfo.FormDirPath(p.StoragePath, "current-agent-cmd")
+	return filepath.Join(p.StoragePath, "current-agent-cmd")
 }
 
 func (p *Process) EnvironmentFilePath() string {
