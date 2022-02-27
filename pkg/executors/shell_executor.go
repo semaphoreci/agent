@@ -2,14 +2,11 @@ package executors
 
 import (
 	"fmt"
-	"io"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -177,34 +174,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 			return exitCode
 		}
 
-		tmpPath := filepath.Join(e.tmpDirectory, "file")
-
-		// #nosec
-		tmpFile, err := os.OpenFile(tmpPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-		if err != nil {
-			e.Logger.LogCommandOutput(err.Error() + "\n")
-			exitCode = 255
-			break
-		}
-
-		_, err = tmpFile.Write(content)
-		if err != nil {
-			e.Logger.LogCommandOutput(err.Error() + "\n")
-			exitCode = 255
-			break
-		}
-
-		destPath := ""
-		switch p := f.Path; {
-		case p[0] == '/':
-			destPath = f.Path
-		case p[0] == '~':
-			destPath = strings.ReplaceAll(p, "~", homeDir)
-		default:
-			destPath = fmt.Sprintf("%s/%s", homeDir, f.Path)
-		}
-
-		destPath = filepath.FromSlash(destPath)
+		destPath := f.NormalizePath(homeDir)
 		err = os.MkdirAll(path.Dir(destPath), 0644)
 		if err != nil {
 			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to create directories for '%s': %v\n", destPath, err))
@@ -220,28 +190,21 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 			break
 		}
 
-		_, err = tmpFile.Seek(0, io.SeekStart)
+		_, err = destFile.Write(content)
 		if err != nil {
-			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to rewind '%s': %v\n", tmpPath, err))
+			e.Logger.LogCommandOutput(err.Error() + "\n")
+			exitCode = 255
+			break
+		}
+
+		fileMode, err := f.ParseMode()
+		if err != nil {
+			e.Logger.LogCommandOutput(err.Error())
 			exitCode = 1
 			break
 		}
 
-		_, err = io.Copy(destFile, tmpFile)
-		if err != nil {
-			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to move '%s' to '%s': %v\n", tmpPath, destPath, err))
-			exitCode = 1
-			break
-		}
-
-		fileMode, err := strconv.ParseUint(f.Mode, 8, 32)
-		if err != nil {
-			e.Logger.LogCommandOutput(fmt.Sprintf("Bad file permission '%s' for '%s'\n", f.Mode, f.Path))
-			exitCode = 1
-			break
-		}
-
-		err = os.Chmod(destPath, fs.FileMode(fileMode))
+		err = os.Chmod(destPath, fileMode)
 		if err != nil {
 			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to set file mode '%s' for '%s': %v\n", f.Mode, destPath, err))
 			exitCode = 1
