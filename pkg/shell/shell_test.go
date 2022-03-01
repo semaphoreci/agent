@@ -2,6 +2,7 @@ package shell
 
 import (
 	"bytes"
+	"os"
 	"runtime"
 	"testing"
 
@@ -80,7 +81,7 @@ func Test__Shell__HandlingBashProcessKillThatHasBackgroundJobs(t *testing.T) {
 }
 
 func bashShell() *Shell {
-	shell, _ := NewShell("/tmp")
+	shell, _ := NewShell(os.TempDir())
 	shell.Start()
 
 	return shell
