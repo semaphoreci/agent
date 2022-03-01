@@ -9,8 +9,9 @@ import (
 )
 
 func SetupTestLogs() {
-	// #nosec
 	path := filepath.Join(os.TempDir(), "test.log")
+
+	// #nosec
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
 	if err != nil {
 		fmt.Printf("error opening file: %v", err)

@@ -169,11 +169,11 @@ func catCommand(fileName string) string {
 
 func multilineCmd() string {
 	if runtime.GOOS == "windows" {
-		return `
-			if (Test-Path \ProgramData) {
+		return fmt.Sprintf(`
+			if (Test-Path %s) {
 				echo "etc exists, multiline huzzahh!"
 			}
-		`
+		`, os.TempDir())
 	}
 
 	return `
