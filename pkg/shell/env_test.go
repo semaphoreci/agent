@@ -22,7 +22,6 @@ func Test__CreateEnvironment(t *testing.T) {
 		env, err := CreateEnvironment(varsFromRequest, []config.HostEnvVar{})
 		assert.Nil(t, err)
 		assert.NotNil(t, env)
-		assert.False(t, env.IsEmpty())
 
 		assertValueExists(t, env, "A", "AAA")
 		assertValueExists(t, env, "B", "BBB")

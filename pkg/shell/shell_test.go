@@ -51,6 +51,8 @@ func Test__Shell__HandlingBashProcessKill(t *testing.T) {
 }
 
 func Test__Shell__HandlingBashProcessKillThatHasBackgroundJobs(t *testing.T) {
+	t.Skip("flaky")
+
 	var output bytes.Buffer
 
 	//

@@ -50,15 +50,18 @@ type File struct {
 }
 
 func (f *File) NormalizePath(homeDir string) string {
-	if filepath.IsAbs(f.Path) {
-		return filepath.FromSlash(f.Path)
+	// convert path to platform-specific one first
+	path := filepath.FromSlash(f.Path)
+
+	if filepath.IsAbs(path) {
+		return path
 	}
 
 	if strings.HasPrefix(f.Path, "~") {
-		return filepath.FromSlash(strings.ReplaceAll(f.Path, "~", homeDir))
+		return strings.ReplaceAll(f.Path, "~", homeDir)
 	}
 
-	return filepath.FromSlash(filepath.Join(homeDir, f.Path))
+	return filepath.Join(homeDir, f.Path)
 }
 
 func (f *File) ParseMode() (fs.FileMode, error) {

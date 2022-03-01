@@ -61,10 +61,6 @@ func CreateEnvironmentFromFile(fileName string) (*Environment, error) {
 	return &environment, nil
 }
 
-func (e *Environment) IsEmpty() bool {
-	return e.env != nil || len(e.env) == 0
-}
-
 func (e *Environment) Set(name, value string) {
 	if e.env == nil {
 		e.env = map[string]string{}
