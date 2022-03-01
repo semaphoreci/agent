@@ -2,7 +2,8 @@ package shell
 
 import (
 	"bytes"
-	"runtime"
+	"io/ioutil"
+	"log"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -27,15 +28,7 @@ func Test__Shell__HandlingBashProcessKill(t *testing.T) {
 
 	shell := bashShell()
 
-	var cmd string
-	if runtime.GOOS == "windows" {
-		// CMD.exe stupidly outputs the space between the word and the && as well
-		cmd = "echo Hello&& exit 1"
-	} else {
-		cmd = "echo Hello && exit 1"
-	}
-
-	p1 := shell.NewProcess(cmd)
+	p1 := shell.NewProcess("echo 'Hello' && exit 1")
 	p1.OnStdout(func(line string) {
 		output.WriteString(line)
 	})
@@ -58,10 +51,6 @@ func Test__Shell__HandlingBashProcessKillThatHasBackgroundJobs(t *testing.T) {
 	// it stops the read procedure.
 	//
 
-	if runtime.GOOS == "windows" {
-		t.Skip("figure out this later")
-	}
-
 	shell := bashShell()
 
 	p1 := shell.NewProcess("sleep infinity &")
@@ -79,8 +68,18 @@ func Test__Shell__HandlingBashProcessKillThatHasBackgroundJobs(t *testing.T) {
 	assert.Equal(t, output.String(), "Hello\n")
 }
 
+func tempStorageFolder() string {
+	dir, err := ioutil.TempDir("", "agent-test")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return dir
+}
+
 func bashShell() *Shell {
-	shell, _ := NewShell("/tmp")
+	dir := tempStorageFolder()
+	shell, _ := NewShell(dir)
 	shell.Start()
 
 	return shell

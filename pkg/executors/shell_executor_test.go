@@ -2,9 +2,6 @@ package executors
 
 import (
 	"encoding/base64"
-	"fmt"
-	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
@@ -31,15 +28,22 @@ func Test__ShellExecutor(t *testing.T) {
 	e.Prepare()
 	e.Start()
 
-	e.RunCommand("echo here", false, "")
-	e.RunCommand(multilineCmd(), false, "")
+	e.RunCommand("echo 'here'", false, "")
+
+	multilineCmd := `
+	  if [ -d /etc ]; then
+	    echo 'etc exists, multiline huzzahh!'
+	  fi
+	`
+
+	e.RunCommand(multilineCmd, false, "")
 
 	envVars := []api.EnvVar{
 		{Name: "A", Value: "Zm9vCg=="},
 	}
 
 	e.ExportEnvVars(envVars, []config.HostEnvVar{})
-	e.RunCommand(echoEnvVar("A"), false, "")
+	e.RunCommand("echo $A", false, "")
 
 	files := []api.File{
 		{
@@ -50,19 +54,19 @@ func Test__ShellExecutor(t *testing.T) {
 	}
 
 	e.InjectFiles(files)
-	e.RunCommand(catCommand("/tmp/random-file.txt"), false, "")
+	e.RunCommand("cat /tmp/random-file.txt", false, "")
 
-	e.RunCommand(echoExitCode(), false, "")
+	e.RunCommand("echo $?", false, "")
 
 	e.Stop()
 	e.Cleanup()
 
 	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
-		"directive: echo here",
+		"directive: echo 'here'",
 		"here\n",
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", multilineCmd()),
+		"directive: " + multilineCmd,
 		"etc exists, multiline huzzahh!\n",
 		"Exit Code: 0",
 
@@ -70,7 +74,7 @@ func Test__ShellExecutor(t *testing.T) {
 		"Exporting A\n",
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", echoEnvVar("A")),
+		"directive: echo $A",
 		"foo\n",
 		"Exit Code: 0",
 
@@ -78,11 +82,11 @@ func Test__ShellExecutor(t *testing.T) {
 		"Injecting /tmp/random-file.txt with file mode 0600\n",
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", catCommand("/tmp/random-file.txt")),
+		"directive: cat /tmp/random-file.txt",
 		"aaabbb\n\n",
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", echoExitCode()),
+		"directive: echo $?",
 		"0\n",
 		"Exit Code: 0",
 	})
@@ -105,7 +109,7 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 	e.Start()
 
 	go func() {
-		e.RunCommand("echo here", false, "")
+		e.RunCommand("echo 'here'", false, "")
 		e.RunCommand("sleep 5", false, "")
 	}()
 
@@ -117,7 +121,7 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	assert.Equal(t, testLoggerBackend.SimplifiedEvents()[0:4], []string{
-		"directive: echo here",
+		"directive: echo 'here'",
 		"here\n",
 		"Exit Code: 0",
 
@@ -142,7 +146,7 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 	e.Start()
 
 	go func() {
-		e.RunCommand(largeOutputCommand(), false, "")
+		e.RunCommand("for i in {1..100}; { printf 'hello'; }", false, "")
 	}()
 
 	time.Sleep(5 * time.Second)
@@ -153,7 +157,7 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
-		fmt.Sprintf("directive: %s", largeOutputCommand()),
+		"directive: for i in {1..100}; { printf 'hello'; }",
 		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
 		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
 		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
@@ -161,53 +165,4 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
 		"Exit Code: 0",
 	})
-}
-
-func catCommand(fileName string) string {
-	if runtime.GOOS == "windows" {
-		return fmt.Sprintf("type %s", filepath.FromSlash(fileName))
-	}
-
-	return fmt.Sprintf("cat %s", fileName)
-}
-
-func multilineCmd() string {
-	if runtime.GOOS == "windows" {
-		return `
-			if exist \ProgramData (
-				echo etc exists, multiline huzzahh!
-			)
-		`
-	}
-
-	return `
-		if [ -d /etc ]; then
-			echo 'etc exists, multiline huzzahh!'
-		fi
-	`
-}
-
-func echoEnvVar(envVar string) string {
-	if runtime.GOOS == "windows" {
-		return fmt.Sprintf("echo %%%s%%", envVar)
-	}
-
-	return fmt.Sprintf("echo $%s", envVar)
-}
-
-func echoExitCode() string {
-	if runtime.GOOS == "windows" {
-		return "echo %errorlevel%"
-	}
-
-	return "echo $?"
-}
-
-func largeOutputCommand() string {
-	if runtime.GOOS == "windows" {
-		// 'set /p=' without specifying a variable name will set the ERRORLEVEL to 1, so we just use a dummy name here
-		return "for /L %%I in (1,1,100) do echo|set /p dummy=hello"
-	}
-
-	return "for i in {1..100}; { printf 'hello'; }"
 }
