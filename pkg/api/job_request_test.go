@@ -2,6 +2,7 @@ package api
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -12,17 +13,29 @@ func Test__JobRequest(t *testing.T) {
 
 	t.Run("file path with ~ is normalized", func(t *testing.T) {
 		file := File{Path: "~/dir/somefile", Content: "", Mode: "0644"}
-		assert.Equal(t, file.NormalizePath(homeDir), "/first/second/home/dir/somefile")
+		if runtime.GOOS == "windows" {
+			assert.Equal(t, file.NormalizePath(homeDir), "\\first\\second\\home\\dir\\somefile")
+		} else {
+			assert.Equal(t, file.NormalizePath(homeDir), "/first/second/home/dir/somefile")
+		}
 	})
 
 	t.Run("absolute file path remains the same", func(t *testing.T) {
 		file := File{Path: "/first/second/home/somefile", Content: "", Mode: "0644"}
-		assert.Equal(t, file.NormalizePath(homeDir), "/first/second/home/somefile")
+		if runtime.GOOS == "windows" {
+			assert.Equal(t, file.NormalizePath(homeDir), "\\first\\second\\home\\somefile")
+		} else {
+			assert.Equal(t, file.NormalizePath(homeDir), "/first/second/home/somefile")
+		}
 	})
 
 	t.Run("relative file path is put on home directory", func(t *testing.T) {
 		file := File{Path: "somefile", Content: "", Mode: "0644"}
-		assert.Equal(t, file.NormalizePath(homeDir), "/first/second/home/somefile")
+		if runtime.GOOS == "windows" {
+			assert.Equal(t, file.NormalizePath(homeDir), "\\first\\second\\home\\somefile")
+		} else {
+			assert.Equal(t, file.NormalizePath(homeDir), "/first/second/home/somefile")
+		}
 	})
 
 	t.Run("accepted file modes", func(t *testing.T) {

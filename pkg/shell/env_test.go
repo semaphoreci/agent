@@ -2,10 +2,8 @@ package shell
 
 import (
 	"encoding/base64"
-	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"runtime"
 	"testing"
 
@@ -55,17 +53,24 @@ func Test__CreateEnvironment(t *testing.T) {
 }
 
 func Test__CreateEnvironmentFromFile(t *testing.T) {
-	if runtime.GOOS != "windows" {
-		t.Skip("CreateEnvironmentFromFile is only used in Windows")
-	}
-
 	file, err := ioutil.TempFile("", "environment-dump")
 	assert.Nil(t, err)
 
-	createEnvironmentDumpFile(t, file.Name())
+	content := `
+VAR_A=AAA
+VAR_B=BBB
+VAR_C=CCC
+	`
+
+	_ = ioutil.WriteFile(file.Name(), []byte(content), 0644)
 	env, err := CreateEnvironmentFromFile(file.Name())
 	assert.Nil(t, err)
 	assert.NotNil(t, env)
+
+	assert.Equal(t, env.Keys(), []string{"VAR_A", "VAR_B", "VAR_C"})
+	assertValueExists(t, env, "VAR_A", "AAA")
+	assertValueExists(t, env, "VAR_B", "BBB")
+	assertValueExists(t, env, "VAR_C", "CCC")
 
 	file.Close()
 	os.Remove(file.Name())
@@ -139,15 +144,4 @@ func assertValueExists(t *testing.T, env *Environment, key, expectedValue string
 	value, ok := env.Get(key)
 	assert.True(t, ok)
 	assert.Equal(t, value, expectedValue)
-}
-
-func createEnvironmentDumpFile(t *testing.T, fileName string) {
-	command := fmt.Sprintf(
-		"Get-ChildItem Env: | Foreach-Object {\"$($_.Name)=$($_.Value)\"} | Set-Content \"%s\"",
-		fileName,
-	)
-
-	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", command)
-	err := cmd.Run()
-	assert.Nil(t, err)
 }
