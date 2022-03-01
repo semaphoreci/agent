@@ -57,11 +57,11 @@ func (f *File) NormalizePath(homeDir string) string {
 		return path
 	}
 
-	if strings.HasPrefix(f.Path, "~") {
-		return strings.ReplaceAll(f.Path, "~", homeDir)
+	if strings.HasPrefix(path, "~") {
+		return strings.ReplaceAll(path, "~", homeDir)
 	}
 
-	return filepath.Join(homeDir, f.Path)
+	return filepath.Join(homeDir, path)
 }
 
 func (f *File) ParseMode() (fs.FileMode, error) {

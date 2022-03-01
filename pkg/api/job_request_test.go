@@ -21,10 +21,11 @@ func Test__JobRequest(t *testing.T) {
 	})
 
 	t.Run("absolute file path remains the same", func(t *testing.T) {
-		file := File{Path: "/first/second/home/somefile", Content: "", Mode: "0644"}
 		if runtime.GOOS == "windows" {
-			assert.Equal(t, file.NormalizePath(homeDir), "\\first\\second\\home\\somefile")
+			file := File{Path: "C:\\first\\second\\home\\somefile", Content: "", Mode: "0644"}
+			assert.Equal(t, file.NormalizePath(homeDir), "C:\\first\\second\\home\\somefile")
 		} else {
+			file := File{Path: "/first/second/home/somefile", Content: "", Mode: "0644"}
 			assert.Equal(t, file.NormalizePath(homeDir), "/first/second/home/somefile")
 		}
 	})
