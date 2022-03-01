@@ -3,6 +3,7 @@ package executors
 import (
 	"encoding/base64"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -41,18 +42,17 @@ func Test__ShellExecutor(t *testing.T) {
 	e.ExportEnvVars(envVars, []config.HostEnvVar{})
 	e.RunCommand(echoEnvVar("A"), false, "")
 
+	fileName := filepath.Join(os.TempDir(), "random-file.txt")
 	files := []api.File{
 		{
-			Path:    "/tmp/random-file.txt",
+			Path:    fileName,
 			Content: "YWFhYmJiCgo=",
 			Mode:    "0600",
 		},
 	}
 
 	e.InjectFiles(files)
-	e.RunCommand(catCommand("/tmp/random-file.txt"), false, "")
-
-	e.RunCommand(echoExitCode(), false, "")
+	e.RunCommand(catCommand(fileName), false, "")
 
 	e.Stop()
 	e.Cleanup()
@@ -75,20 +75,16 @@ func Test__ShellExecutor(t *testing.T) {
 		"Exit Code: 0",
 
 		"directive: Injecting Files",
-		"Injecting /tmp/random-file.txt with file mode 0600\n",
+		fmt.Sprintf("Injecting %s with file mode 0600\n", fileName),
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", catCommand("/tmp/random-file.txt")),
+		fmt.Sprintf("directive: %s", catCommand(fileName)),
 		"aaabbb\n\n",
-		"Exit Code: 0",
-
-		fmt.Sprintf("directive: %s", echoExitCode()),
-		"0\n",
 		"Exit Code: 0",
 	})
 }
 
-func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
+func Test__ShellExecutor__StoppingRunningJob(t *testing.T) {
 	testsupport.SetupTestLogs()
 
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
@@ -106,10 +102,10 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 
 	go func() {
 		e.RunCommand("echo here", false, "")
-		e.RunCommand("sleep 5", false, "")
+		e.RunCommand("sleep 20", false, "")
 	}()
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	e.Stop()
 	e.Cleanup()
@@ -121,7 +117,7 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 		"here\n",
 		"Exit Code: 0",
 
-		"directive: sleep 5",
+		"directive: sleep 20",
 	})
 }
 
@@ -174,9 +170,9 @@ func catCommand(fileName string) string {
 func multilineCmd() string {
 	if runtime.GOOS == "windows" {
 		return `
-			if exist \ProgramData (
-				echo etc exists, multiline huzzahh!
-			)
+			if (Test-Path \ProgramData) {
+				echo "etc exists, multiline huzzahh!"
+			}
 		`
 	}
 
@@ -189,24 +185,15 @@ func multilineCmd() string {
 
 func echoEnvVar(envVar string) string {
 	if runtime.GOOS == "windows" {
-		return fmt.Sprintf("echo %%%s%%", envVar)
+		return fmt.Sprintf("Write-Host \"$env:%s\" -NoNewLine", envVar)
 	}
 
 	return fmt.Sprintf("echo $%s", envVar)
 }
 
-func echoExitCode() string {
-	if runtime.GOOS == "windows" {
-		return "echo %errorlevel%"
-	}
-
-	return "echo $?"
-}
-
 func largeOutputCommand() string {
 	if runtime.GOOS == "windows" {
-		// 'set /p=' without specifying a variable name will set the ERRORLEVEL to 1, so we just use a dummy name here
-		return "for /L %%I in (1,1,100) do echo|set /p dummy=hello"
+		return "foreach ($i in 1..100) { Write-Host \"hello\" -NoNewLine }"
 	}
 
 	return "for i in {1..100}; { printf 'hello'; }"

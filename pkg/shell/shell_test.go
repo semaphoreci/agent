@@ -31,7 +31,12 @@ func Test__Shell__HandlingBashProcessKill(t *testing.T) {
 	var cmd string
 	if runtime.GOOS == "windows" {
 		// CMD.exe stupidly outputs the space between the word and the && as well
-		cmd = "echo Hello&& exit 1"
+		cmd = `
+			echo Hello
+			if ($?) {
+				Exit 1
+			}
+		`
 	} else {
 		cmd = "echo Hello && exit 1"
 	}
