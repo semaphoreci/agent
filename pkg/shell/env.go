@@ -35,7 +35,7 @@ func CreateEnvironment(envVars []api.EnvVar, HostEnvVars []config.HostEnvVar) (*
 
 /*
  * Create an environment by reading a file created with
- * an environment dump in Windows with the 'SET > <fileName>' command.
+ * an environment dump in Windows.
  */
 func CreateEnvironmentFromFile(fileName string) (*Environment, error) {
 	// #nosec
@@ -119,7 +119,9 @@ func (e *Environment) ToFile(fileName string, callback func(name string)) error 
 	for _, name := range e.Keys() {
 		value, _ := e.Get(name)
 		fileContent += fmt.Sprintf("export %s=%s\n", name, shellQuote(value))
-		callback(name)
+		if callback != nil {
+			callback(name)
+		}
 	}
 
 	// #nosec
