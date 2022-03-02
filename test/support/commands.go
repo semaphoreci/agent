@@ -41,7 +41,7 @@ func Cat(fileName string) string {
 		return fmt.Sprintf("Get-Content %s", filepath.FromSlash(fileName))
 	}
 
-	return fmt.Sprintf("cat %s", fileName)
+	return fmt.Sprintf("echo -n $(cat %s)", fileName)
 }
 
 func Multiline() string {
@@ -89,7 +89,7 @@ func UnsetEnvVar(name string) string {
 		return fmt.Sprintf("Remove-Item -Path env:%s", name)
 	}
 
-	return fmt.Sprintf("unser %s", name)
+	return fmt.Sprintf("unset %s", name)
 }
 
 func LargeOutputCommand() string {
@@ -106,4 +106,12 @@ func Chdir(dirName string) string {
 	}
 
 	return fmt.Sprintf("cd %s", dirName)
+}
+
+func UnknownCommandExitCode() int {
+	if runtime.GOOS == "windows" {
+		return 1
+	}
+
+	return 127
 }

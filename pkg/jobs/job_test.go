@@ -234,7 +234,7 @@ func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnFail(t *testing.T) {
 
 		"directive: badcommand",
 		"*** OUTPUT ***",
-		"Exit Code: 1",
+		fmt.Sprintf("Exit Code: %d", testsupport.UnknownCommandExitCode()),
 
 		"directive: Exporting environment variables",
 		"Exporting SEMAPHORE_JOB_RESULT\n",

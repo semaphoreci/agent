@@ -172,7 +172,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 		}
 
 		parentDir := filepath.Dir(destPath)
-		err = os.MkdirAll(parentDir, 0755)
+		err = os.MkdirAll(parentDir, 0750)
 		if err != nil {
 			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to create directory '%s': %v\n", parentDir, err))
 			exitCode = 1
