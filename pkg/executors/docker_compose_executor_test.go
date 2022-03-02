@@ -17,20 +17,20 @@ func startComposeExecutor() (*DockerComposeExecutor, *eventlogger.Logger, *event
 	request := &api.JobRequest{
 		Compose: api.Compose{
 			Containers: []api.Container{
-				api.Container{
+				{
 					Name:  "main",
 					Image: "ruby:2.6",
 				},
-				api.Container{
+				{
 					Name:    "db",
 					Image:   "postgres:9.6",
 					Command: "postgres start",
 					EnvVars: []api.EnvVar{
-						api.EnvVar{
+						{
 							Name:  "FOO",
 							Value: base64.StdEncoding.EncodeToString([]byte("BAR")),
 						},
-						api.EnvVar{
+						{
 							Name:  "FAZ",
 							Value: base64.StdEncoding.EncodeToString([]byte("ZEZ")),
 						},

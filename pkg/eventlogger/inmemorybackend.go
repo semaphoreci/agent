@@ -27,7 +27,7 @@ func (l *InMemoryBackend) Close() error {
 	return nil
 }
 
-func (l *InMemoryBackend) SimplifiedEvents() []string {
+func (l *InMemoryBackend) SimplifiedEvents(includeOutput bool) []string {
 	events := []string{}
 
 	for _, event := range l.Events {
@@ -39,7 +39,9 @@ func (l *InMemoryBackend) SimplifiedEvents() []string {
 		case *CommandStartedEvent:
 			events = append(events, "directive: "+e.Directive)
 		case *CommandOutputEvent:
-			events = append(events, e.Output)
+			if includeOutput {
+				events = append(events, e.Output)
+			}
 		case *CommandFinishedEvent:
 			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
 		default:
@@ -51,7 +53,7 @@ func (l *InMemoryBackend) SimplifiedEvents() []string {
 }
 
 func (l *InMemoryBackend) SimplifiedEventsWithoutDockerPull() []string {
-	logs := l.SimplifiedEvents()
+	logs := l.SimplifiedEvents(true)
 
 	start := 0
 

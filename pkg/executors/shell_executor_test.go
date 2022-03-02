@@ -17,15 +17,11 @@ import (
 	assert "github.com/stretchr/testify/assert"
 )
 
-func Test__ShellExecutor__Prepare(t *testing.T) {
-	testsupport.SetupTestLogs()
-	testLogger, _ := eventlogger.DefaultTestLogger()
+func Test__ShellExecutor__SSHJumpPoint(t *testing.T) {
+	_, _ = setupShellExecutor(t)
 
 	sshJumpPointPath := filepath.Join(os.TempDir(), "ssh_jump_point")
 	os.Remove(sshJumpPointPath)
-
-	e := NewShellExecutor(basicRequest(), testLogger)
-	e.Prepare()
 
 	// ssh jump point is not set up in windows
 	if runtime.GOOS == "windows" {
@@ -38,12 +34,7 @@ func Test__ShellExecutor__Prepare(t *testing.T) {
 }
 
 func Test__ShellExecutor__Start(t *testing.T) {
-	testsupport.SetupTestLogs()
-	testLogger, _ := eventlogger.DefaultTestLogger()
-
-	e := NewShellExecutor(basicRequest(), testLogger)
-	assert.Zero(t, e.Prepare())
-	assert.Zero(t, e.Start())
+	e, _ := setupShellExecutor(t)
 
 	if runtime.GOOS == "windows" {
 		assert.Nil(t, e.Shell.TTY)
@@ -56,12 +47,7 @@ func Test__ShellExecutor__Start(t *testing.T) {
 }
 
 func Test__ShellExecutor_EnvVars(t *testing.T) {
-	testsupport.SetupTestLogs()
-	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
-	e := NewShellExecutor(basicRequest(), testLogger)
-
-	assert.Zero(t, e.Prepare())
-	assert.Zero(t, e.Start())
+	e, testLoggerBackend := setupShellExecutor(t)
 	assert.Zero(t, e.ExportEnvVars(
 		[]api.EnvVar{
 			{Name: "A", Value: base64.StdEncoding.EncodeToString([]byte("AAA"))},
@@ -81,7 +67,7 @@ func Test__ShellExecutor_EnvVars(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
 		"directive: Exporting environment variables",
 		"Exporting A\n",
 		"Exporting B\n",
@@ -111,14 +97,8 @@ func Test__ShellExecutor_EnvVars(t *testing.T) {
 }
 
 func Test__ShellExecutor__InjectFiles(t *testing.T) {
-	testsupport.SetupTestLogs()
-
-	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	e, testLoggerBackend := setupShellExecutor(t)
 	homeDir, _ := os.UserHomeDir()
-
-	e := NewShellExecutor(basicRequest(), testLogger)
-	assert.Zero(t, e.Prepare())
-	assert.Zero(t, e.Start())
 
 	absoluteFile := api.File{
 		Path:    filepath.Join(os.TempDir(), "somedir", "absolute-file.txt"),
@@ -145,7 +125,7 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
 		"directive: Injecting Files",
 		fmt.Sprintf("Injecting %s with file mode 0600\n", absoluteFile.NormalizePath(homeDir)),
 		fmt.Sprintf("Injecting %s with file mode 0644\n", relativeFile.NormalizePath(homeDir)),
@@ -166,9 +146,9 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 	})
 
 	// Assert file modes
-	assertFileMode(t, absoluteFile.NormalizePath(homeDir), fs.FileMode(uint32(600)))
-	assertFileMode(t, relativeFile.NormalizePath(homeDir), fs.FileMode(uint32(644)))
-	assertFileMode(t, homeFile.NormalizePath(homeDir), fs.FileMode(uint32(777)))
+	assertFileMode(t, absoluteFile.NormalizePath(homeDir), fs.FileMode(uint32(0600)))
+	assertFileMode(t, relativeFile.NormalizePath(homeDir), fs.FileMode(uint32(0644)))
+	assertFileMode(t, homeFile.NormalizePath(homeDir), fs.FileMode(uint32(0777)))
 
 	os.Remove(absoluteFile.NormalizePath(homeDir))
 	os.Remove(relativeFile.NormalizePath(homeDir))
@@ -176,39 +156,101 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 }
 
 func Test__ShellExecutor__MultilineCommand(t *testing.T) {
-	testsupport.SetupTestLogs()
+	e, testLoggerBackend := setupShellExecutor(t)
 
-	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
-
-	e := NewShellExecutor(basicRequest(), testLogger)
-	assert.Zero(t, e.Prepare())
-	assert.Zero(t, e.Start())
 	assert.Zero(t, e.RunCommand(multilineCmd(), false, ""))
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
 		fmt.Sprintf("directive: %s", multilineCmd()),
 		"etc exists, multiline huzzahh!\n",
 		"Exit Code: 0",
 	})
 }
 
-func Test__ShellExecutor__StoppingRunningJob(t *testing.T) {
-	testsupport.SetupTestLogs()
+func Test__ShellExecutor__ChangesCurrentDirectory(t *testing.T) {
+	e, testLoggerBackend := setupShellExecutor(t)
 
-	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	dirName := "somedir"
+	absolutePath := filepath.Join(os.TempDir(), dirName, "some-file.txt")
+	relativePath := filepath.Join(dirName, "some-file.txt")
 
-	request := &api.JobRequest{
-		SSHPublicKeys: []api.PublicKey{
-			api.PublicKey(base64.StdEncoding.EncodeToString([]byte("ssh-rsa aaaaa"))),
-		},
+	fileInDir := api.File{
+		Path:    absolutePath,
+		Content: base64.StdEncoding.EncodeToString([]byte("content")),
+		Mode:    "0644",
 	}
 
-	e := NewShellExecutor(request, testLogger)
+	assert.Zero(t, e.InjectFiles([]api.File{fileInDir}))
 
-	e.Prepare()
-	e.Start()
+	// fails because current directory is not 'dirName'
+	assert.NotZero(t, e.RunCommand(catCommand(relativePath), false, ""))
+
+	// works because we are now in the correct directory
+	assert.Zero(t, e.RunCommand(changeDirectory(os.TempDir()), false, ""))
+	assert.Zero(t, e.RunCommand(catCommand(relativePath), false, ""))
+
+	assert.Zero(t, e.Stop())
+	assert.Zero(t, e.Cleanup())
+
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(false), []string{
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", catCommand(relativePath)),
+		"Exit Code: 1",
+
+		fmt.Sprintf("directive: %s", changeDirectory(os.TempDir())),
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", catCommand(relativePath)),
+		"Exit Code: 0",
+	})
+}
+
+func Test__ShellExecutor__ChangesEnvVars(t *testing.T) {
+	e, testLoggerBackend := setupShellExecutor(t)
+
+	dirName := "somedir"
+	absolutePath := filepath.Join(os.TempDir(), dirName, "some-file.txt")
+	relativePath := filepath.Join(dirName, "some-file.txt")
+
+	fileInDir := api.File{
+		Path:    absolutePath,
+		Content: base64.StdEncoding.EncodeToString([]byte("content")),
+		Mode:    "0644",
+	}
+
+	assert.Zero(t, e.InjectFiles([]api.File{fileInDir}))
+
+	// fails because current directory is not 'dirName'
+	assert.NotZero(t, e.RunCommand(catCommand(relativePath), false, ""))
+
+	// works because we are now in the correct directory
+	assert.Zero(t, e.RunCommand(changeDirectory(os.TempDir()), false, ""))
+	assert.Zero(t, e.RunCommand(catCommand(relativePath), false, ""))
+
+	assert.Zero(t, e.Stop())
+	assert.Zero(t, e.Cleanup())
+
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(false), []string{
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", catCommand(relativePath)),
+		"Exit Code: 1",
+
+		fmt.Sprintf("directive: %s", changeDirectory(os.TempDir())),
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", catCommand(relativePath)),
+		"Exit Code: 0",
+	})
+}
+
+func Test__ShellExecutor__StoppingRunningJob(t *testing.T) {
+	e, testLoggerBackend := setupShellExecutor(t)
 
 	go func() {
 		e.RunCommand("echo here", false, "")
@@ -217,12 +259,12 @@ func Test__ShellExecutor__StoppingRunningJob(t *testing.T) {
 
 	time.Sleep(10 * time.Second)
 
-	e.Stop()
-	e.Cleanup()
+	assert.Zero(t, e.Stop())
+	assert.Zero(t, e.Cleanup())
 
 	time.Sleep(1 * time.Second)
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents()[0:4], []string{
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true)[0:4], []string{
 		"directive: echo here",
 		"here\n",
 		"Exit Code: 0",
@@ -232,33 +274,20 @@ func Test__ShellExecutor__StoppingRunningJob(t *testing.T) {
 }
 
 func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
-	testsupport.SetupTestLogs()
-
-	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
-
-	request := &api.JobRequest{
-		SSHPublicKeys: []api.PublicKey{
-			api.PublicKey(base64.StdEncoding.EncodeToString([]byte("ssh-rsa aaaaa"))),
-		},
-	}
-
-	e := NewShellExecutor(request, testLogger)
-
-	e.Prepare()
-	e.Start()
+	e, testLoggerBackend := setupShellExecutor(t)
 
 	go func() {
-		e.RunCommand(largeOutputCommand(), false, "")
+		assert.Zero(t, e.RunCommand(largeOutputCommand(), false, ""))
 	}()
 
 	time.Sleep(5 * time.Second)
 
-	e.Stop()
-	e.Cleanup()
+	assert.Zero(t, e.Stop())
+	assert.Zero(t, e.Cleanup())
 
 	time.Sleep(1 * time.Second)
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(), []string{
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
 		fmt.Sprintf("directive: %s", largeOutputCommand()),
 		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
 		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
@@ -271,7 +300,7 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 
 func catCommand(fileName string) string {
 	if runtime.GOOS == "windows" {
-		return fmt.Sprintf("type %s", filepath.FromSlash(fileName))
+		return fmt.Sprintf("Get-Content %s", filepath.FromSlash(fileName))
 	}
 
 	return fmt.Sprintf("cat %s", fileName)
@@ -309,6 +338,14 @@ func largeOutputCommand() string {
 	return "for i in {1..100}; { printf 'hello'; }"
 }
 
+func changeDirectory(dirName string) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("Set-Location %s", dirName)
+	}
+
+	return fmt.Sprintf("cd %s", dirName)
+}
+
 func basicRequest() *api.JobRequest {
 	return &api.JobRequest{
 		SSHPublicKeys: []api.PublicKey{
@@ -322,4 +359,15 @@ func assertFileMode(t *testing.T, fileName string, fileMode fs.FileMode) {
 	if assert.Nil(t, err) {
 		assert.Equal(t, stat.Mode(), fileMode)
 	}
+}
+
+func setupShellExecutor(t *testing.T) (*ShellExecutor, *eventlogger.InMemoryBackend) {
+	testsupport.SetupTestLogs()
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	e := NewShellExecutor(basicRequest(), testLogger)
+
+	assert.Zero(t, e.Prepare())
+	assert.Zero(t, e.Start())
+
+	return e, testLoggerBackend
 }
