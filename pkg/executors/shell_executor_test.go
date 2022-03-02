@@ -18,10 +18,10 @@ import (
 )
 
 func Test__ShellExecutor__SSHJumpPoint(t *testing.T) {
-	_, _ = setupShellExecutor(t)
-
 	sshJumpPointPath := filepath.Join(os.TempDir(), "ssh_jump_point")
 	os.Remove(sshJumpPointPath)
+
+	_, _ = setupShellExecutor(t)
 
 	// ssh jump point is not set up in windows
 	if runtime.GOOS == "windows" {
@@ -33,7 +33,7 @@ func Test__ShellExecutor__SSHJumpPoint(t *testing.T) {
 	os.Remove(sshJumpPointPath)
 }
 
-func Test__ShellExecutor_EnvVars(t *testing.T) {
+func Test__ShellExecutor__EnvVars(t *testing.T) {
 	e, testLoggerBackend := setupShellExecutor(t)
 	assert.Zero(t, e.ExportEnvVars(
 		[]api.EnvVar{
@@ -89,19 +89,19 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 
 	absoluteFile := api.File{
 		Path:    filepath.Join(os.TempDir(), "somedir", "absolute-file.txt"),
-		Content: base64.StdEncoding.EncodeToString([]byte("absolute")),
+		Content: base64.StdEncoding.EncodeToString([]byte("absolute\n")),
 		Mode:    "0600",
 	}
 
 	relativeFile := api.File{
 		Path:    filepath.Join("somedir", "relative-file.txt"),
-		Content: base64.StdEncoding.EncodeToString([]byte("relative")),
+		Content: base64.StdEncoding.EncodeToString([]byte("relative\n")),
 		Mode:    "0644",
 	}
 
 	homeFile := api.File{
 		Path:    "~/home-file.txt",
-		Content: base64.StdEncoding.EncodeToString([]byte("home")),
+		Content: base64.StdEncoding.EncodeToString([]byte("home\n")),
 		Mode:    "0777",
 	}
 

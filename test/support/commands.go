@@ -41,7 +41,7 @@ func Cat(fileName string) string {
 		return fmt.Sprintf("Get-Content %s", filepath.FromSlash(fileName))
 	}
 
-	return fmt.Sprintf("echo -n $(cat %s)", fileName)
+	return fmt.Sprintf("cat %s", fileName)
 }
 
 func Multiline() string {

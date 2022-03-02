@@ -38,7 +38,7 @@ assert_job_log <<-LOG
   {"event":"cmd_finished", "timestamp":"*", "directive":"Exporting environment variables","exit_code":0,"finished_at":"*","started_at":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"Injecting Files"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"Injecting test.txt with file mode obviously broken\\n"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"Injecting /root/test.txt with file mode obviously broken\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"bad file permission 'obviously broken'\\n"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"Injecting Files","exit_code":1,"finished_at":"*","started_at":"*"}
 
