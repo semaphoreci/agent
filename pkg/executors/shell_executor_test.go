@@ -212,39 +212,27 @@ func Test__ShellExecutor__ChangesCurrentDirectory(t *testing.T) {
 func Test__ShellExecutor__ChangesEnvVars(t *testing.T) {
 	e, testLoggerBackend := setupShellExecutor(t)
 
-	dirName := "somedir"
-	absolutePath := filepath.Join(os.TempDir(), dirName, "some-file.txt")
-	relativePath := filepath.Join(dirName, "some-file.txt")
-
-	fileInDir := api.File{
-		Path:    absolutePath,
-		Content: base64.StdEncoding.EncodeToString([]byte("content")),
-		Mode:    "0644",
-	}
-
-	assert.Zero(t, e.InjectFiles([]api.File{fileInDir}))
-
-	// fails because current directory is not 'dirName'
-	assert.NotZero(t, e.RunCommand(catCommand(relativePath), false, ""))
-
-	// works because we are now in the correct directory
-	assert.Zero(t, e.RunCommand(changeDirectory(os.TempDir()), false, ""))
-	assert.Zero(t, e.RunCommand(catCommand(relativePath), false, ""))
+	varName := "IMPORTANT_VAR"
+	assert.Zero(t, e.RunCommand(echoEnvVar(varName), false, ""))
+	assert.Zero(t, e.RunCommand(setEnvVar(varName, "IMPORTANT_VAR_VALUE"), false, ""))
+	assert.Zero(t, e.RunCommand(echoEnvVar(varName), false, ""))
+	assert.Zero(t, e.RunCommand(unsetEnvVar(varName), false, ""))
 
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(false), []string{
-		"directive: Injecting Files",
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
+		fmt.Sprintf("directive: %s", echoEnvVar(varName)),
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", catCommand(relativePath)),
-		"Exit Code: 1",
-
-		fmt.Sprintf("directive: %s", changeDirectory(os.TempDir())),
+		fmt.Sprintf("directive: %s", setEnvVar(varName, "IMPORTANT_VAR_VALUE")),
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", catCommand(relativePath)),
+		fmt.Sprintf("directive: %s", echoEnvVar(varName)),
+		"IMPORTANT_VAR_VALUE",
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", unsetEnvVar(varName)),
 		"Exit Code: 0",
 	})
 }
@@ -328,6 +316,22 @@ func echoEnvVar(envVar string) string {
 	}
 
 	return fmt.Sprintf("echo -n $%s", envVar)
+}
+
+func setEnvVar(name, value string) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("$env:%s = '%s'", name, value)
+	}
+
+	return fmt.Sprintf("export %s=%s", name, value)
+}
+
+func unsetEnvVar(name string) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("Remove-Item -Path env:%s", name)
+	}
+
+	return fmt.Sprintf("unser %s", name)
 }
 
 func largeOutputCommand() string {
