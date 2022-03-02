@@ -107,19 +107,12 @@ blocks:
                 - listen
             - env_var: TEST
               values:
-                - command_aliases
                 - env_vars
-                - failed_job
-                - job_stopping
-                - job_stopping_on_epilogue
                 - file_injection
                 - file_injection_broken_file_mode
                 - stty_restoration
-                - epilogue_on_pass
-                - epilogue_on_fail
                 - ssh_jump_points
                 - unicode
-                - unknown_command
                 - broken_unicode
                 - killing_root_bash
                 - set_e

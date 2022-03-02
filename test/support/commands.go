@@ -115,3 +115,11 @@ func UnknownCommandExitCode() int {
 
 	return 127
 }
+
+func StoppedCommandExitCode() int {
+	if runtime.GOOS == "windows" {
+		return 0
+	}
+
+	return 1
+}

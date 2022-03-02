@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/semaphoreci/agent/pkg/api"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
@@ -320,7 +321,7 @@ func Test__EpilogueOnPassOnlyExecutesOnSuccessfulJob(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	testsupport.AssertJobLogs(t, testLoggerBackend.SimplifiedEvents(true), []string{
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
 		"job_started",
 
 		"directive: Exporting environment variables",
@@ -413,5 +414,168 @@ func Test__EpilogueOnFailOnlyExecutesOnFailedJob(t *testing.T) {
 		"Exit Code: 0",
 
 		"job_finished: passed",
+	})
+}
+
+func Test__UsingCommandAliases(t *testing.T) {
+	httpClient := http.DefaultClient
+
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		EnvVars: []api.EnvVar{},
+		Commands: []api.Command{
+			{Directive: testsupport.Output("hello world"), Alias: "Display Hello World"},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+		},
+	}
+
+	job, err := NewJobWithOptions(&JobOptions{
+		Request: request,
+		Client:  httpClient,
+		Logger:  testLogger,
+	})
+
+	assert.Nil(t, err)
+
+	job.Run()
+	assert.True(t, job.Finished)
+
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		"directive: Display Hello World",
+		fmt.Sprintf("Running: %s\n", testsupport.Output("hello world")),
+		"hello world",
+		"Exit Code: 0",
+
+		"directive: Exporting environment variables",
+		"Exporting SEMAPHORE_JOB_RESULT\n",
+		"Exit Code: 0",
+
+		"job_finished: passed",
+	})
+}
+
+func Test__StopJob(t *testing.T) {
+	httpClient := http.DefaultClient
+
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		EnvVars: []api.EnvVar{},
+		Commands: []api.Command{
+			{Directive: "sleep 60"},
+			{Directive: testsupport.Output("hello")},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+		},
+	}
+
+	job, err := NewJobWithOptions(&JobOptions{
+		Request: request,
+		Client:  httpClient,
+		Logger:  testLogger,
+	})
+
+	assert.Nil(t, err)
+
+	go job.Run()
+
+	time.Sleep(10 * time.Second)
+	job.Stop()
+
+	assert.True(t, job.Stopped)
+	assert.Eventually(t, func() bool { return job.Finished }, 5*time.Second, 1*time.Second)
+
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		"directive: sleep 60",
+		fmt.Sprintf("Exit Code: %d", testsupport.StoppedCommandExitCode()),
+
+		"job_finished: stopped",
+	})
+}
+
+func Test__StopJobOnEpilogue(t *testing.T) {
+	httpClient := http.DefaultClient
+
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		EnvVars: []api.EnvVar{},
+		Commands: []api.Command{
+			{Directive: testsupport.Output("hello")},
+		},
+		EpilogueAlwaysCommands: []api.Command{
+			{Directive: "sleep 60"},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+		},
+	}
+
+	job, err := NewJobWithOptions(&JobOptions{
+		Request: request,
+		Client:  httpClient,
+		Logger:  testLogger,
+	})
+
+	assert.Nil(t, err)
+
+	go job.Run()
+
+	time.Sleep(10 * time.Second)
+	job.Stop()
+
+	assert.True(t, job.Stopped)
+	assert.Eventually(t, func() bool { return job.Finished }, 5*time.Second, 1*time.Second)
+
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", testsupport.Output("hello")),
+		"hello",
+		"Exit Code: 0",
+
+		"directive: Exporting environment variables",
+		"Exporting SEMAPHORE_JOB_RESULT\n",
+		"Exit Code: 0",
+
+		"directive: sleep 60",
+		fmt.Sprintf("Exit Code: %d", testsupport.StoppedCommandExitCode()),
+
+		"job_finished: stopped",
 	})
 }
