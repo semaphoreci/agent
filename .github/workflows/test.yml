@@ -10,5 +10,7 @@ jobs:
           go-version: 1.16.x
       - name: Check out repository code
         uses: actions/checkout@v2
+      - name: Install gotestsum
+        run: go install gotest.tools/gotestsum@latest
       - name: Test
-        run: go test -p 1 -v ./...
+        run: gotestsum --format short-verbose --packages="./..." -- -p 1
