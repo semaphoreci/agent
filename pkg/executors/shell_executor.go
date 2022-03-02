@@ -3,7 +3,6 @@ package executors
 import (
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -160,8 +159,9 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 	}
 
 	for _, f := range files {
-		output := fmt.Sprintf("Injecting %s with file mode %s\n", f.Path, f.Mode)
+		destPath := f.NormalizePath(homeDir)
 
+		output := fmt.Sprintf("Injecting %s with file mode %s\n", destPath, f.Mode)
 		e.Logger.LogCommandOutput(output)
 
 		content, err := f.Decode()
@@ -171,10 +171,10 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 			return exitCode
 		}
 
-		destPath := f.NormalizePath(homeDir)
-		err = os.MkdirAll(path.Dir(destPath), 0644)
+		parentDir := filepath.Dir(destPath)
+		err = os.MkdirAll(parentDir, 0644)
 		if err != nil {
-			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to create directories for '%s': %v\n", destPath, err))
+			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to create directory '%s': %v\n", parentDir, err))
 			exitCode = 1
 			break
 		}
@@ -256,10 +256,12 @@ func (e *ShellExecutor) Stop() int {
 		log.Error(err)
 	}
 
-	err = e.Shell.CurrentProcess.Terminate()
-	if err != nil {
-		log.Errorf("Error terminating process: %v", err)
-		return 1
+	if e.Shell.CurrentProcess != nil {
+		err = e.Shell.CurrentProcess.Terminate()
+		if err != nil {
+			log.Errorf("Error terminating process: %v", err)
+			return 1
+		}
 	}
 
 	log.Debug("Process killing finished without errors")
