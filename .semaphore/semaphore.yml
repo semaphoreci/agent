@@ -110,7 +110,6 @@ blocks:
                 - env_vars
                 - file_injection
                 - file_injection_broken_file_mode
-                - stty_restoration
                 - ssh_jump_points
                 - unicode
                 - broken_unicode

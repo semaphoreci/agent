@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"runtime"
 	"testing"
 	"time"
 
@@ -577,5 +578,57 @@ func Test__StopJobOnEpilogue(t *testing.T) {
 		fmt.Sprintf("Exit Code: %d", testsupport.StoppedCommandExitCode()),
 
 		"job_finished: stopped",
+	})
+}
+
+func Test_STTYRestoration(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not support pty")
+	}
+
+	httpClient := http.DefaultClient
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		EnvVars: []api.EnvVar{},
+		Commands: []api.Command{
+			{Directive: "stty echo"},
+			{Directive: "echo Hello World"},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+		},
+	}
+
+	job, err := NewJobWithOptions(&JobOptions{Request: request, Client: httpClient, Logger: testLogger})
+	assert.Nil(t, err)
+
+	job.Run()
+	assert.True(t, job.Finished)
+
+	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		"directive: stty echo",
+		"Exit Code: 0",
+
+		"directive: echo Hello World",
+		"Hello World\n",
+		"Exit Code: 0",
+
+		"directive: Exporting environment variables",
+		"Exporting SEMAPHORE_JOB_RESULT\n",
+		"Exit Code: 0",
+
+		"job_finished: passed",
 	})
 }
