@@ -12,25 +12,25 @@ import (
 )
 
 func AssertJobLogs(t *testing.T, actual, expected []string) {
-	actual_index := 0
-	expected_index := 0
+	actualIndex := 0
+	expectedIndex := 0
 
-	for actual_index < len(actual)-1 && expected_index < len(expected)-1 {
-		actual_line := actual[actual_index]
-		expected_line := expected[expected_index]
+	for actualIndex < len(actual)-1 && expectedIndex < len(expected)-1 {
+		actualLine := actual[actualIndex]
+		expectedLine := expected[expectedIndex]
 
-		if expected_line == "*** OUTPUT ***" {
-			if strings.HasPrefix(actual_line, "Exit Code: ") {
-				expected_index += 1
+		if expectedLine == "*** OUTPUT ***" {
+			if strings.HasPrefix(actualLine, "Exit Code: ") {
+				expectedIndex++
 			} else {
-				actual_index += 1
+				actualIndex++
 			}
 		} else {
-			if !assert.Equal(t, actual_line, expected_line) {
+			if !assert.Equal(t, actualLine, expectedLine) {
 				break
 			} else {
-				actual_index += 1
-				expected_index += 1
+				actualIndex++
+				expectedIndex++
 			}
 		}
 	}

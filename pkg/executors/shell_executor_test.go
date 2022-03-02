@@ -133,9 +133,13 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 	})
 
 	// Assert file modes
-	assertFileMode(t, absoluteFile.NormalizePath(homeDir), fs.FileMode(uint32(0600)))
-	assertFileMode(t, relativeFile.NormalizePath(homeDir), fs.FileMode(uint32(0644)))
-	assertFileMode(t, homeFile.NormalizePath(homeDir), fs.FileMode(uint32(0777)))
+	if runtime.GOOS == "windows" {
+		// TODO: figure out how to set and assert file modes in windows
+	} else {
+		assertFileMode(t, absoluteFile.NormalizePath(homeDir), fs.FileMode(uint32(0600)))
+		assertFileMode(t, relativeFile.NormalizePath(homeDir), fs.FileMode(uint32(0644)))
+		assertFileMode(t, homeFile.NormalizePath(homeDir), fs.FileMode(uint32(0777)))
+	}
 
 	os.Remove(absoluteFile.NormalizePath(homeDir))
 	os.Remove(relativeFile.NormalizePath(homeDir))
