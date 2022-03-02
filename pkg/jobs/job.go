@@ -35,6 +35,7 @@ type Job struct {
 type JobOptions struct {
 	Request            *api.JobRequest
 	Client             *http.Client
+	Logger             *eventlogger.Logger
 	ExposeKvmDevice    bool
 	FileInjections     []config.FileInjection
 	FailOnMissingFiles bool
@@ -51,6 +52,8 @@ func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
 }
 
 func NewJobWithOptions(options *JobOptions) (*Job, error) {
+	log.Debugf("Job Request %+v", options.Request)
+
 	if options.Request.Executor == "" {
 		log.Infof("No executor specified - using %s executor", executors.ExecutorTypeShell)
 		options.Request.Executor = executors.ExecutorTypeShell
@@ -61,26 +64,31 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 		options.Request.Logger.Method = eventlogger.LoggerMethodPull
 	}
 
-	logger, err := eventlogger.CreateLogger(options.Request)
-	if err != nil {
-		return nil, err
-	}
-
-	executor, err := CreateExecutor(options.Request, logger, *options)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Debugf("Job Request %+v", options.Request)
-
-	return &Job{
+	job := &Job{
 		Client:         options.Client,
 		Request:        options.Request,
-		Executor:       executor,
 		JobLogArchived: false,
 		Stopped:        false,
-		Logger:         logger,
-	}, nil
+	}
+
+	if options.Logger != nil {
+		job.Logger = options.Logger
+	} else {
+		l, err := eventlogger.CreateLogger(options.Request)
+		if err != nil {
+			return nil, err
+		}
+
+		job.Logger = l
+	}
+
+	executor, err := CreateExecutor(options.Request, job.Logger, *options)
+	if err != nil {
+		return nil, err
+	}
+
+	job.Executor = executor
+	return job, nil
 }
 
 func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOptions JobOptions) (executors.Executor, error) {
@@ -186,7 +194,11 @@ func (job *Job) RunRegularCommands(hostEnvVars []config.HostEnvVar) string {
 		return JobFailed
 	}
 
-	exitCode = job.RunCommandsUntilFirstFailure(job.Request.Commands)
+	if len(job.Request.Commands) == 0 {
+		exitCode = 0
+	} else {
+		exitCode = job.RunCommandsUntilFirstFailure(job.Request.Commands)
+	}
 
 	if job.Stopped {
 		log.Info("Regular commands were stopped")

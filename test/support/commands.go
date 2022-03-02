@@ -1,0 +1,109 @@
+package testsupport
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func AssertJobLogs(t *testing.T, actual, expected []string) {
+	actual_index := 0
+	expected_index := 0
+
+	for actual_index < len(actual)-1 && expected_index < len(expected)-1 {
+		actual_line := actual[actual_index]
+		expected_line := expected[expected_index]
+
+		if expected_line == "*** OUTPUT ***" {
+			if strings.HasPrefix(actual_line, "Exit Code: ") {
+				expected_index += 1
+			} else {
+				actual_index += 1
+			}
+		} else {
+			if !assert.Equal(t, actual_line, expected_line) {
+				break
+			} else {
+				actual_index += 1
+				expected_index += 1
+			}
+		}
+	}
+}
+
+func Cat(fileName string) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("Get-Content %s", filepath.FromSlash(fileName))
+	}
+
+	return fmt.Sprintf("cat %s", fileName)
+}
+
+func Multiline() string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf(`
+			if (Test-Path %s) {
+				echo "etc exists, multiline huzzahh!"
+			}
+		`, os.TempDir())
+	}
+
+	return `
+		if [ -d /etc ]; then
+			echo 'etc exists, multiline huzzahh!'
+		fi
+	`
+}
+
+func Output(line string) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("Write-Host \"%s\" -NoNewLine", line)
+	}
+
+	return fmt.Sprintf("echo -n '%s'", line)
+}
+
+func EchoEnvVar(envVar string) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("Write-Host \"$env:%s\" -NoNewLine", envVar)
+	}
+
+	return fmt.Sprintf("echo -n $%s", envVar)
+}
+
+func SetEnvVar(name, value string) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("$env:%s = '%s'", name, value)
+	}
+
+	return fmt.Sprintf("export %s=%s", name, value)
+}
+
+func UnsetEnvVar(name string) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("Remove-Item -Path env:%s", name)
+	}
+
+	return fmt.Sprintf("unser %s", name)
+}
+
+func LargeOutputCommand() string {
+	if runtime.GOOS == "windows" {
+		return "foreach ($i in 1..100) { Write-Host \"hello\" -NoNewLine }"
+	}
+
+	return "for i in {1..100}; { printf 'hello'; }"
+}
+
+func Chdir(dirName string) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("Set-Location %s", dirName)
+	}
+
+	return fmt.Sprintf("cd %s", dirName)
+}

@@ -33,19 +33,6 @@ func Test__ShellExecutor__SSHJumpPoint(t *testing.T) {
 	os.Remove(sshJumpPointPath)
 }
 
-func Test__ShellExecutor__Start(t *testing.T) {
-	e, _ := setupShellExecutor(t)
-
-	if runtime.GOOS == "windows" {
-		assert.Nil(t, e.Shell.TTY)
-	} else {
-		assert.NotNil(t, e.Shell.TTY)
-	}
-
-	assert.Zero(t, e.Stop())
-	assert.Zero(t, e.Cleanup())
-}
-
 func Test__ShellExecutor_EnvVars(t *testing.T) {
 	e, testLoggerBackend := setupShellExecutor(t)
 	assert.Zero(t, e.ExportEnvVars(
@@ -59,11 +46,11 @@ func Test__ShellExecutor_EnvVars(t *testing.T) {
 		},
 	))
 
-	assert.Zero(t, e.RunCommand(echoEnvVar("A"), false, ""))
-	assert.Zero(t, e.RunCommand(echoEnvVar("B"), false, ""))
-	assert.Zero(t, e.RunCommand(echoEnvVar("C"), false, ""))
-	assert.Zero(t, e.RunCommand(echoEnvVar("D"), false, ""))
-	assert.Zero(t, e.RunCommand(echoEnvVar("E"), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.EchoEnvVar("A"), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.EchoEnvVar("B"), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.EchoEnvVar("C"), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.EchoEnvVar("D"), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.EchoEnvVar("E"), false, ""))
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
@@ -75,23 +62,23 @@ func Test__ShellExecutor_EnvVars(t *testing.T) {
 		"Exporting D\n",
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", echoEnvVar("A")),
+		fmt.Sprintf("directive: %s", testsupport.EchoEnvVar("A")),
 		"AAA",
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", echoEnvVar("B")),
+		fmt.Sprintf("directive: %s", testsupport.EchoEnvVar("B")),
 		"BBB",
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", echoEnvVar("C")),
+		fmt.Sprintf("directive: %s", testsupport.EchoEnvVar("C")),
 		"CCC",
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", echoEnvVar("D")),
+		fmt.Sprintf("directive: %s", testsupport.EchoEnvVar("D")),
 		"DDD",
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", echoEnvVar("E")),
+		fmt.Sprintf("directive: %s", testsupport.EchoEnvVar("E")),
 		"Exit Code: 0",
 	})
 }
@@ -119,9 +106,9 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 	}
 
 	assert.Zero(t, e.InjectFiles([]api.File{absoluteFile, relativeFile, homeFile}))
-	assert.Zero(t, e.RunCommand(catCommand(absoluteFile.NormalizePath(homeDir)), false, ""))
-	assert.Zero(t, e.RunCommand(catCommand(relativeFile.NormalizePath(homeDir)), false, ""))
-	assert.Zero(t, e.RunCommand(catCommand(homeFile.NormalizePath(homeDir)), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.Cat(absoluteFile.NormalizePath(homeDir)), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.Cat(relativeFile.NormalizePath(homeDir)), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.Cat(homeFile.NormalizePath(homeDir)), false, ""))
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
@@ -132,15 +119,15 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 		fmt.Sprintf("Injecting %s with file mode 0777\n", homeFile.NormalizePath(homeDir)),
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", catCommand(absoluteFile.NormalizePath(homeDir))),
+		fmt.Sprintf("directive: %s", testsupport.Cat(absoluteFile.NormalizePath(homeDir))),
 		"absolute\n",
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", catCommand(relativeFile.NormalizePath(homeDir))),
+		fmt.Sprintf("directive: %s", testsupport.Cat(relativeFile.NormalizePath(homeDir))),
 		"relative\n",
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", catCommand(homeFile.NormalizePath(homeDir))),
+		fmt.Sprintf("directive: %s", testsupport.Cat(homeFile.NormalizePath(homeDir))),
 		"home\n",
 		"Exit Code: 0",
 	})
@@ -158,12 +145,12 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 func Test__ShellExecutor__MultilineCommand(t *testing.T) {
 	e, testLoggerBackend := setupShellExecutor(t)
 
-	assert.Zero(t, e.RunCommand(multilineCmd(), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.Multiline(), false, ""))
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
 	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
-		fmt.Sprintf("directive: %s", multilineCmd()),
+		fmt.Sprintf("directive: %s", testsupport.Multiline()),
 		"etc exists, multiline huzzahh!\n",
 		"Exit Code: 0",
 	})
@@ -185,11 +172,11 @@ func Test__ShellExecutor__ChangesCurrentDirectory(t *testing.T) {
 	assert.Zero(t, e.InjectFiles([]api.File{fileInDir}))
 
 	// fails because current directory is not 'dirName'
-	assert.NotZero(t, e.RunCommand(catCommand(relativePath), false, ""))
+	assert.NotZero(t, e.RunCommand(testsupport.Cat(relativePath), false, ""))
 
 	// works because we are now in the correct directory
-	assert.Zero(t, e.RunCommand(changeDirectory(os.TempDir()), false, ""))
-	assert.Zero(t, e.RunCommand(catCommand(relativePath), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.Chdir(os.TempDir()), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.Cat(relativePath), false, ""))
 
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
@@ -198,13 +185,13 @@ func Test__ShellExecutor__ChangesCurrentDirectory(t *testing.T) {
 		"directive: Injecting Files",
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", catCommand(relativePath)),
+		fmt.Sprintf("directive: %s", testsupport.Cat(relativePath)),
 		"Exit Code: 1",
 
-		fmt.Sprintf("directive: %s", changeDirectory(os.TempDir())),
+		fmt.Sprintf("directive: %s", testsupport.Chdir(os.TempDir())),
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", catCommand(relativePath)),
+		fmt.Sprintf("directive: %s", testsupport.Cat(relativePath)),
 		"Exit Code: 0",
 	})
 }
@@ -213,26 +200,26 @@ func Test__ShellExecutor__ChangesEnvVars(t *testing.T) {
 	e, testLoggerBackend := setupShellExecutor(t)
 
 	varName := "IMPORTANT_VAR"
-	assert.Zero(t, e.RunCommand(echoEnvVar(varName), false, ""))
-	assert.Zero(t, e.RunCommand(setEnvVar(varName, "IMPORTANT_VAR_VALUE"), false, ""))
-	assert.Zero(t, e.RunCommand(echoEnvVar(varName), false, ""))
-	assert.Zero(t, e.RunCommand(unsetEnvVar(varName), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.EchoEnvVar(varName), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.SetEnvVar(varName, "IMPORTANT_VAR_VALUE"), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.EchoEnvVar(varName), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.UnsetEnvVar(varName), false, ""))
 
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
 	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
-		fmt.Sprintf("directive: %s", echoEnvVar(varName)),
+		fmt.Sprintf("directive: %s", testsupport.EchoEnvVar(varName)),
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", setEnvVar(varName, "IMPORTANT_VAR_VALUE")),
+		fmt.Sprintf("directive: %s", testsupport.SetEnvVar(varName, "IMPORTANT_VAR_VALUE")),
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", echoEnvVar(varName)),
+		fmt.Sprintf("directive: %s", testsupport.EchoEnvVar(varName)),
 		"IMPORTANT_VAR_VALUE",
 		"Exit Code: 0",
 
-		fmt.Sprintf("directive: %s", unsetEnvVar(varName)),
+		fmt.Sprintf("directive: %s", testsupport.UnsetEnvVar(varName)),
 		"Exit Code: 0",
 	})
 }
@@ -265,7 +252,7 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 	e, testLoggerBackend := setupShellExecutor(t)
 
 	go func() {
-		assert.Zero(t, e.RunCommand(largeOutputCommand(), false, ""))
+		assert.Zero(t, e.RunCommand(testsupport.LargeOutputCommand(), false, ""))
 	}()
 
 	time.Sleep(5 * time.Second)
@@ -276,7 +263,7 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
-		fmt.Sprintf("directive: %s", largeOutputCommand()),
+		fmt.Sprintf("directive: %s", testsupport.LargeOutputCommand()),
 		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
 		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
 		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
@@ -284,70 +271,6 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
 		"Exit Code: 0",
 	})
-}
-
-func catCommand(fileName string) string {
-	if runtime.GOOS == "windows" {
-		return fmt.Sprintf("Get-Content %s", filepath.FromSlash(fileName))
-	}
-
-	return fmt.Sprintf("cat %s", fileName)
-}
-
-func multilineCmd() string {
-	if runtime.GOOS == "windows" {
-		return fmt.Sprintf(`
-			if (Test-Path %s) {
-				echo "etc exists, multiline huzzahh!"
-			}
-		`, os.TempDir())
-	}
-
-	return `
-		if [ -d /etc ]; then
-			echo 'etc exists, multiline huzzahh!'
-		fi
-	`
-}
-
-func echoEnvVar(envVar string) string {
-	if runtime.GOOS == "windows" {
-		return fmt.Sprintf("Write-Host \"$env:%s\" -NoNewLine", envVar)
-	}
-
-	return fmt.Sprintf("echo -n $%s", envVar)
-}
-
-func setEnvVar(name, value string) string {
-	if runtime.GOOS == "windows" {
-		return fmt.Sprintf("$env:%s = '%s'", name, value)
-	}
-
-	return fmt.Sprintf("export %s=%s", name, value)
-}
-
-func unsetEnvVar(name string) string {
-	if runtime.GOOS == "windows" {
-		return fmt.Sprintf("Remove-Item -Path env:%s", name)
-	}
-
-	return fmt.Sprintf("unser %s", name)
-}
-
-func largeOutputCommand() string {
-	if runtime.GOOS == "windows" {
-		return "foreach ($i in 1..100) { Write-Host \"hello\" -NoNewLine }"
-	}
-
-	return "for i in {1..100}; { printf 'hello'; }"
-}
-
-func changeDirectory(dirName string) string {
-	if runtime.GOOS == "windows" {
-		return fmt.Sprintf("Set-Location %s", dirName)
-	}
-
-	return fmt.Sprintf("cd %s", dirName)
 }
 
 func basicRequest() *api.JobRequest {

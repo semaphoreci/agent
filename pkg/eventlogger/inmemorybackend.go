@@ -35,7 +35,7 @@ func (l *InMemoryBackend) SimplifiedEvents(includeOutput bool) []string {
 		case *JobStartedEvent:
 			events = append(events, "job_started")
 		case *JobFinishedEvent:
-			events = append(events, "job_finished")
+			events = append(events, "job_finished: "+e.Result)
 		case *CommandStartedEvent:
 			events = append(events, "directive: "+e.Directive)
 		case *CommandOutputEvent:

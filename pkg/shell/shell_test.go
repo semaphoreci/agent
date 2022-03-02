@@ -9,10 +9,45 @@ import (
 	assert "github.com/stretchr/testify/assert"
 )
 
+func Test__Shell__NewShell(t *testing.T) {
+	shell, err := NewShell(os.TempDir())
+	assert.Nil(t, err)
+	assert.NotNil(t, shell.Cwd)
+
+	if runtime.GOOS == "windows" {
+		assert.Equal(t, shell.Executable, "powershell")
+	} else {
+		assert.Equal(t, shell.Executable, "bash")
+	}
+
+	if runtime.GOOS == "windows" {
+		assert.Equal(t, shell.Args, []string{"-NoProfile", "-NonInteractive"})
+	} else {
+		assert.Equal(t, shell.Args, []string{"--login"})
+	}
+}
+
+func Test__Shell__Start(t *testing.T) {
+	shell, err := NewShell(os.TempDir())
+	assert.Nil(t, err)
+
+	err = shell.Start()
+	assert.Nil(t, err)
+
+	if runtime.GOOS == "windows" {
+		assert.Nil(t, shell.BootCommand)
+		assert.Nil(t, shell.TTY)
+	} else {
+		assert.NotNil(t, shell.BootCommand)
+		assert.NotNil(t, shell.TTY)
+	}
+}
+
 func Test__Shell__SimpleHelloWorld(t *testing.T) {
 	var output bytes.Buffer
 
-	shell := bashShell()
+	shell, _ := NewShell(os.TempDir())
+	shell.Start()
 
 	p1 := shell.NewProcess("echo Hello")
 	p1.OnStdout(func(line string) {
@@ -26,7 +61,8 @@ func Test__Shell__SimpleHelloWorld(t *testing.T) {
 func Test__Shell__HandlingBashProcessKill(t *testing.T) {
 	var output bytes.Buffer
 
-	shell := bashShell()
+	shell, _ := NewShell(os.TempDir())
+	shell.Start()
 
 	var cmd string
 	if runtime.GOOS == "windows" {
@@ -66,11 +102,8 @@ func Test__Shell__HandlingBashProcessKillThatHasBackgroundJobs(t *testing.T) {
 	// it stops the read procedure.
 	//
 
-	if runtime.GOOS == "windows" {
-		t.Skip("figure out this later")
-	}
-
-	shell := bashShell()
+	shell, _ := NewShell(os.TempDir())
+	shell.Start()
 
 	p1 := shell.NewProcess("sleep infinity &")
 	p1.OnStdout(func(line string) {
@@ -85,11 +118,4 @@ func Test__Shell__HandlingBashProcessKillThatHasBackgroundJobs(t *testing.T) {
 	p2.Run()
 
 	assert.Equal(t, output.String(), "Hello\n")
-}
-
-func bashShell() *Shell {
-	shell, _ := NewShell(os.TempDir())
-	shell.Start()
-
-	return shell
 }
