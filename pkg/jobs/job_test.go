@@ -581,7 +581,7 @@ func Test__StopJobOnEpilogue(t *testing.T) {
 	})
 }
 
-func Test_STTYRestoration(t *testing.T) {
+func Test__STTYRestoration(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows does not support pty")
 	}
