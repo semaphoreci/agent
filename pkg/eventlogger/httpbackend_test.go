@@ -13,7 +13,7 @@ func Test__LogsArePushedToHTTPEndpoint(t *testing.T) {
 	mockServer := testsupport.NewLoghubMockServer()
 	mockServer.Init()
 
-	httpBackend, err := NewHTTPBackend(mockServer.Url(), "token")
+	httpBackend, err := NewHTTPBackend(mockServer.URL(), "token")
 	assert.Nil(t, err)
 	assert.Nil(t, httpBackend.Open())
 

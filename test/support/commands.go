@@ -123,3 +123,11 @@ func StoppedCommandExitCode() int {
 
 	return 1
 }
+
+func CopyFile(src, dest string) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("Copy-Item %s -Destination %s", src, dest)
+	}
+
+	return fmt.Sprintf("cp %s %s", src, dest)
+}

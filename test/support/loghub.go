@@ -44,7 +44,7 @@ func (m *LoghubMockServer) GetLogs() []string {
 	return m.Logs
 }
 
-func (m *LoghubMockServer) Url() string {
+func (m *LoghubMockServer) URL() string {
 	return m.Server.URL
 }
 

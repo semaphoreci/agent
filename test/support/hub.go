@@ -165,7 +165,7 @@ func (m *HubMockServer) RejectRegisterAttempts(times int) {
 	m.RegisterAttemptRejections = times
 }
 
-func (m *HubMockServer) Url() string {
+func (m *HubMockServer) URL() string {
 	return m.Server.URL
 }
 
