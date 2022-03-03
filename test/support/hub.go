@@ -90,7 +90,7 @@ func (m *HubMockServer) handleRegisterRequest(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	w.Write(response)
+	_, _ = w.Write(response)
 }
 
 func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request) {
@@ -157,22 +157,24 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	w.Write(response)
+	_, _ = w.Write(response)
 }
 
 func (m *HubMockServer) handleGetJobRequest(w http.ResponseWriter, r *http.Request) {
 	if m.JobRequest == nil {
 		fmt.Printf("[HUB MOCK] No jobRequest in use\n")
 		w.WriteHeader(404)
-	} else {
-		response, err := json.Marshal(m.JobRequest)
-		if err != nil {
-			fmt.Printf("[HUB MOCK] Error marshaling job request: %v\n", err)
-			w.WriteHeader(500)
-		} else {
-			w.Write(response)
-		}
+		return
 	}
+
+	response, err := json.Marshal(m.JobRequest)
+	if err != nil {
+		fmt.Printf("[HUB MOCK] Error marshaling job request: %v\n", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	_, _ = w.Write(response)
 }
 
 func (m *HubMockServer) UseLogsURL(URL string) {

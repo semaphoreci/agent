@@ -194,7 +194,7 @@ func Test__ShellExecutor__ChangesCurrentDirectory(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{

@@ -227,7 +227,7 @@ func Test__ShutdownHookCanSeeShutdownReason(t *testing.T) {
 
 	bytes, err := ioutil.ReadFile(destination)
 	assert.Nil(t, err)
-	assert.Equal(t, ShutdownReasonRequested.String(), strings.Replace(string(bytes), "\r\n", "\n", -1))
+	assert.Equal(t, ShutdownReasonRequested.String(), strings.Replace(string(bytes), "\r\n", "", -1))
 
 	os.Remove(hook)
 	os.Remove(destination)

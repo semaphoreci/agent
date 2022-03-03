@@ -1,7 +1,6 @@
 package eventlogger
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -37,13 +36,21 @@ func Test__LogsArePushedToHTTPEndpoint(t *testing.T) {
 	err = httpBackend.Close()
 	assert.Nil(t, err)
 
+	eventObjects, err := TransformToObjects(mockServer.GetLogs())
+	assert.Nil(t, err)
+
+	simplifiedEvents, err := SimplifyLogEvents(eventObjects, true)
+	assert.Nil(t, err)
+
 	assert.Equal(t, []string{
-		fmt.Sprintf(`{"event":"job_started","timestamp":%d}`, timestamp),
-		fmt.Sprintf(`{"event":"cmd_started","timestamp":%d,"directive":"echo hello"}`, timestamp),
-		fmt.Sprintf(`{"event":"cmd_output","timestamp":%d,"output":"hello\n"}`, timestamp),
-		fmt.Sprintf(`{"event":"cmd_finished","timestamp":%d,"directive":"echo hello","exit_code":0,"started_at":%d,"finished_at":%d}`, timestamp, timestamp, timestamp),
-		fmt.Sprintf(`{"event":"job_finished","timestamp":%d,"result":"passed"}`, timestamp),
-	}, mockServer.GetLogs())
+		"job_started",
+
+		"directive: echo hello",
+		"hello\n",
+		"Exit Code: 0",
+
+		"job_finished: passed",
+	}, simplifiedEvents)
 
 	mockServer.Close()
 }
