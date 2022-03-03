@@ -9,7 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
+	"github.com/semaphoreci/agent/pkg/eventlogger"
 	testsupport "github.com/semaphoreci/agent/test/support"
 	"github.com/stretchr/testify/assert"
 )
@@ -177,6 +179,54 @@ func Test__ShutdownHookIsExecuted(t *testing.T) {
 	loghubMockServer.Close()
 }
 
+func Test__ShutdownAfterJobFinished(t *testing.T) {
+	testsupport.SetupTestLogs()
+
+	loghubMockServer := testsupport.NewLoghubMockServer()
+	loghubMockServer.Init()
+
+	hubMockServer := testsupport.NewHubMockServer()
+	hubMockServer.Init()
+	hubMockServer.UseLogsURL(loghubMockServer.URL())
+
+	config := Config{
+		ExitOnShutdown:     false,
+		DisconnectAfterJob: true,
+		Endpoint:           hubMockServer.Host(),
+		Token:              "token",
+		RegisterRetryLimit: 5,
+		Scheme:             "http",
+		EnvVars:            []config.HostEnvVar{},
+		FileInjections:     []config.FileInjection{},
+		AgentVersion:       "0.0.7",
+	}
+
+	listener, err := Start(http.DefaultClient, config)
+	assert.Nil(t, err)
+
+	hubMockServer.AssignJob(&api.JobRequest{
+		ID: "Test__ShutdownAfterJobFinished",
+		Commands: []api.Command{
+			{Directive: testsupport.Output("hello world")},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+			URL:    loghubMockServer.URL(),
+			Token:  "doesnotmatter",
+		},
+	})
+
+	assert.Nil(t, hubMockServer.WaitUntilDisconnected(30, 2*time.Second))
+	assert.Equal(t, listener.JobProcessor.ShutdownReason, ShutdownReasonJobFinished)
+
+	hubMockServer.Close()
+	loghubMockServer.Close()
+}
+
 func Test__ShutdownAfterIdleTimeout(t *testing.T) {
 	testsupport.SetupTestLogs()
 
@@ -206,6 +256,44 @@ func Test__ShutdownAfterIdleTimeout(t *testing.T) {
 
 	hubMockServer.Close()
 	loghubMockServer.Close()
+}
+
+func Test__ShutdownFromUpstreamWhileWaiting(t *testing.T) {
+	testsupport.SetupTestLogs()
+
+	loghubMockServer := testsupport.NewLoghubMockServer()
+	loghubMockServer.Init()
+
+	hubMockServer := testsupport.NewHubMockServer()
+	hubMockServer.Init()
+	hubMockServer.UseLogsURL(loghubMockServer.URL())
+
+	config := Config{
+		ExitOnShutdown:     false,
+		Endpoint:           hubMockServer.Host(),
+		Token:              "token",
+		RegisterRetryLimit: 5,
+		Scheme:             "http",
+		EnvVars:            []config.HostEnvVar{},
+		FileInjections:     []config.FileInjection{},
+		AgentVersion:       "0.0.7",
+	}
+
+	listener, err := Start(http.DefaultClient, config)
+	assert.Nil(t, err)
+
+	time.Sleep(time.Second)
+	hubMockServer.ScheduleShutdown()
+
+	assert.Nil(t, hubMockServer.WaitUntilDisconnected(5, 2*time.Second))
+	assert.Equal(t, listener.JobProcessor.ShutdownReason, ShutdownReasonRequested)
+
+	hubMockServer.Close()
+	loghubMockServer.Close()
+}
+
+func Test__ShutdownFromUpstreamWhileRunningJob(t *testing.T) {
+	t.Skip("implement this")
 }
 
 func tempFileWithExtension() (string, error) {

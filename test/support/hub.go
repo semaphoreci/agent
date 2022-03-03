@@ -22,7 +22,7 @@ type HubMockServer struct {
 	RegisterRequest           *selfhostedapi.RegisterRequest
 	RegisterAttemptRejections int
 	RegisterAttempts          int
-	JobStopRequestedAt        *time.Time
+	ShouldShutdown            bool
 	Disconnected              bool
 }
 
@@ -115,18 +115,25 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 
 	switch request.State {
 	case selfhostedapi.AgentStateWaitingForJobs:
+		if m.ShouldShutdown {
+			syncResponse.Action = selfhostedapi.AgentActionShutdown
+		}
+
 		if m.JobRequest != nil {
 			syncResponse.Action = selfhostedapi.AgentActionRunJob
 			syncResponse.JobID = m.JobRequest.ID
 		}
 
 	case selfhostedapi.AgentStateRunningJob:
-		if m.JobStopRequestedAt != nil {
+		if m.ShouldShutdown {
 			syncResponse.Action = selfhostedapi.AgentActionStopJob
 			syncResponse.JobID = m.JobRequest.ID
 		}
 
-	case selfhostedapi.AgentStateFailedToFetchJob, selfhostedapi.AgentStateFailedToConstructJob, selfhostedapi.AgentStateFailedToSendCallback:
+	case selfhostedapi.AgentStateFailedToFetchJob,
+		selfhostedapi.AgentStateFailedToConstructJob,
+		selfhostedapi.AgentStateFailedToSendCallback,
+		selfhostedapi.AgentStateFinishedJob:
 		syncResponse.Action = selfhostedapi.AgentActionWaitForJobs
 	}
 
@@ -159,7 +166,7 @@ func (m *HubMockServer) UseLogsURL(URL string) {
 	m.LogsURL = URL
 }
 
-func (m *HubMockServer) UseJobRequest(jobRequest *api.JobRequest) {
+func (m *HubMockServer) AssignJob(jobRequest *api.JobRequest) {
 	m.JobRequest = jobRequest
 }
 
@@ -197,6 +204,10 @@ func (m *HubMockServer) WaitUntilRegistered() error {
 
 func (m *HubMockServer) GetRegisterRequest() *selfhostedapi.RegisterRequest {
 	return m.RegisterRequest
+}
+
+func (m *HubMockServer) ScheduleShutdown() {
+	m.ShouldShutdown = true
 }
 
 func (m *HubMockServer) Close() {
