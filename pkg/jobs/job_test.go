@@ -47,7 +47,11 @@ func Test__EnvVarsAreAvailableToCommands(t *testing.T) {
 
 	job.Run()
 	assert.True(t, job.Finished)
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
+
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
 		"job_started",
 
 		"directive: Exporting environment variables",
@@ -120,7 +124,11 @@ func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnPass(t *testing.T) {
 
 	job.Run()
 	assert.True(t, job.Finished)
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
+
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
 		"job_started",
 
 		"directive: Exporting environment variables",
@@ -223,7 +231,10 @@ func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnFail(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	testsupport.AssertJobLogs(t, testLoggerBackend.SimplifiedEvents(true), []string{
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	testsupport.AssertSimplifiedJobLogs(t, simplifiedEvents, []string{
 		"job_started",
 
 		"directive: Exporting environment variables",
@@ -322,7 +333,10 @@ func Test__EpilogueOnPassOnlyExecutesOnSuccessfulJob(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
 		"job_started",
 
 		"directive: Exporting environment variables",
@@ -389,7 +403,10 @@ func Test__EpilogueOnFailOnlyExecutesOnFailedJob(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	testsupport.AssertJobLogs(t, testLoggerBackend.SimplifiedEvents(true), []string{
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	testsupport.AssertSimplifiedJobLogs(t, simplifiedEvents, []string{
 		"job_started",
 
 		"directive: Exporting environment variables",
@@ -447,7 +464,10 @@ func Test__UsingCommandAliases(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
 		"job_started",
 
 		"directive: Exporting environment variables",
@@ -504,7 +524,10 @@ func Test__StopJob(t *testing.T) {
 	assert.True(t, job.Stopped)
 	assert.Eventually(t, func() bool { return job.Finished }, 5*time.Second, 1*time.Second)
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
 		"job_started",
 
 		"directive: Exporting environment variables",
@@ -557,7 +580,10 @@ func Test__StopJobOnEpilogue(t *testing.T) {
 	assert.True(t, job.Stopped)
 	assert.Eventually(t, func() bool { return job.Finished }, 5*time.Second, 1*time.Second)
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
 		"job_started",
 
 		"directive: Exporting environment variables",
@@ -609,7 +635,10 @@ func Test__STTYRestoration(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
 		"job_started",
 
 		"directive: Exporting environment variables",

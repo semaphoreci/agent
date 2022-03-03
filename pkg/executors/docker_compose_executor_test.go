@@ -105,7 +105,10 @@ func Test__DockerComposeExecutor(t *testing.T) {
 	e.Stop()
 	e.Cleanup()
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEventsWithoutDockerPull(), []string{
+	simplifiedLogEvents, err := testLoggerBackend.SimplifiedEventsWithoutDockerPull()
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedLogEvents, []string{
 		"directive: Pulling docker images...",
 		"Exit Code: 0",
 
@@ -162,7 +165,10 @@ func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEventsWithoutDockerPull(), []string{
+	simplifiedLogEvents, err := testLoggerBackend.SimplifiedEventsWithoutDockerPull()
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedLogEvents, []string{
 		"directive: Pulling docker images...",
 		"Exit Code: 0",
 

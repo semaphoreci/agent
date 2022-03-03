@@ -54,7 +54,10 @@ func Test__ShellExecutor__EnvVars(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
 		"directive: Exporting environment variables",
 		"Exporting A\n",
 		"Exporting B\n",
@@ -112,7 +115,10 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
 		"directive: Injecting Files",
 		fmt.Sprintf("Injecting %s with file mode 0600\n", absoluteFile.NormalizePath(homeDir)),
 		fmt.Sprintf("Injecting %s with file mode 0644\n", relativeFile.NormalizePath(homeDir)),
@@ -153,7 +159,10 @@ func Test__ShellExecutor__MultilineCommand(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
 		fmt.Sprintf("directive: %s", testsupport.Multiline()),
 		"etc exists, multiline huzzahh!\n",
 		"Exit Code: 0",
@@ -185,7 +194,10 @@ func Test__ShellExecutor__ChangesCurrentDirectory(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(false), []string{
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
 		"directive: Injecting Files",
 		"Exit Code: 0",
 
@@ -212,7 +224,10 @@ func Test__ShellExecutor__ChangesEnvVars(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
 		fmt.Sprintf("directive: %s", testsupport.EchoEnvVar(varName)),
 		"Exit Code: 0",
 
@@ -243,7 +258,10 @@ func Test__ShellExecutor__StoppingRunningJob(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true)[0:4], []string{
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents[0:4], []string{
 		"directive: echo here",
 		"here\n",
 		"Exit Code: 0",
@@ -266,7 +284,10 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEvents(true), []string{
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
 		fmt.Sprintf("directive: %s", testsupport.LargeOutputCommand()),
 		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
 		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",

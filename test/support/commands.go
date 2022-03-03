@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func AssertJobLogs(t *testing.T, actual, expected []string) {
+func AssertSimplifiedJobLogs(t *testing.T, actual, expected []string) {
 	actualIndex := 0
 	expectedIndex := 0
 
