@@ -48,7 +48,7 @@ func (m *LoghubMockServer) Url() string {
 	return m.Server.URL
 }
 
-func (m *LoghubMockServer) Stop() {
+func (m *LoghubMockServer) Close() {
 	m.Server.Close()
 }
 

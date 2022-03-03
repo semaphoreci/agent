@@ -34,11 +34,12 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		EnvVars:                    config.EnvVars,
 		FileInjections:             config.FileInjections,
 		FailOnMissingFiles:         config.FailOnMissingFiles,
+		ExitOnShutdown:             config.ExitOnShutdown,
 	}
 
 	go p.Start()
 
-	p.SetupInteruptHandler()
+	p.SetupInterruptHandler()
 
 	return p, nil
 }
@@ -61,6 +62,7 @@ type JobProcessor struct {
 	EnvVars                    []config.HostEnvVar
 	FileInjections             []config.FileInjection
 	FailOnMissingFiles         bool
+	ExitOnShutdown             bool
 }
 
 func (p *JobProcessor) Start() {
@@ -235,7 +237,7 @@ func (p *JobProcessor) WaitForJobs() {
 	p.setState(selfhostedapi.AgentStateWaitingForJobs)
 }
 
-func (p *JobProcessor) SetupInteruptHandler() {
+func (p *JobProcessor) SetupInterruptHandler() {
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -265,7 +267,10 @@ func (p *JobProcessor) Shutdown(reason ShutdownReason, code int) {
 	p.disconnect()
 	p.executeShutdownHook(reason)
 	log.Infof("Agent shutting down due to: %s", reason)
-	os.Exit(code)
+
+	if p.ExitOnShutdown {
+		os.Exit(code)
+	}
 }
 
 func (p *JobProcessor) executeShutdownHook(reason ShutdownReason) {

@@ -168,10 +168,11 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		FileInjections:             fileInjections,
 		FailOnMissingFiles:         viper.GetBool(config.FailOnMissingFiles),
 		AgentVersion:               VERSION,
+		ExitOnShutdown:             true,
 	}
 
 	go func() {
-		_, err := listener.Start(httpClient, config, logfile)
+		_, err := listener.Start(httpClient, config)
 		if err != nil {
 			log.Panicf("Could not start agent: %v", err)
 		}

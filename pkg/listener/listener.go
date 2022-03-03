@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"time"
@@ -33,10 +32,11 @@ type Config struct {
 	EnvVars                    []config.HostEnvVar
 	FileInjections             []config.FileInjection
 	FailOnMissingFiles         bool
+	ExitOnShutdown             bool
 	AgentVersion               string
 }
 
-func Start(httpClient *http.Client, config Config, logger io.Writer) (*Listener, error) {
+func Start(httpClient *http.Client, config Config) (*Listener, error) {
 	listener := &Listener{
 		Config: config,
 		Client: selfhostedapi.New(httpClient, config.Scheme, config.Endpoint, config.Token),
@@ -60,6 +60,11 @@ func Start(httpClient *http.Client, config Config, logger io.Writer) (*Listener,
 	listener.JobProcessor = jobProcessor
 
 	return listener, nil
+}
+
+// only used during tests
+func (l *Listener) Stop() {
+	l.JobProcessor.Shutdown(ShutdownReasonRequested, 0)
 }
 
 func (l *Listener) DisplayHelloMessage() {

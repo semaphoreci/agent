@@ -45,5 +45,5 @@ func Test__LogsArePushedToHTTPEndpoint(t *testing.T) {
 		fmt.Sprintf(`{"event":"job_finished","timestamp":%d,"result":"passed"}`, timestamp),
 	}, mockServer.GetLogs())
 
-	mockServer.Stop()
+	mockServer.Close()
 }
