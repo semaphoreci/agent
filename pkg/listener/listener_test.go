@@ -550,6 +550,7 @@ func Test__GetJobIsRetried(t *testing.T) {
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
 		RegisterRetryLimit: 5,
+		GetJobRetryLimit:   10,
 		Scheme:             "http",
 		EnvVars:            []config.HostEnvVar{},
 		FileInjections:     []config.FileInjection{},
