@@ -179,6 +179,61 @@ func Test__ShutdownHookIsExecuted(t *testing.T) {
 	loghubMockServer.Close()
 }
 
+func Test__ShutdownHookCanSeeShutdownReason(t *testing.T) {
+	testsupport.SetupTestLogs()
+
+	loghubMockServer := testsupport.NewLoghubMockServer()
+	loghubMockServer.Init()
+
+	hubMockServer := testsupport.NewHubMockServer()
+	hubMockServer.Init()
+	hubMockServer.UseLogsURL(loghubMockServer.URL())
+
+	hook, err := tempFileWithExtension()
+	assert.Nil(t, err)
+
+	/*
+	 * To assert that the shutdown hook has access to the SEMAPHORE_AGENT_SHUTDOWN_REASON
+	 * variable, we tell the shutdown hook script to write its value on a new file.
+	 */
+	destination := fmt.Sprintf("%s.done", hook)
+	err = ioutil.WriteFile(hook, []byte(testsupport.EchoEnvVarToFile("SEMAPHORE_AGENT_SHUTDOWN_REASON", destination)), 0777)
+	assert.Nil(t, err)
+
+	config := Config{
+		ExitOnShutdown:     false,
+		Endpoint:           hubMockServer.Host(),
+		Token:              "token",
+		RegisterRetryLimit: 5,
+		Scheme:             "http",
+		EnvVars:            []config.HostEnvVar{},
+		FileInjections:     []config.FileInjection{},
+		AgentVersion:       "0.0.7",
+		ShutdownHookPath:   hook,
+	}
+
+	listener, err := Start(http.DefaultClient, config)
+	assert.Nil(t, err)
+
+	// listener has not been stopped yet, so file created by shutdown hook does not exist yet
+	assert.NoFileExists(t, destination)
+
+	time.Sleep(time.Second)
+	listener.Stop()
+
+	// listener has been stopped, so file created by shutdown hook should exist
+	assert.FileExists(t, destination)
+
+	bytes, err := ioutil.ReadFile(destination)
+	assert.Nil(t, err)
+	assert.Equal(t, ShutdownReasonRequested.String(), string(bytes))
+
+	os.Remove(hook)
+	os.Remove(destination)
+	hubMockServer.Close()
+	loghubMockServer.Close()
+}
+
 func Test__ShutdownAfterJobFinished(t *testing.T) {
 	testsupport.SetupTestLogs()
 
@@ -293,7 +348,53 @@ func Test__ShutdownFromUpstreamWhileWaiting(t *testing.T) {
 }
 
 func Test__ShutdownFromUpstreamWhileRunningJob(t *testing.T) {
-	t.Skip("implement this")
+	testsupport.SetupTestLogs()
+
+	loghubMockServer := testsupport.NewLoghubMockServer()
+	loghubMockServer.Init()
+
+	hubMockServer := testsupport.NewHubMockServer()
+	hubMockServer.Init()
+	hubMockServer.UseLogsURL(loghubMockServer.URL())
+
+	config := Config{
+		ExitOnShutdown:     false,
+		Endpoint:           hubMockServer.Host(),
+		Token:              "token",
+		RegisterRetryLimit: 5,
+		Scheme:             "http",
+		EnvVars:            []config.HostEnvVar{},
+		FileInjections:     []config.FileInjection{},
+		AgentVersion:       "0.0.7",
+	}
+
+	listener, err := Start(http.DefaultClient, config)
+	assert.Nil(t, err)
+
+	hubMockServer.AssignJob(&api.JobRequest{
+		ID: "Test__ShutdownFromUpstreamWhileRunningJob",
+		Commands: []api.Command{
+			{Directive: "sleep 300"},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+			URL:    loghubMockServer.URL(),
+			Token:  "doesnotmatter",
+		},
+	})
+
+	assert.Nil(t, hubMockServer.WaitUntilRunningJob(5, 2*time.Second))
+	hubMockServer.ScheduleShutdown()
+
+	assert.Nil(t, hubMockServer.WaitUntilDisconnected(10, 2*time.Second))
+	assert.Equal(t, listener.JobProcessor.ShutdownReason, ShutdownReasonRequested)
+
+	hubMockServer.Close()
+	loghubMockServer.Close()
 }
 
 func tempFileWithExtension() (string, error) {

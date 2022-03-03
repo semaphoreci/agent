@@ -76,6 +76,14 @@ func EchoEnvVar(envVar string) string {
 	return fmt.Sprintf("echo -n $%s", envVar)
 }
 
+func EchoEnvVarToFile(envVar, fileName string) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("Set-Content -Path %s -Value \"$env:%s\"", fileName, envVar)
+	}
+
+	return fmt.Sprintf("echo -n $%s > %s", envVar, fileName)
+}
+
 func SetEnvVar(name, value string) string {
 	if runtime.GOOS == "windows" {
 		return fmt.Sprintf("$env:%s = '%s'", name, value)

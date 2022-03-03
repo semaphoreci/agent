@@ -24,6 +24,7 @@ type HubMockServer struct {
 	RegisterAttempts          int
 	ShouldShutdown            bool
 	Disconnected              bool
+	RunningJob                bool
 }
 
 func NewHubMockServer() *HubMockServer {
@@ -125,15 +126,23 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 		}
 
 	case selfhostedapi.AgentStateRunningJob:
+		m.RunningJob = true
+
 		if m.ShouldShutdown {
 			syncResponse.Action = selfhostedapi.AgentActionStopJob
 			syncResponse.JobID = m.JobRequest.ID
 		}
 
+	case selfhostedapi.AgentStateFinishedJob:
+		if m.ShouldShutdown {
+			syncResponse.Action = selfhostedapi.AgentActionShutdown
+		} else {
+			syncResponse.Action = selfhostedapi.AgentActionWaitForJobs
+		}
+
 	case selfhostedapi.AgentStateFailedToFetchJob,
 		selfhostedapi.AgentStateFailedToConstructJob,
-		selfhostedapi.AgentStateFailedToSendCallback,
-		selfhostedapi.AgentStateFinishedJob:
+		selfhostedapi.AgentStateFailedToSendCallback:
 		syncResponse.Action = selfhostedapi.AgentActionWaitForJobs
 	}
 
@@ -180,6 +189,16 @@ func (m *HubMockServer) URL() string {
 
 func (m *HubMockServer) Host() string {
 	return m.Server.Listener.Addr().String()
+}
+
+func (m *HubMockServer) WaitUntilRunningJob(attempts int, wait time.Duration) error {
+	return retry.RetryWithConstantWait("WaitUntilRunningJob", attempts, wait, func() error {
+		if !m.RunningJob {
+			return fmt.Errorf("still not running job")
+		}
+
+		return nil
+	})
 }
 
 func (m *HubMockServer) WaitUntilDisconnected(attempts int, wait time.Duration) error {
