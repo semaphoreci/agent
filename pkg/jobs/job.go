@@ -109,18 +109,20 @@ func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOpti
 }
 
 type RunOptions struct {
-	EnvVars              []config.HostEnvVar
-	FileInjections       []config.FileInjection
-	OnSuccessfulTeardown func()
-	OnFailedTeardown     func()
+	EnvVars               []config.HostEnvVar
+	FileInjections        []config.FileInjection
+	OnSuccessfulTeardown  func()
+	OnFailedTeardown      func()
+	CallbackRetryAttempts int
 }
 
 func (job *Job) Run() {
 	job.RunWithOptions(RunOptions{
-		EnvVars:              []config.HostEnvVar{},
-		FileInjections:       []config.FileInjection{},
-		OnSuccessfulTeardown: nil,
-		OnFailedTeardown:     nil,
+		EnvVars:               []config.HostEnvVar{},
+		FileInjections:        []config.FileInjection{},
+		OnSuccessfulTeardown:  nil,
+		OnFailedTeardown:      nil,
+		CallbackRetryAttempts: 60,
 	})
 }
 
@@ -148,7 +150,7 @@ func (job *Job) RunWithOptions(options RunOptions) {
 		}
 	}
 
-	err := job.Teardown(result)
+	err := job.Teardown(result, options.CallbackRetryAttempts)
 	if err != nil {
 		callFuncIfNotNull(options.OnFailedTeardown)
 	} else {
@@ -263,13 +265,13 @@ func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command) int {
 	return lastExitCode
 }
 
-func (job *Job) Teardown(result string) error {
+func (job *Job) Teardown(result string, callbackRetryAttempts int) error {
 	// if job was stopped during the epilogues, result should be stopped
 	if job.Stopped {
 		result = JobStopped
 	}
 
-	err := job.SendFinishedCallback(result)
+	err := job.SendFinishedCallback(result, callbackRetryAttempts)
 	if err != nil {
 		log.Errorf("Could not send finished callback: %v", err)
 		return err
@@ -296,7 +298,7 @@ func (job *Job) Teardown(result string) error {
 		log.Errorf("Error closing logger: %+v", err)
 	}
 
-	err = job.SendTeardownFinishedCallback()
+	err = job.SendTeardownFinishedCallback(callbackRetryAttempts)
 	if err != nil {
 		log.Errorf("Could not send teardown finished callback: %v", err)
 		return err
@@ -318,17 +320,17 @@ func (job *Job) Stop() {
 	})
 }
 
-func (job *Job) SendFinishedCallback(result string) error {
+func (job *Job) SendFinishedCallback(result string, retries int) error {
 	payload := fmt.Sprintf(`{"result": "%s"}`, result)
 	log.Infof("Sending finished callback: %+v", payload)
-	return retry.RetryWithConstantWait("Send finished callback", 60, time.Second, func() error {
+	return retry.RetryWithConstantWait("Send finished callback", retries, time.Second, func() error {
 		return job.SendCallback(job.Request.Callbacks.Finished, payload)
 	})
 }
 
-func (job *Job) SendTeardownFinishedCallback() error {
+func (job *Job) SendTeardownFinishedCallback(retries int) error {
 	log.Info("Sending teardown finished callback")
-	return retry.RetryWithConstantWait("Send teardown finished callback", 60, time.Second, func() error {
+	return retry.RetryWithConstantWait("Send teardown finished callback", retries, time.Second, func() error {
 		return job.SendCallback(job.Request.Callbacks.TeardownFinished, "{}")
 	})
 }

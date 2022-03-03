@@ -22,10 +22,13 @@ type HubMockServer struct {
 	RegisterRequest           *selfhostedapi.RegisterRequest
 	RegisterAttemptRejections int
 	RegisterAttempts          int
+	GetJobAttemptRejections   int
+	GetJobAttempts            int
 	ShouldShutdown            bool
 	Disconnected              bool
 	RunningJob                bool
 	FinishedJob               bool
+	FailureStatus             string
 }
 
 func NewHubMockServer() *HubMockServer {
@@ -147,6 +150,7 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 	case selfhostedapi.AgentStateFailedToFetchJob,
 		selfhostedapi.AgentStateFailedToConstructJob,
 		selfhostedapi.AgentStateFailedToSendCallback:
+		m.FailureStatus = string(request.State)
 		syncResponse.Action = selfhostedapi.AgentActionWaitForJobs
 	}
 
@@ -161,6 +165,12 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 }
 
 func (m *HubMockServer) handleGetJobRequest(w http.ResponseWriter, r *http.Request) {
+	m.GetJobAttempts++
+	if m.GetJobAttempts < m.GetJobAttemptRejections {
+		fmt.Printf("[HUB MOCK] Get job, Attempts: %d, Rejections: %d, rejecting...\n", m.GetJobAttempts, m.GetJobAttemptRejections)
+		w.WriteHeader(500)
+	}
+
 	if m.JobRequest == nil {
 		fmt.Printf("[HUB MOCK] No jobRequest in use\n")
 		w.WriteHeader(404)
@@ -189,12 +199,26 @@ func (m *HubMockServer) RejectRegisterAttempts(times int) {
 	m.RegisterAttemptRejections = times
 }
 
+func (m *HubMockServer) RejectGetJobAttempts(times int) {
+	m.GetJobAttemptRejections = times
+}
+
 func (m *HubMockServer) URL() string {
 	return m.Server.URL
 }
 
 func (m *HubMockServer) Host() string {
 	return m.Server.Listener.Addr().String()
+}
+
+func (m *HubMockServer) WaitUntilFailure(status string, attempts int, wait time.Duration) error {
+	return retry.RetryWithConstantWait("WaitUntilRunningJob", attempts, wait, func() error {
+		if m.FailureStatus != status {
+			return fmt.Errorf("still haven't failed with %s", status)
+		}
+
+		return nil
+	})
 }
 
 func (m *HubMockServer) WaitUntilRunningJob(attempts int, wait time.Duration) error {

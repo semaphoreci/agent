@@ -28,6 +28,8 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		State:                      selfhostedapi.AgentStateWaitingForJobs,
 		SyncInterval:               5 * time.Second,
 		DisconnectRetryAttempts:    100,
+		GetJobRetryAttempts:        config.GetJobRetryLimit,
+		CallbackRetryAttempts:      config.CallbackRetryLimit,
 		ShutdownHookPath:           config.ShutdownHookPath,
 		DisconnectAfterJob:         config.DisconnectAfterJob,
 		DisconnectAfterIdleTimeout: config.DisconnectAfterIdleTimeout,
@@ -55,6 +57,8 @@ type JobProcessor struct {
 	LastSuccessfulSync         time.Time
 	LastStateChangeAt          time.Time
 	DisconnectRetryAttempts    int
+	GetJobRetryAttempts        int
+	CallbackRetryAttempts      int
 	ShutdownHookPath           string
 	StopSync                   bool
 	DisconnectAfterJob         bool
@@ -189,9 +193,10 @@ func (p *JobProcessor) RunJob(jobID string) {
 	p.CurrentJob = job
 
 	go job.RunWithOptions(jobs.RunOptions{
-		EnvVars:              p.EnvVars,
-		FileInjections:       p.FileInjections,
-		OnSuccessfulTeardown: p.JobFinished,
+		EnvVars:               p.EnvVars,
+		CallbackRetryAttempts: p.CallbackRetryAttempts,
+		FileInjections:        p.FileInjections,
+		OnSuccessfulTeardown:  p.JobFinished,
 		OnFailedTeardown: func() {
 			if p.DisconnectAfterJob {
 				p.Shutdown(ShutdownReasonJobFinished, 1)
@@ -204,7 +209,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 
 func (p *JobProcessor) getJobWithRetries(jobID string) (*api.JobRequest, error) {
 	var jobRequest *api.JobRequest
-	err := retry.RetryWithConstantWait("Get job", 10, 3*time.Second, func() error {
+	err := retry.RetryWithConstantWait("Get job", p.GetJobRetryAttempts, 3*time.Second, func() error {
 		job, err := p.APIClient.GetJob(jobID)
 		if err != nil {
 			return err

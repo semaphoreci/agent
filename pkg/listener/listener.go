@@ -24,6 +24,8 @@ type Listener struct {
 type Config struct {
 	Endpoint                   string
 	RegisterRetryLimit         int
+	GetJobRetryLimit           int
+	CallbackRetryLimit         int
 	Token                      string
 	Scheme                     string
 	ShutdownHookPath           string

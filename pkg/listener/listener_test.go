@@ -13,6 +13,7 @@ import (
 	"github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 	"github.com/semaphoreci/agent/pkg/eventlogger"
+	"github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
 	testsupport "github.com/semaphoreci/agent/test/support"
 	"github.com/stretchr/testify/assert"
 )
@@ -426,7 +427,7 @@ func Test__HostEnvVarsAreExposedToJob(t *testing.T) {
 	assert.Nil(t, err)
 
 	hubMockServer.AssignJob(&api.JobRequest{
-		ID: "Test__ShutdownFromUpstreamWhileRunningJob",
+		ID: "Test__HostEnvVarsAreExposedToJob",
 		Commands: []api.Command{
 			{Directive: testsupport.Output("On regular commands")},
 			{Directive: testsupport.EchoEnvVar("IMPORTANT_HOST_VAR_A")},
@@ -526,6 +527,246 @@ func Test__HostEnvVarsAreExposedToJob(t *testing.T) {
 
 		"job_finished: passed",
 	}, simplifiedEvents)
+
+	listener.Stop()
+	hubMockServer.Close()
+	loghubMockServer.Close()
+}
+
+func Test__GetJobIsRetried(t *testing.T) {
+	testsupport.SetupTestLogs()
+
+	loghubMockServer := testsupport.NewLoghubMockServer()
+	loghubMockServer.Init()
+
+	hubMockServer := testsupport.NewHubMockServer()
+	hubMockServer.Init()
+	hubMockServer.UseLogsURL(loghubMockServer.URL())
+	hubMockServer.RejectGetJobAttempts(5)
+
+	config := Config{
+		DisconnectAfterJob: true,
+		ExitOnShutdown:     false,
+		Endpoint:           hubMockServer.Host(),
+		Token:              "token",
+		RegisterRetryLimit: 5,
+		Scheme:             "http",
+		EnvVars:            []config.HostEnvVar{},
+		FileInjections:     []config.FileInjection{},
+		AgentVersion:       "0.0.7",
+	}
+
+	listener, err := Start(http.DefaultClient, config)
+	assert.Nil(t, err)
+
+	hubMockServer.AssignJob(&api.JobRequest{
+		ID: "Test__GetJobIsRetried",
+		Commands: []api.Command{
+			{Directive: testsupport.Output("hello")},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+			URL:    loghubMockServer.URL(),
+			Token:  "doesnotmatter",
+		},
+	})
+
+	assert.Nil(t, hubMockServer.WaitUntilDisconnected(10, 2*time.Second))
+	assert.Equal(t, listener.JobProcessor.ShutdownReason, ShutdownReasonJobFinished)
+	assert.Equal(t, hubMockServer.GetJobAttempts, 5)
+
+	hubMockServer.Close()
+	loghubMockServer.Close()
+}
+
+func Test__ReportsFailedToFetchJob(t *testing.T) {
+	testsupport.SetupTestLogs()
+
+	loghubMockServer := testsupport.NewLoghubMockServer()
+	loghubMockServer.Init()
+
+	hubMockServer := testsupport.NewHubMockServer()
+	hubMockServer.Init()
+	hubMockServer.UseLogsURL(loghubMockServer.URL())
+	hubMockServer.RejectGetJobAttempts(100)
+
+	config := Config{
+		DisconnectAfterJob: true,
+		ExitOnShutdown:     false,
+		Endpoint:           hubMockServer.Host(),
+		Token:              "token",
+		RegisterRetryLimit: 5,
+		GetJobRetryLimit:   2,
+		Scheme:             "http",
+		EnvVars:            []config.HostEnvVar{},
+		FileInjections:     []config.FileInjection{},
+		AgentVersion:       "0.0.7",
+	}
+
+	listener, err := Start(http.DefaultClient, config)
+	assert.Nil(t, err)
+
+	hubMockServer.AssignJob(&api.JobRequest{
+		ID:       "Test__ReportsFailedToFetchJob",
+		Commands: []api.Command{},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+			URL:    loghubMockServer.URL(),
+			Token:  "doesnotmatter",
+		},
+	})
+
+	assert.Nil(t, hubMockServer.WaitUntilFailure(string(selfhostedapi.AgentStateFailedToFetchJob), 12, 5*time.Second))
+
+	listener.Stop()
+	hubMockServer.Close()
+	loghubMockServer.Close()
+}
+
+func Test__ReportsFailedToConstructJob(t *testing.T) {
+	testsupport.SetupTestLogs()
+
+	loghubMockServer := testsupport.NewLoghubMockServer()
+	loghubMockServer.Init()
+
+	hubMockServer := testsupport.NewHubMockServer()
+	hubMockServer.Init()
+	hubMockServer.UseLogsURL(loghubMockServer.URL())
+
+	config := Config{
+		DisconnectAfterJob: true,
+		ExitOnShutdown:     false,
+		Endpoint:           hubMockServer.Host(),
+		Token:              "token",
+		RegisterRetryLimit: 5,
+		GetJobRetryLimit:   2,
+		Scheme:             "http",
+		EnvVars:            []config.HostEnvVar{},
+		FileInjections:     []config.FileInjection{},
+		AgentVersion:       "0.0.7",
+	}
+
+	listener, err := Start(http.DefaultClient, config)
+	assert.Nil(t, err)
+
+	hubMockServer.AssignJob(&api.JobRequest{
+		ID:       "Test__ReportsFailedToConstructJob",
+		Executor: "doesnotexist",
+		Commands: []api.Command{},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+			URL:    loghubMockServer.URL(),
+			Token:  "doesnotmatter",
+		},
+	})
+
+	assert.Nil(t, hubMockServer.WaitUntilFailure(string(selfhostedapi.AgentStateFailedToConstructJob), 10, 2*time.Second))
+
+	listener.Stop()
+	hubMockServer.Close()
+	loghubMockServer.Close()
+}
+
+func Test__ReportsFailedToSendFinishedCallback(t *testing.T) {
+	testsupport.SetupTestLogs()
+
+	loghubMockServer := testsupport.NewLoghubMockServer()
+	loghubMockServer.Init()
+
+	hubMockServer := testsupport.NewHubMockServer()
+	hubMockServer.Init()
+	hubMockServer.UseLogsURL(loghubMockServer.URL())
+
+	config := Config{
+		ExitOnShutdown:     false,
+		Endpoint:           hubMockServer.Host(),
+		Token:              "token",
+		RegisterRetryLimit: 5,
+		GetJobRetryLimit:   2,
+		CallbackRetryLimit: 5,
+		Scheme:             "http",
+		EnvVars:            []config.HostEnvVar{},
+		FileInjections:     []config.FileInjection{},
+		AgentVersion:       "0.0.7",
+	}
+
+	listener, err := Start(http.DefaultClient, config)
+	assert.Nil(t, err)
+
+	hubMockServer.AssignJob(&api.JobRequest{
+		ID:       "Test__ReportsFailedToSendFinishedCallback",
+		Commands: []api.Command{},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/500",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+			URL:    loghubMockServer.URL(),
+			Token:  "doesnotmatter",
+		},
+	})
+
+	assert.Nil(t, hubMockServer.WaitUntilFailure(string(selfhostedapi.AgentStateFailedToSendCallback), 10, 2*time.Second))
+
+	listener.Stop()
+	hubMockServer.Close()
+	loghubMockServer.Close()
+}
+
+func Test__ReportsFailedToSendTeardownFinishedCallback(t *testing.T) {
+	testsupport.SetupTestLogs()
+
+	loghubMockServer := testsupport.NewLoghubMockServer()
+	loghubMockServer.Init()
+
+	hubMockServer := testsupport.NewHubMockServer()
+	hubMockServer.Init()
+	hubMockServer.UseLogsURL(loghubMockServer.URL())
+
+	config := Config{
+		ExitOnShutdown:     false,
+		Endpoint:           hubMockServer.Host(),
+		Token:              "token",
+		RegisterRetryLimit: 5,
+		GetJobRetryLimit:   2,
+		CallbackRetryLimit: 5,
+		Scheme:             "http",
+		EnvVars:            []config.HostEnvVar{},
+		FileInjections:     []config.FileInjection{},
+		AgentVersion:       "0.0.7",
+	}
+
+	listener, err := Start(http.DefaultClient, config)
+	assert.Nil(t, err)
+
+	hubMockServer.AssignJob(&api.JobRequest{
+		ID:       "Test__ReportsFailedToSendTeardownFinishedCallback",
+		Commands: []api.Command{},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/500",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+			URL:    loghubMockServer.URL(),
+			Token:  "doesnotmatter",
+		},
+	})
+
+	assert.Nil(t, hubMockServer.WaitUntilFailure(string(selfhostedapi.AgentStateFailedToSendCallback), 10, 2*time.Second))
 
 	listener.Stop()
 	hubMockServer.Close()

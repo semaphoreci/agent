@@ -160,6 +160,8 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		Endpoint:                   viper.GetString(config.Endpoint),
 		Token:                      viper.GetString(config.Token),
 		RegisterRetryLimit:         30,
+		GetJobRetryLimit:           10,
+		CallbackRetryLimit:         60,
 		Scheme:                     scheme,
 		ShutdownHookPath:           viper.GetString(config.ShutdownHookPath),
 		DisconnectAfterJob:         viper.GetBool(config.DisconnectAfterJob),

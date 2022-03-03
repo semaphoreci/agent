@@ -214,14 +214,10 @@ blocks:
           matrix:
             - env_var: TEST
               values:
-                - broken_finished_callback
-                - broken_teardown_callback
-                - broken_get_job
                 - docker_compose_host_env_vars
                 - docker_compose_host_files
                 - docker_compose_missing_host_files
                 - docker_compose_fail_on_missing_host_files
-                - shell_host_env_vars
 
 promotions:
   - name: Release
