@@ -23,6 +23,7 @@ type HubMockServer struct {
 	RegisterAttemptRejections int
 	RegisterAttempts          int
 	JobStopRequestedAt        *time.Time
+	Disconnected              bool
 }
 
 func NewHubMockServer() *HubMockServer {
@@ -40,6 +41,7 @@ func (m *HubMockServer) Init() {
 			m.handleSyncRequest(w, r)
 		case strings.Contains(path, "/disconnect"):
 			fmt.Printf("[HUB MOCK] Received disconnect request\n")
+			m.Disconnected = true
 			w.WriteHeader(200)
 		case strings.Contains(path, "/jobs/"):
 			m.handleGetJobRequest(w, r)
@@ -171,6 +173,16 @@ func (m *HubMockServer) URL() string {
 
 func (m *HubMockServer) Host() string {
 	return m.Server.Listener.Addr().String()
+}
+
+func (m *HubMockServer) WaitUntilDisconnected(attempts int, wait time.Duration) error {
+	return retry.RetryWithConstantWait("WaitUntilDisconnected", attempts, wait, func() error {
+		if !m.Disconnected {
+			return fmt.Errorf("still not disconnected")
+		}
+
+		return nil
+	})
 }
 
 func (m *HubMockServer) WaitUntilRegistered() error {

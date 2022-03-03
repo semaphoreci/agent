@@ -63,6 +63,7 @@ type JobProcessor struct {
 	FileInjections             []config.FileInjection
 	FailOnMissingFiles         bool
 	ExitOnShutdown             bool
+	ShutdownReason             ShutdownReason
 }
 
 func (p *JobProcessor) Start() {
@@ -264,6 +265,8 @@ func (p *JobProcessor) disconnect() {
 }
 
 func (p *JobProcessor) Shutdown(reason ShutdownReason, code int) {
+	p.ShutdownReason = reason
+
 	p.disconnect()
 	p.executeShutdownHook(reason)
 	log.Infof("Agent shutting down due to: %s", reason)

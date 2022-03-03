@@ -177,6 +177,37 @@ func Test__ShutdownHookIsExecuted(t *testing.T) {
 	loghubMockServer.Close()
 }
 
+func Test__ShutdownAfterIdleTimeout(t *testing.T) {
+	testsupport.SetupTestLogs()
+
+	loghubMockServer := testsupport.NewLoghubMockServer()
+	loghubMockServer.Init()
+
+	hubMockServer := testsupport.NewHubMockServer()
+	hubMockServer.Init()
+	hubMockServer.UseLogsURL(loghubMockServer.URL())
+
+	config := Config{
+		ExitOnShutdown:             false,
+		DisconnectAfterIdleTimeout: 15 * time.Second,
+		Endpoint:                   hubMockServer.Host(),
+		Token:                      "token",
+		RegisterRetryLimit:         5,
+		Scheme:                     "http",
+		EnvVars:                    []config.HostEnvVar{},
+		FileInjections:             []config.FileInjection{},
+		AgentVersion:               "0.0.7",
+	}
+
+	listener, err := Start(http.DefaultClient, config)
+	assert.Nil(t, err)
+	assert.Nil(t, hubMockServer.WaitUntilDisconnected(15, 2*time.Second))
+	assert.Equal(t, listener.JobProcessor.ShutdownReason, ShutdownReasonIdle)
+
+	hubMockServer.Close()
+	loghubMockServer.Close()
+}
+
 func tempFileWithExtension() (string, error) {
 	tmpFile, err := ioutil.TempFile("", fmt.Sprintf("file*.%s", extension()))
 	if err != nil {
