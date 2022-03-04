@@ -357,6 +357,8 @@ func assertFileMode(t *testing.T, fileName string, fileMode fs.FileMode) {
 
 func setupShellExecutor(t *testing.T) (*ShellExecutor, *eventlogger.InMemoryBackend) {
 	testsupport.SetupTestLogs()
+	testsupport.RemovePermanentEnvironmentFile()
+
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	e := NewShellExecutor(basicRequest(), testLogger)
 

@@ -15,8 +15,7 @@ import (
 )
 
 func Test__EnvVarsAreAvailableToCommands(t *testing.T) {
-	httpClient := http.DefaultClient
-
+	testsupport.RemovePermanentEnvironmentFile()
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		Commands: []api.Command{
@@ -39,7 +38,7 @@ func Test__EnvVarsAreAvailableToCommands(t *testing.T) {
 
 	job, err := NewJobWithOptions(&JobOptions{
 		Request: request,
-		Client:  httpClient,
+		Client:  http.DefaultClient,
 		Logger:  testLogger,
 	})
 
@@ -82,8 +81,7 @@ func Test__EnvVarsAreAvailableToCommands(t *testing.T) {
 }
 
 func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnPass(t *testing.T) {
-	httpClient := http.DefaultClient
-
+	testsupport.RemovePermanentEnvironmentFile()
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		Commands: []api.Command{},
@@ -116,7 +114,7 @@ func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnPass(t *testing.T) {
 
 	job, err := NewJobWithOptions(&JobOptions{
 		Request: request,
-		Client:  httpClient,
+		Client:  http.DefaultClient,
 		Logger:  testLogger,
 	})
 
@@ -186,7 +184,7 @@ func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnPass(t *testing.T) {
 }
 
 func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnFail(t *testing.T) {
-	httpClient := http.DefaultClient
+	testsupport.RemovePermanentEnvironmentFile()
 
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
@@ -222,7 +220,7 @@ func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnFail(t *testing.T) {
 
 	job, err := NewJobWithOptions(&JobOptions{
 		Request: request,
-		Client:  httpClient,
+		Client:  http.DefaultClient,
 		Logger:  testLogger,
 	})
 
@@ -296,7 +294,7 @@ func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnFail(t *testing.T) {
 }
 
 func Test__EpilogueOnPassOnlyExecutesOnSuccessfulJob(t *testing.T) {
-	httpClient := http.DefaultClient
+	testsupport.RemovePermanentEnvironmentFile()
 
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
@@ -324,7 +322,7 @@ func Test__EpilogueOnPassOnlyExecutesOnSuccessfulJob(t *testing.T) {
 
 	job, err := NewJobWithOptions(&JobOptions{
 		Request: request,
-		Client:  httpClient,
+		Client:  http.DefaultClient,
 		Logger:  testLogger,
 	})
 
@@ -366,8 +364,7 @@ func Test__EpilogueOnPassOnlyExecutesOnSuccessfulJob(t *testing.T) {
 }
 
 func Test__EpilogueOnFailOnlyExecutesOnFailedJob(t *testing.T) {
-	httpClient := http.DefaultClient
-
+	testsupport.RemovePermanentEnvironmentFile()
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		EnvVars: []api.EnvVar{},
@@ -394,7 +391,7 @@ func Test__EpilogueOnFailOnlyExecutesOnFailedJob(t *testing.T) {
 
 	job, err := NewJobWithOptions(&JobOptions{
 		Request: request,
-		Client:  httpClient,
+		Client:  http.DefaultClient,
 		Logger:  testLogger,
 	})
 
@@ -436,7 +433,7 @@ func Test__EpilogueOnFailOnlyExecutesOnFailedJob(t *testing.T) {
 }
 
 func Test__UsingCommandAliases(t *testing.T) {
-	httpClient := http.DefaultClient
+	testsupport.RemovePermanentEnvironmentFile()
 
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
@@ -455,7 +452,7 @@ func Test__UsingCommandAliases(t *testing.T) {
 
 	job, err := NewJobWithOptions(&JobOptions{
 		Request: request,
-		Client:  httpClient,
+		Client:  http.DefaultClient,
 		Logger:  testLogger,
 	})
 
@@ -490,8 +487,7 @@ func Test__UsingCommandAliases(t *testing.T) {
 }
 
 func Test__StopJob(t *testing.T) {
-	httpClient := http.DefaultClient
-
+	testsupport.RemovePermanentEnvironmentFile()
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		EnvVars: []api.EnvVar{},
@@ -510,7 +506,7 @@ func Test__StopJob(t *testing.T) {
 
 	job, err := NewJobWithOptions(&JobOptions{
 		Request: request,
-		Client:  httpClient,
+		Client:  http.DefaultClient,
 		Logger:  testLogger,
 	})
 
@@ -544,8 +540,7 @@ func Test__StopJob(t *testing.T) {
 }
 
 func Test__StopJobOnEpilogue(t *testing.T) {
-	httpClient := http.DefaultClient
-
+	testsupport.RemovePermanentEnvironmentFile()
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		EnvVars: []api.EnvVar{},
@@ -566,7 +561,7 @@ func Test__StopJobOnEpilogue(t *testing.T) {
 
 	job, err := NewJobWithOptions(&JobOptions{
 		Request: request,
-		Client:  httpClient,
+		Client:  http.DefaultClient,
 		Logger:  testLogger,
 	})
 
@@ -612,7 +607,7 @@ func Test__STTYRestoration(t *testing.T) {
 		t.Skip("Windows does not support pty")
 	}
 
-	httpClient := http.DefaultClient
+	testsupport.RemovePermanentEnvironmentFile()
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		EnvVars: []api.EnvVar{},
@@ -629,7 +624,7 @@ func Test__STTYRestoration(t *testing.T) {
 		},
 	}
 
-	job, err := NewJobWithOptions(&JobOptions{Request: request, Client: httpClient, Logger: testLogger})
+	job, err := NewJobWithOptions(&JobOptions{Request: request, Client: http.DefaultClient, Logger: testLogger})
 	assert.Nil(t, err)
 
 	job.Run()
