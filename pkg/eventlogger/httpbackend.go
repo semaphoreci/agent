@@ -24,7 +24,7 @@ type HTTPBackend struct {
 }
 
 func NewHTTPBackend(url, token string) (*HTTPBackend, error) {
-	path := filepath.Join(os.TempDir(), "job_log.json")
+	path := filepath.Join(os.TempDir(), fmt.Sprintf("job_log_%d.json", time.Now().UnixNano()))
 	fileBackend, err := NewFileBackend(path)
 	if err != nil {
 		return nil, err
