@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -13,10 +14,8 @@ import (
 )
 
 func Test__LogsArePushedToFile(t *testing.T) {
-	tmpFile, err := ioutil.TempFile("", "logs")
-	assert.Nil(t, err)
-
-	fileBackend, err := NewFileBackend(tmpFile.Name())
+	tmpFileName := filepath.Join(os.TempDir(), fmt.Sprintf("logs_%d.json", time.Now().UnixNano()))
+	fileBackend, err := NewFileBackend(tmpFileName)
 	assert.Nil(t, err)
 	assert.Nil(t, fileBackend.Open())
 
@@ -34,10 +33,7 @@ func Test__LogsArePushedToFile(t *testing.T) {
 	}))
 	assert.Nil(t, fileBackend.Write(&JobFinishedEvent{Timestamp: timestamp, Event: "job_finished", Result: "passed"}))
 
-	err = fileBackend.Close()
-	assert.Nil(t, err)
-
-	bytes, err := ioutil.ReadFile(tmpFile.Name())
+	bytes, err := ioutil.ReadFile(tmpFileName)
 	assert.Nil(t, err)
 	logs := strings.Split(string(bytes), "\n")
 
@@ -49,5 +45,6 @@ func Test__LogsArePushedToFile(t *testing.T) {
 		fmt.Sprintf(`{"event":"job_finished","timestamp":%d,"result":"passed"}`, timestamp),
 	}, testsupport.FilterEmpty(logs))
 
-	os.Remove(tmpFile.Name())
+	err = fileBackend.Close()
+	assert.Nil(t, err)
 }
