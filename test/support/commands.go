@@ -30,7 +30,7 @@ func RemovePermanentEnvironmentFile() {
 		return
 	}
 
-	os.Remove(filepath.Join(os.TempDir(), ".env"))
+	_ = os.Remove(filepath.Join(os.TempDir(), ".env"))
 }
 
 func AssertSimplifiedJobLogs(t *testing.T, actual, expected []string) {
