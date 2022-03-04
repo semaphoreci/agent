@@ -91,14 +91,26 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 	homeDir, _ := os.UserHomeDir()
 
 	absoluteFile := api.File{
-		Path:    filepath.Join(os.TempDir(), "somedir", "absolute-file.txt"),
+		Path:    filepath.Join(os.TempDir(), "absolute-file.txt"),
 		Content: base64.StdEncoding.EncodeToString([]byte("absolute\n")),
-		Mode:    "0600",
+		Mode:    "0400",
+	}
+
+	absoluteFileInMissingDir := api.File{
+		Path:    filepath.Join(os.TempDir(), "somedir", "absolute-file-missing-dir.txt"),
+		Content: base64.StdEncoding.EncodeToString([]byte("absolute-in-missing-dir\n")),
+		Mode:    "0440",
 	}
 
 	relativeFile := api.File{
 		Path:    filepath.Join("somedir", "relative-file.txt"),
 		Content: base64.StdEncoding.EncodeToString([]byte("relative\n")),
+		Mode:    "0600",
+	}
+
+	relativeFileInMissingDir := api.File{
+		Path:    filepath.Join("somedir", "relative-file-in-missing-dir.txt"),
+		Content: base64.StdEncoding.EncodeToString([]byte("relative-in-missing-dir\n")),
 		Mode:    "0644",
 	}
 
@@ -108,9 +120,18 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 		Mode:    "0777",
 	}
 
-	assert.Zero(t, e.InjectFiles([]api.File{absoluteFile, relativeFile, homeFile}))
+	assert.Zero(t, e.InjectFiles([]api.File{
+		absoluteFile,
+		absoluteFileInMissingDir,
+		relativeFile,
+		relativeFileInMissingDir,
+		homeFile,
+	}))
+
 	assert.Zero(t, e.RunCommand(testsupport.Cat(absoluteFile.NormalizePath(homeDir)), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.Cat(absoluteFileInMissingDir.NormalizePath(homeDir)), false, ""))
 	assert.Zero(t, e.RunCommand(testsupport.Cat(relativeFile.NormalizePath(homeDir)), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.Cat(relativeFileInMissingDir.NormalizePath(homeDir)), false, ""))
 	assert.Zero(t, e.RunCommand(testsupport.Cat(homeFile.NormalizePath(homeDir)), false, ""))
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
@@ -120,8 +141,10 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 
 	assert.Equal(t, simplifiedEvents, []string{
 		"directive: Injecting Files",
-		fmt.Sprintf("Injecting %s with file mode 0600\n", absoluteFile.NormalizePath(homeDir)),
-		fmt.Sprintf("Injecting %s with file mode 0644\n", relativeFile.NormalizePath(homeDir)),
+		fmt.Sprintf("Injecting %s with file mode 0400\n", absoluteFile.NormalizePath(homeDir)),
+		fmt.Sprintf("Injecting %s with file mode 0440\n", absoluteFileInMissingDir.NormalizePath(homeDir)),
+		fmt.Sprintf("Injecting %s with file mode 0600\n", relativeFile.NormalizePath(homeDir)),
+		fmt.Sprintf("Injecting %s with file mode 0644\n", relativeFileInMissingDir.NormalizePath(homeDir)),
 		fmt.Sprintf("Injecting %s with file mode 0777\n", homeFile.NormalizePath(homeDir)),
 		"Exit Code: 0",
 
@@ -129,8 +152,16 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 		"absolute\n",
 		"Exit Code: 0",
 
+		fmt.Sprintf("directive: %s", testsupport.Cat(absoluteFileInMissingDir.NormalizePath(homeDir))),
+		"absolute-in-missing-dir\n",
+		"Exit Code: 0",
+
 		fmt.Sprintf("directive: %s", testsupport.Cat(relativeFile.NormalizePath(homeDir))),
 		"relative\n",
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", testsupport.Cat(relativeFileInMissingDir.NormalizePath(homeDir))),
+		"relative-in-missing-dir\n",
 		"Exit Code: 0",
 
 		fmt.Sprintf("directive: %s", testsupport.Cat(homeFile.NormalizePath(homeDir))),
@@ -140,15 +171,26 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 
 	// Assert file modes
 	if runtime.GOOS == "windows" {
-		// TODO: figure out how to set and assert file modes in windows
+		// windows file modes are a bit different, since it uses ACLs and not flags like unix.
+		// Therefore, 04xx means everybody can read it, 06xx means everybody can write and read it
+		// See: https://pkg.go.dev/os#Chmod
+		assertFileMode(t, absoluteFile.NormalizePath(homeDir), fs.FileMode(0444))
+		assertFileMode(t, absoluteFileInMissingDir.NormalizePath(homeDir), fs.FileMode(0444))
+		assertFileMode(t, relativeFile.NormalizePath(homeDir), fs.FileMode(0666))
+		assertFileMode(t, relativeFileInMissingDir.NormalizePath(homeDir), fs.FileMode(0666))
+		assertFileMode(t, homeFile.NormalizePath(homeDir), fs.FileMode(0666))
 	} else {
-		assertFileMode(t, absoluteFile.NormalizePath(homeDir), fs.FileMode(uint32(0600)))
-		assertFileMode(t, relativeFile.NormalizePath(homeDir), fs.FileMode(uint32(0644)))
-		assertFileMode(t, homeFile.NormalizePath(homeDir), fs.FileMode(uint32(0777)))
+		assertFileMode(t, absoluteFile.NormalizePath(homeDir), fs.FileMode(0400))
+		assertFileMode(t, absoluteFileInMissingDir.NormalizePath(homeDir), fs.FileMode(0440))
+		assertFileMode(t, relativeFile.NormalizePath(homeDir), fs.FileMode(0600))
+		assertFileMode(t, relativeFileInMissingDir.NormalizePath(homeDir), fs.FileMode(0644))
+		assertFileMode(t, homeFile.NormalizePath(homeDir), fs.FileMode(0777))
 	}
 
 	os.Remove(absoluteFile.NormalizePath(homeDir))
+	os.Remove(absoluteFileInMissingDir.NormalizePath(homeDir))
 	os.Remove(relativeFile.NormalizePath(homeDir))
+	os.Remove(relativeFileInMissingDir.NormalizePath(homeDir))
 	os.Remove(homeFile.NormalizePath(homeDir))
 }
 
