@@ -161,3 +161,11 @@ func CopyFile(src, dest string) string {
 
 	return fmt.Sprintf("cp %s %s", src, dest)
 }
+
+func NestedEnvVarValue(name, rest string) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("$env:%s%s", name, rest)
+	}
+
+	return fmt.Sprintf("$%s%s", name, rest)
+}

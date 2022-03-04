@@ -17,6 +17,9 @@ import (
 	assert "github.com/stretchr/testify/assert"
 )
 
+var UnicodeOutput1 = `特定の伝説に拠る物語の由来については諸説存在し。特定の伝説に拠る物語の由来については諸説存在し。特定の伝説に拠る物語の由来については諸説存在し。`
+var UnicodeOutput2 = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+
 func Test__ShellExecutor__SSHJumpPoint(t *testing.T) {
 	sshJumpPointPath := filepath.Join(os.TempDir(), "ssh_jump_point")
 	os.Remove(sshJumpPointPath)
@@ -39,6 +42,8 @@ func Test__ShellExecutor__EnvVars(t *testing.T) {
 		[]api.EnvVar{
 			{Name: "A", Value: base64.StdEncoding.EncodeToString([]byte("AAA"))},
 			{Name: "B", Value: base64.StdEncoding.EncodeToString([]byte("BBB"))},
+			{Name: "VAR_WITH_QUOTES", Value: base64.StdEncoding.EncodeToString([]byte("quotes ' quotes"))},
+			{Name: "VAR_WITH_ENV_VAR", Value: base64.StdEncoding.EncodeToString([]byte(testsupport.NestedEnvVarValue("PATH", ":/etc/a")))},
 		},
 		[]config.HostEnvVar{
 			{Name: "C", Value: "CCC"},
@@ -48,6 +53,8 @@ func Test__ShellExecutor__EnvVars(t *testing.T) {
 
 	assert.Zero(t, e.RunCommand(testsupport.EchoEnvVar("A"), false, ""))
 	assert.Zero(t, e.RunCommand(testsupport.EchoEnvVar("B"), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.EchoEnvVar("VAR_WITH_QUOTES"), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.EchoEnvVar("VAR_WITH_ENV_VAR"), false, ""))
 	assert.Zero(t, e.RunCommand(testsupport.EchoEnvVar("C"), false, ""))
 	assert.Zero(t, e.RunCommand(testsupport.EchoEnvVar("D"), false, ""))
 	assert.Zero(t, e.RunCommand(testsupport.EchoEnvVar("E"), false, ""))
@@ -63,6 +70,8 @@ func Test__ShellExecutor__EnvVars(t *testing.T) {
 		"Exporting B\n",
 		"Exporting C\n",
 		"Exporting D\n",
+		"Exporting VAR_WITH_ENV_VAR\n",
+		"Exporting VAR_WITH_QUOTES\n",
 		"Exit Code: 0",
 
 		fmt.Sprintf("directive: %s", testsupport.EchoEnvVar("A")),
@@ -71,6 +80,14 @@ func Test__ShellExecutor__EnvVars(t *testing.T) {
 
 		fmt.Sprintf("directive: %s", testsupport.EchoEnvVar("B")),
 		"BBB",
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", testsupport.EchoEnvVar("VAR_WITH_QUOTES")),
+		"quotes ' quotes",
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", testsupport.EchoEnvVar("VAR_WITH_ENV_VAR")),
+		testsupport.NestedEnvVarValue("PATH", ":/etc/a"),
 		"Exit Code: 0",
 
 		fmt.Sprintf("directive: %s", testsupport.EchoEnvVar("C")),
@@ -336,6 +353,41 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
 		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
 		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
+		"Exit Code: 0",
+	})
+}
+
+func Test__ShellExecutor__Unicode(t *testing.T) {
+	e, testLoggerBackend := setupShellExecutor(t)
+
+	go func() {
+		assert.Zero(t, e.RunCommand(testsupport.Output(UnicodeOutput1), false, ""))
+		assert.Zero(t, e.RunCommand(testsupport.Output(UnicodeOutput2), false, ""))
+	}()
+
+	time.Sleep(5 * time.Second)
+
+	assert.Zero(t, e.Stop())
+	assert.Zero(t, e.Cleanup())
+
+	time.Sleep(1 * time.Second)
+
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
+		fmt.Sprintf("directive: %s", testsupport.Output(UnicodeOutput1)),
+		"特定の伝説に拠る物語の由来については諸説存在し。特定の伝説に拠る物",
+		"語の由来については諸説存在し。特定の伝説に拠る物語の由来については",
+		"諸説存在し。",
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", testsupport.Output(UnicodeOutput2)),
+		"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+		"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+		"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+		"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+		"━━━━━━━━━━━━━━━━━━━━━━",
 		"Exit Code: 0",
 	})
 }
