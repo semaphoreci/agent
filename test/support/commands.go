@@ -169,3 +169,7 @@ func NestedEnvVarValue(name, rest string) string {
 
 	return fmt.Sprintf("$%s%s", name, rest)
 }
+
+func EchoBrokenUnicode() string {
+	return "echo | awk '{ printf(\"%c%c%c%c%c\", 150, 150, 150, 150, 150) }'"
+}

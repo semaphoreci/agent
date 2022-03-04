@@ -358,6 +358,10 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 }
 
 func Test__ShellExecutor__Unicode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
 	e, testLoggerBackend := setupShellExecutor(t)
 
 	go func() {
@@ -388,6 +392,34 @@ func Test__ShellExecutor__Unicode(t *testing.T) {
 		"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
 		"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
 		"━━━━━━━━━━━━━━━━━━━━━━",
+		"Exit Code: 0",
+	})
+}
+
+func Test__ShellExecutor__BrokenUnicode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
+	e, testLoggerBackend := setupShellExecutor(t)
+
+	go func() {
+		assert.Zero(t, e.RunCommand(testsupport.EchoBrokenUnicode(), false, ""))
+	}()
+
+	time.Sleep(5 * time.Second)
+
+	assert.Zero(t, e.Stop())
+	assert.Zero(t, e.Cleanup())
+
+	time.Sleep(1 * time.Second)
+
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
+		fmt.Sprintf("directive: %s", testsupport.EchoBrokenUnicode()),
+		"\ufffd\ufffd\ufffd\ufffd\ufffd",
 		"Exit Code: 0",
 	})
 }

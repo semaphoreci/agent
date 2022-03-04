@@ -108,8 +108,6 @@ blocks:
             - env_var: TEST
               values:
                 - ssh_jump_points
-                - unicode
-                - broken_unicode
                 - killing_root_bash
                 - set_e
                 - set_pipefail
