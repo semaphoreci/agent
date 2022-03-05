@@ -358,24 +358,13 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 }
 
 func Test__ShellExecutor__Unicode(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip()
-	}
-
 	e, testLoggerBackend := setupShellExecutor(t)
-
-	go func() {
-		assert.Zero(t, e.RunCommand(testsupport.Output(UnicodeOutput1), false, ""))
-		assert.Zero(t, e.RunCommand(testsupport.Output(UnicodeOutput2), false, ""))
-	}()
-
-	time.Sleep(5 * time.Second)
-
+	assert.Zero(t, e.RunCommand(testsupport.Output(UnicodeOutput1), false, ""))
+	assert.Zero(t, e.RunCommand(testsupport.Output(UnicodeOutput2), false, ""))
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
 	time.Sleep(1 * time.Second)
-
 	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
 	assert.Nil(t, err)
 
