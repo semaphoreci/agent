@@ -330,8 +330,6 @@ func (p *Process) writeCommandToFile(cmdFilePath, command string) error {
 		return err
 	}
 
-	defer file.Close()
-
 	/*
 	 * UTF8 files without a BOM containing non-ASCII characters may break in Windows PowerShell,
 	 * since it misinterprets it as being encoded in the legacy "ANSI" codepage.
@@ -341,16 +339,18 @@ func (p *Process) writeCommandToFile(cmdFilePath, command string) error {
 	if runtime.GOOS == "windows" {
 		_, err = file.Write([]byte{0xEF, 0xBB, 0xBF})
 		if err != nil {
+			_ = file.Close()
 			return err
 		}
 	}
 
 	_, err = file.Write([]byte(command))
 	if err != nil {
+		_ = file.Close()
 		return err
 	}
 
-	return nil
+	return file.Close()
 }
 
 func (p *Process) readBufferSize() int {

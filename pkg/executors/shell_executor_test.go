@@ -408,7 +408,7 @@ func Test__ShellExecutor__BrokenUnicode(t *testing.T) {
 
 	assert.Equal(t, simplifiedEvents, []string{
 		fmt.Sprintf("directive: %s", testsupport.EchoBrokenUnicode()),
-		"\ufffd\ufffd\ufffd\ufffd\ufffd",
+		"�����",
 		"Exit Code: 0",
 	})
 }
