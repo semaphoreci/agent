@@ -174,6 +174,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 		ExposeKvmDevice:    false,
 		FileInjections:     p.FileInjections,
 		FailOnMissingFiles: p.FailOnMissingFiles,
+		SelfHosted:         true,
 	})
 
 	if err != nil {

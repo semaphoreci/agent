@@ -38,6 +38,7 @@ type JobOptions struct {
 	ExposeKvmDevice    bool
 	FileInjections     []config.FileInjection
 	FailOnMissingFiles bool
+	SelfHosted         bool
 }
 
 func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
@@ -47,6 +48,7 @@ func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
 		ExposeKvmDevice:    true,
 		FileInjections:     []config.FileInjection{},
 		FailOnMissingFiles: false,
+		SelfHosted:         false,
 	})
 }
 
@@ -86,7 +88,7 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOptions JobOptions) (executors.Executor, error) {
 	switch request.Executor {
 	case executors.ExecutorTypeShell:
-		return executors.NewShellExecutor(request, logger), nil
+		return executors.NewShellExecutor(request, logger, jobOptions.SelfHosted), nil
 	case executors.ExecutorTypeDockerCompose:
 		executorOptions := executors.DockerComposeExecutorOptions{
 			ExposeKvmDevice:    jobOptions.ExposeKvmDevice,

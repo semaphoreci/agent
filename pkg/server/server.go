@@ -210,6 +210,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 		Client:          s.HTTPClient,
 		ExposeKvmDevice: true,
 		FileInjections:  []config.FileInjection{},
+		SelfHosted:      false,
 	})
 
 	if err != nil {
