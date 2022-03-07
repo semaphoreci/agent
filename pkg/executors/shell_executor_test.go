@@ -23,7 +23,7 @@ func Test__ShellExecutor(t *testing.T) {
 		},
 	}
 
-	e := NewShellExecutor(request, testLogger)
+	e := NewShellExecutor(request, testLogger, true)
 
 	e.Prepare()
 	e.Start()
@@ -103,7 +103,7 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 		},
 	}
 
-	e := NewShellExecutor(request, testLogger)
+	e := NewShellExecutor(request, testLogger, true)
 
 	e.Prepare()
 	e.Start()
@@ -140,7 +140,7 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 		},
 	}
 
-	e := NewShellExecutor(request, testLogger)
+	e := NewShellExecutor(request, testLogger, true)
 
 	e.Prepare()
 	e.Start()
