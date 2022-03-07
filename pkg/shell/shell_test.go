@@ -66,7 +66,6 @@ func Test__Shell__HandlingBashProcessKill(t *testing.T) {
 
 	var cmd string
 	if runtime.GOOS == "windows" {
-		// CMD.exe stupidly outputs the space between the word and the && as well
 		cmd = `
 			echo Hello
 			if ($?) {
@@ -87,7 +86,9 @@ func Test__Shell__HandlingBashProcessKill(t *testing.T) {
 }
 
 func Test__Shell__HandlingBashProcessKillThatHasBackgroundJobs(t *testing.T) {
-	t.Skip("flaky")
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
 
 	var output bytes.Buffer
 
@@ -111,7 +112,7 @@ func Test__Shell__HandlingBashProcessKillThatHasBackgroundJobs(t *testing.T) {
 	})
 	p1.Run()
 
-	p2 := shell.NewProcess("echo 'Hello' && exit 1")
+	p2 := shell.NewProcess("echo 'Hello' && sleep 1 && exit 1")
 	p2.OnStdout(func(line string) {
 		output.WriteString(line)
 	})

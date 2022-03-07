@@ -433,7 +433,7 @@ func setupShellExecutor(t *testing.T) (*ShellExecutor, *eventlogger.InMemoryBack
 	testsupport.RemovePermanentEnvironmentFile()
 
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
-	e := NewShellExecutor(basicRequest(), testLogger)
+	e := NewShellExecutor(basicRequest(), testLogger, true)
 
 	assert.Zero(t, e.Prepare())
 	assert.Zero(t, e.Start())

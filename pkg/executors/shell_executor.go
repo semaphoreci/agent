@@ -17,22 +17,26 @@ import (
 
 type ShellExecutor struct {
 	Executor
-	Logger       *eventlogger.Logger
-	Shell        *shell.Shell
-	jobRequest   *api.JobRequest
-	tmpDirectory string
+	Logger            *eventlogger.Logger
+	Shell             *shell.Shell
+	SelfHosted        bool
+	jobRequest        *api.JobRequest
+	tmpDirectory      string
+	cleanupAfterClose []string
 }
 
-func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger) *ShellExecutor {
+func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger, selfHosted bool) *ShellExecutor {
 	return &ShellExecutor{
-		Logger:       logger,
-		jobRequest:   request,
-		tmpDirectory: os.TempDir(),
+		Logger:            logger,
+		jobRequest:        request,
+		tmpDirectory:      os.TempDir(),
+		SelfHosted:        selfHosted,
+		cleanupAfterClose: []string{},
 	}
 }
 
 func (e *ShellExecutor) Prepare() int {
-	if runtime.GOOS == "windows" {
+	if e.SelfHosted {
 		return 0
 	}
 
@@ -120,7 +124,7 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 	 * If not windows, we use a PTY, so there's no need to track
 	 * the environment state here.
 	 */
-	envFileName := filepath.Join(e.tmpDirectory, ".env")
+	envFileName := filepath.Join(e.tmpDirectory, fmt.Sprintf(".env-%d", time.Now().UnixNano()))
 	err = environment.ToFile(envFileName, func(name string) {
 		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))
 	})
@@ -130,16 +134,24 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 		return exitCode
 	}
 
+	e.cleanupAfterClose = append(e.cleanupAfterClose, envFileName)
+
 	cmd := fmt.Sprintf("source %s", envFileName)
 	exitCode = e.RunCommand(cmd, true, "")
 	if exitCode != 0 {
 		return exitCode
 	}
 
-	cmd = fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName)
-	exitCode = e.RunCommand(cmd, true, "")
-	if exitCode != 0 {
-		return exitCode
+	/*
+	 * Debug sessions are not supported in self-hosted environments,
+	 * so we don't need to mess with the shell profiles there.
+	 */
+	if !e.SelfHosted {
+		cmd = fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName)
+		exitCode = e.RunCommand(cmd, true, "")
+		if exitCode != 0 {
+			return exitCode
+		}
 	}
 
 	return exitCode
@@ -264,10 +276,22 @@ func (e *ShellExecutor) Stop() int {
 		}
 	}
 
+	exitCode := e.Cleanup()
+	if exitCode != 0 {
+		log.Errorf("Error cleaning up executor resources: %v", err)
+		return exitCode
+	}
+
 	log.Debug("Process killing finished without errors")
 	return 0
 }
 
 func (e *ShellExecutor) Cleanup() int {
+	for _, resource := range e.cleanupAfterClose {
+		if err := os.Remove(resource); err != nil {
+			log.Errorf("Error removing %s: %v\n", resource, err)
+		}
+	}
+
 	return 0
 }
