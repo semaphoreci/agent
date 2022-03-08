@@ -16,7 +16,6 @@ import (
 )
 
 func Test__EnvVarsAreAvailableToCommands(t *testing.T) {
-	testsupport.RemovePermanentEnvironmentFile()
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		Commands: []api.Command{
@@ -82,7 +81,6 @@ func Test__EnvVarsAreAvailableToCommands(t *testing.T) {
 }
 
 func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnPass(t *testing.T) {
-	testsupport.RemovePermanentEnvironmentFile()
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		Commands: []api.Command{},
@@ -185,8 +183,6 @@ func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnPass(t *testing.T) {
 }
 
 func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnFail(t *testing.T) {
-	testsupport.RemovePermanentEnvironmentFile()
-
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		Commands: []api.Command{
@@ -295,8 +291,6 @@ func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnFail(t *testing.T) {
 }
 
 func Test__EpilogueOnPassOnlyExecutesOnSuccessfulJob(t *testing.T) {
-	testsupport.RemovePermanentEnvironmentFile()
-
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		EnvVars: []api.EnvVar{},
@@ -365,7 +359,6 @@ func Test__EpilogueOnPassOnlyExecutesOnSuccessfulJob(t *testing.T) {
 }
 
 func Test__EpilogueOnFailOnlyExecutesOnFailedJob(t *testing.T) {
-	testsupport.RemovePermanentEnvironmentFile()
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		EnvVars: []api.EnvVar{},
@@ -434,8 +427,6 @@ func Test__EpilogueOnFailOnlyExecutesOnFailedJob(t *testing.T) {
 }
 
 func Test__UsingCommandAliases(t *testing.T) {
-	testsupport.RemovePermanentEnvironmentFile()
-
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		EnvVars: []api.EnvVar{},
@@ -488,7 +479,6 @@ func Test__UsingCommandAliases(t *testing.T) {
 }
 
 func Test__StopJob(t *testing.T) {
-	testsupport.RemovePermanentEnvironmentFile()
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		EnvVars: []api.EnvVar{},
@@ -541,7 +531,6 @@ func Test__StopJob(t *testing.T) {
 }
 
 func Test__StopJobOnEpilogue(t *testing.T) {
-	testsupport.RemovePermanentEnvironmentFile()
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		EnvVars: []api.EnvVar{},
@@ -608,7 +597,6 @@ func Test__STTYRestoration(t *testing.T) {
 		t.Skip("Windows does not support pty")
 	}
 
-	testsupport.RemovePermanentEnvironmentFile()
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		EnvVars: []api.EnvVar{},
@@ -663,7 +651,6 @@ func Test__BackgroundJobIsKilledAfterJobIsDoneInWindows(t *testing.T) {
 		t.Skip()
 	}
 
-	testsupport.RemovePermanentEnvironmentFile()
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		EnvVars: []api.EnvVar{},
@@ -735,7 +722,6 @@ func Test__BackgroundJobIsKilledAfterJobIsDoneInNonWindows(t *testing.T) {
 		t.Skip()
 	}
 
-	testsupport.RemovePermanentEnvironmentFile()
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		EnvVars: []api.EnvVar{},
@@ -796,4 +782,172 @@ func Test__BackgroundJobIsKilledAfterJobIsDoneInNonWindows(t *testing.T) {
 
 	_, err = cmd.CombinedOutput()
 	assert.NotNil(t, err)
+}
+
+func Test__KillingRootBash(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		EnvVars: []api.EnvVar{},
+		Commands: []api.Command{
+			{Directive: "sleep infinity &"},
+			{Directive: "exit 1"},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+		},
+	}
+
+	job, err := NewJobWithOptions(&JobOptions{Request: request, Client: http.DefaultClient, Logger: testLogger})
+	assert.Nil(t, err)
+
+	job.Run()
+	assert.True(t, job.Finished)
+
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		"directive: sleep infinity &",
+		"Exit Code: 0",
+
+		"directive: exit 1",
+		"Exit Code: 1",
+
+		"directive: Exporting environment variables",
+		"Exporting SEMAPHORE_JOB_RESULT\n",
+		"Exit Code: 1",
+
+		"job_finished: failed",
+	})
+}
+
+func Test__BashSetE(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		EnvVars: []api.EnvVar{},
+		Commands: []api.Command{
+			{Directive: "sleep infinity &"},
+			{Directive: "set -e"},
+			{Directive: "false"},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+		},
+	}
+
+	job, err := NewJobWithOptions(&JobOptions{Request: request, Client: http.DefaultClient, Logger: testLogger})
+	assert.Nil(t, err)
+
+	job.Run()
+	assert.True(t, job.Finished)
+
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		"directive: sleep infinity &",
+		"Exit Code: 0",
+
+		"directive: set -e",
+		"Exit Code: 0",
+
+		"directive: false",
+		"Exit Code: 1",
+
+		"directive: Exporting environment variables",
+		"Exporting SEMAPHORE_JOB_RESULT\n",
+		"Exit Code: 1",
+
+		"job_finished: failed",
+	})
+}
+
+func Test__BashSetPipefail(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		EnvVars: []api.EnvVar{},
+		Commands: []api.Command{
+			{Directive: "sleep infinity &"},
+			{Directive: "set -eo pipefail"},
+			{Directive: "cat non_existant | sort"},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+		},
+	}
+
+	job, err := NewJobWithOptions(&JobOptions{Request: request, Client: http.DefaultClient, Logger: testLogger})
+	assert.Nil(t, err)
+
+	job.Run()
+	assert.True(t, job.Finished)
+
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		"directive: sleep infinity &",
+		"Exit Code: 0",
+
+		"directive: set -eo pipefail",
+		"Exit Code: 0",
+
+		"directive: cat non_existant | sort",
+		"cat: non_existant: No such file or directory\n",
+		"Exit Code: 1",
+
+		"directive: Exporting environment variables",
+		"Exporting SEMAPHORE_JOB_RESULT\n",
+		"Exit Code: 1",
+
+		"job_finished: failed",
+	})
 }

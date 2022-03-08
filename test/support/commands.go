@@ -11,28 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-/*
- * Depending on the order in which the tests are executed,
- * a `/tmp/.env` file might be populated with the previous test's variables.
- *
- * Since we also put a `source /tmp/.env` in our `.bash_profile`,
- * and that file is executed every time a PTY session is created, the next test might
- * end up having the previous' one variables around.
- *
- * We don't want that, so we just delete it.
- */
-func RemovePermanentEnvironmentFile() {
-	/*
-	 * Not needed on windows, because windows does not support using a PTY session,
-	 * so we do not use a `.env` file there as well.
-	 */
-	if runtime.GOOS == "windows" {
-		return
-	}
-
-	_ = os.Remove(filepath.Join(os.TempDir(), ".env"))
-}
-
 func AssertSimplifiedJobLogs(t *testing.T, actual, expected []string) {
 	actualIndex := 0
 	expectedIndex := 0

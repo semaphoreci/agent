@@ -20,7 +20,6 @@ import (
 
 func Test__Register(t *testing.T) {
 	testsupport.SetupTestLogs()
-	testsupport.RemovePermanentEnvironmentFile()
 
 	loghubMockServer := testsupport.NewLoghubMockServer()
 	loghubMockServer.Init()
@@ -60,7 +59,6 @@ func Test__Register(t *testing.T) {
 
 func Test__RegisterRequestIsRetried(t *testing.T) {
 	testsupport.SetupTestLogs()
-	testsupport.RemovePermanentEnvironmentFile()
 
 	loghubMockServer := testsupport.NewLoghubMockServer()
 	loghubMockServer.Init()
@@ -102,7 +100,6 @@ func Test__RegisterRequestIsRetried(t *testing.T) {
 
 func Test__RegistrationFails(t *testing.T) {
 	testsupport.SetupTestLogs()
-	testsupport.RemovePermanentEnvironmentFile()
 
 	loghubMockServer := testsupport.NewLoghubMockServer()
 	loghubMockServer.Init()
@@ -133,7 +130,6 @@ func Test__RegistrationFails(t *testing.T) {
 
 func Test__ShutdownHookIsExecuted(t *testing.T) {
 	testsupport.SetupTestLogs()
-	testsupport.RemovePermanentEnvironmentFile()
 
 	loghubMockServer := testsupport.NewLoghubMockServer()
 	loghubMockServer.Init()
@@ -187,7 +183,6 @@ func Test__ShutdownHookIsExecuted(t *testing.T) {
 
 func Test__ShutdownHookCanSeeShutdownReason(t *testing.T) {
 	testsupport.SetupTestLogs()
-	testsupport.RemovePermanentEnvironmentFile()
 
 	loghubMockServer := testsupport.NewLoghubMockServer()
 	loghubMockServer.Init()
@@ -243,7 +238,6 @@ func Test__ShutdownHookCanSeeShutdownReason(t *testing.T) {
 
 func Test__ShutdownAfterJobFinished(t *testing.T) {
 	testsupport.SetupTestLogs()
-	testsupport.RemovePermanentEnvironmentFile()
 
 	loghubMockServer := testsupport.NewLoghubMockServer()
 	loghubMockServer.Init()
@@ -292,7 +286,6 @@ func Test__ShutdownAfterJobFinished(t *testing.T) {
 
 func Test__ShutdownAfterIdleTimeout(t *testing.T) {
 	testsupport.SetupTestLogs()
-	testsupport.RemovePermanentEnvironmentFile()
 
 	loghubMockServer := testsupport.NewLoghubMockServer()
 	loghubMockServer.Init()
@@ -324,7 +317,6 @@ func Test__ShutdownAfterIdleTimeout(t *testing.T) {
 
 func Test__ShutdownFromUpstreamWhileWaiting(t *testing.T) {
 	testsupport.SetupTestLogs()
-	testsupport.RemovePermanentEnvironmentFile()
 
 	loghubMockServer := testsupport.NewLoghubMockServer()
 	loghubMockServer.Init()
@@ -359,7 +351,6 @@ func Test__ShutdownFromUpstreamWhileWaiting(t *testing.T) {
 
 func Test__ShutdownFromUpstreamWhileRunningJob(t *testing.T) {
 	testsupport.SetupTestLogs()
-	testsupport.RemovePermanentEnvironmentFile()
 
 	loghubMockServer := testsupport.NewLoghubMockServer()
 	loghubMockServer.Init()
@@ -410,7 +401,6 @@ func Test__ShutdownFromUpstreamWhileRunningJob(t *testing.T) {
 
 func Test__HostEnvVarsAreExposedToJob(t *testing.T) {
 	testsupport.SetupTestLogs()
-	testsupport.RemovePermanentEnvironmentFile()
 
 	loghubMockServer := testsupport.NewLoghubMockServer()
 	loghubMockServer.Init()
@@ -545,7 +535,6 @@ func Test__HostEnvVarsAreExposedToJob(t *testing.T) {
 
 func Test__GetJobIsRetried(t *testing.T) {
 	testsupport.SetupTestLogs()
-	testsupport.RemovePermanentEnvironmentFile()
 
 	loghubMockServer := testsupport.NewLoghubMockServer()
 	loghubMockServer.Init()
@@ -597,7 +586,6 @@ func Test__GetJobIsRetried(t *testing.T) {
 
 func Test__ReportsFailedToFetchJob(t *testing.T) {
 	testsupport.SetupTestLogs()
-	testsupport.RemovePermanentEnvironmentFile()
 
 	loghubMockServer := testsupport.NewLoghubMockServer()
 	loghubMockServer.Init()
@@ -646,7 +634,6 @@ func Test__ReportsFailedToFetchJob(t *testing.T) {
 
 func Test__ReportsFailedToConstructJob(t *testing.T) {
 	testsupport.SetupTestLogs()
-	testsupport.RemovePermanentEnvironmentFile()
 
 	loghubMockServer := testsupport.NewLoghubMockServer()
 	loghubMockServer.Init()
@@ -695,7 +682,6 @@ func Test__ReportsFailedToConstructJob(t *testing.T) {
 
 func Test__ReportsFailedToSendFinishedCallback(t *testing.T) {
 	testsupport.SetupTestLogs()
-	testsupport.RemovePermanentEnvironmentFile()
 
 	loghubMockServer := testsupport.NewLoghubMockServer()
 	loghubMockServer.Init()
@@ -743,7 +729,6 @@ func Test__ReportsFailedToSendFinishedCallback(t *testing.T) {
 
 func Test__ReportsFailedToSendTeardownFinishedCallback(t *testing.T) {
 	testsupport.SetupTestLogs()
-	testsupport.RemovePermanentEnvironmentFile()
 
 	loghubMockServer := testsupport.NewLoghubMockServer()
 	loghubMockServer.Init()
