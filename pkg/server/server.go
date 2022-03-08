@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	handlers "github.com/gorilla/handlers"
@@ -16,7 +17,6 @@ import (
 	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
-	"github.com/semaphoreci/agent/pkg/osinfo"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -104,7 +104,7 @@ func (s *Server) Status(w http.ResponseWriter, r *http.Request) {
 
 	jsonString, _ := json.Marshal(m)
 
-	fmt.Fprintf(w, string(jsonString))
+	fmt.Fprint(w, string(jsonString))
 }
 
 func (s *Server) isAlive(w http.ResponseWriter, r *http.Request) {
@@ -145,7 +145,7 @@ func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 func (s *Server) AgentLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain")
 
-	logsPath := osinfo.FormTempDirPath("agent_log")
+	logsPath := filepath.Join(os.TempDir(), "agent_log")
 
 	// #nosec
 	logfile, err := os.Open(logsPath)
@@ -210,6 +210,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 		Client:          s.HTTPClient,
 		ExposeKvmDevice: true,
 		FileInjections:  []config.FileInjection{},
+		SelfHosted:      false,
 	})
 
 	if err != nil {

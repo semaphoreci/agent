@@ -15,6 +15,7 @@ import (
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
 	"github.com/semaphoreci/agent/pkg/retry"
+	"github.com/semaphoreci/agent/pkg/shell"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -33,7 +34,6 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		EnvVars:                    config.EnvVars,
 		FileInjections:             config.FileInjections,
 		FailOnMissingFiles:         config.FailOnMissingFiles,
-		NoPTY:                      config.NoPTY,
 	}
 
 	go p.Start()
@@ -61,7 +61,6 @@ type JobProcessor struct {
 	EnvVars                    []config.HostEnvVar
 	FileInjections             []config.FileInjection
 	FailOnMissingFiles         bool
-	NoPTY                      bool
 }
 
 func (p *JobProcessor) Start() {
@@ -175,7 +174,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 		ExposeKvmDevice:    false,
 		FileInjections:     p.FileInjections,
 		FailOnMissingFiles: p.FailOnMissingFiles,
-		NoPTY:              p.NoPTY,
+		SelfHosted:         true,
 	})
 
 	if err != nil {
@@ -271,27 +270,27 @@ func (p *JobProcessor) Shutdown(reason ShutdownReason, code int) {
 }
 
 func (p *JobProcessor) executeShutdownHook(reason ShutdownReason) {
-	if p.ShutdownHookPath != "" {
-		log.Infof("Executing shutdown hook from %s", p.ShutdownHookPath)
+	if p.ShutdownHookPath == "" {
+		return
+	}
 
-		var cmd *exec.Cmd
-		if runtime.GOOS == "windows" {
-			// #nosec
-			cmd = exec.Command("C:\\Windows\\System32\\CMD.exe", "/S", "/C", p.ShutdownHookPath)
-		} else {
-			// #nosec
-			cmd = exec.Command("bash", p.ShutdownHookPath)
-		}
+	var cmd *exec.Cmd
+	log.Infof("Executing shutdown hook from %s", p.ShutdownHookPath)
 
-		cmd.Env = os.Environ()
-		cmd.Env = append(cmd.Env, fmt.Sprintf("SEMAPHORE_AGENT_SHUTDOWN_REASON=%s", reason))
+	// #nosec
+	if runtime.GOOS == "windows" {
+		args := append(shell.Args(), p.ShutdownHookPath)
+		cmd = exec.Command(shell.Executable(), args...)
+	} else {
+		cmd = exec.Command("bash", p.ShutdownHookPath)
+	}
 
-		output, err := cmd.Output()
-		if err != nil {
-			log.Errorf("Error executing shutdown hook: %v", err)
-			log.Errorf("Output: %s", string(output))
-		} else {
-			log.Infof("Output: %s", string(output))
-		}
+	cmd.Env = append(os.Environ(), fmt.Sprintf("SEMAPHORE_AGENT_SHUTDOWN_REASON=%s", reason))
+	output, err := cmd.Output()
+	if err != nil {
+		log.Errorf("Error executing shutdown hook: %v", err)
+		log.Errorf("Output: %s", string(output))
+	} else {
+		log.Infof("Output: %s", string(output))
 	}
 }

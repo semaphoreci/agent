@@ -6,7 +6,8 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"runtime"
+	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	listener "github.com/semaphoreci/agent/pkg/listener"
-	"github.com/semaphoreci/agent/pkg/osinfo"
 	server "github.com/semaphoreci/agent/pkg/server"
 	log "github.com/sirupsen/logrus"
 	pflag "github.com/spf13/pflag"
@@ -64,10 +64,8 @@ func main() {
 }
 
 func OpenLogfile() io.Writer {
-	logFilePath := osinfo.FormTempDirPath("agent_log")
-
 	// #nosec
-	f, err := os.OpenFile(logFilePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	f, err := os.OpenFile(getLogFilePath(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 
 	if err != nil {
 		log.Fatal(err)
@@ -88,6 +86,21 @@ func getLogLevel() log.Level {
 	}
 
 	return level
+}
+
+func getLogFilePath() string {
+	logFilePath := os.Getenv("SEMAPHORE_AGENT_LOG_FILE_PATH")
+	if logFilePath == "" {
+		return filepath.Join(os.TempDir(), "agent_log")
+	}
+
+	parentDirectory := path.Dir(logFilePath)
+	err := os.MkdirAll(parentDirectory, 0644)
+	if err != nil {
+		log.Panicf("Could not create directories to place log file in '%s': %v", logFilePath, err)
+	}
+
+	return logFilePath
 }
 
 func RunListener(httpClient *http.Client, logfile io.Writer) {
@@ -155,10 +168,6 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		FileInjections:             fileInjections,
 		FailOnMissingFiles:         viper.GetBool(config.FailOnMissingFiles),
 		AgentVersion:               VERSION,
-	}
-
-	if runtime.GOOS == "windows" {
-		config.NoPTY = true
 	}
 
 	go func() {
@@ -282,7 +291,6 @@ func RunSingleJob(httpClient *http.Client) {
 		Client:          httpClient,
 		ExposeKvmDevice: true,
 		FileInjections:  []config.FileInjection{},
-		NoPTY:           true,
 	})
 
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -15,7 +16,6 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
-	"github.com/semaphoreci/agent/pkg/osinfo"
 	shell "github.com/semaphoreci/agent/pkg/shell"
 	log "github.com/sirupsen/logrus"
 )
@@ -48,8 +48,8 @@ func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logge
 		exposeKvmDevice:           options.ExposeKvmDevice,
 		fileInjections:            options.FileInjections,
 		FailOnMissingFiles:        options.FailOnMissingFiles,
-		dockerComposeManifestPath: osinfo.FormTempDirPath("docker-compose.yml"),
-		tmpDirectory:              osinfo.FormTempDirPath("agent-temp-directory"), // make a better random name
+		dockerComposeManifestPath: "/tmp/docker-compose.yml",
+		tmpDirectory:              "/tmp/agent-temp-directory", // make a better random name
 
 		// during testing the name main gets taken up, if we make it random we avoid headaches
 		mainContainerName: request.Compose.Containers[0].Name,
@@ -57,6 +57,11 @@ func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logge
 }
 
 func (e *DockerComposeExecutor) Prepare() int {
+	if runtime.GOOS == "windows" {
+		log.Error("docker-compose executor is not supported in Windows")
+		return 1
+	}
+
 	err := os.MkdirAll(e.tmpDirectory, os.ModePerm)
 	if err != nil {
 		return 1
@@ -204,8 +209,8 @@ func (e *DockerComposeExecutor) startBashSession() int {
 	log.Debug("Starting stateful shell")
 
 	// #nosec
-	cmd := exec.Command(
-		"docker-compose",
+	executable := "docker-compose"
+	args := []string{
 		"--ansi",
 		"never",
 		"-f",
@@ -220,9 +225,9 @@ func (e *DockerComposeExecutor) startBashSession() int {
 		fmt.Sprintf("%s:%s:ro", e.tmpDirectory, e.tmpDirectory),
 		e.mainContainerName,
 		"bash",
-	)
+	}
 
-	shell, err := shell.NewShell(cmd, e.tmpDirectory, false)
+	shell, err := shell.NewShellFromExecAndArgs(executable, args, e.tmpDirectory)
 	if err != nil {
 		log.Errorf("Failed to start stateful shell err: %+v", err)
 
@@ -418,12 +423,7 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForGCR(envVars []api.EnvVa
 			return 1
 		}
 
-		var tmpPath string
-		if runtime.GOOS == "windows" {
-			tmpPath = fmt.Sprintf("%s\\file", e.tmpDirectory)
-		} else {
-			tmpPath = fmt.Sprintf("%s/file", e.tmpDirectory)
-		}
+		tmpPath := fmt.Sprintf("%s/file", e.tmpDirectory)
 
 		// #nosec
 		err = ioutil.WriteFile(tmpPath, []byte(content), 0644)
@@ -591,35 +591,32 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars 
 		e.Logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
-	environment, err := shell.EnvFromAPI(envVars)
+	environment, err := shell.CreateEnvironment(envVars, hostEnvVars)
 	if err != nil {
 		log.Errorf("Error creating environment: %v", err)
 		exitCode = 1
 		return exitCode
 	}
 
-	environment.Merge(hostEnvVars)
-
-	envFileName := osinfo.FormDirPath(e.tmpDirectory, ".env")
+	envFileName := filepath.Join(e.tmpDirectory, ".env")
 	err = environment.ToFile(envFileName, func(name string) {
 		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))
 	})
 
 	if err != nil {
-		log.Errorf("Error saving environment file: %v", err)
-		exitCode = 1
+		exitCode = 255
 		return exitCode
 	}
 
-	exitCode = e.RunCommand(fmt.Sprintf("source %s", envFileName), true, "")
+	cmd := fmt.Sprintf("source %s", envFileName)
+	exitCode = e.RunCommand(cmd, true, "")
 	if exitCode != 0 {
-		log.Errorf("Error sourcing environment file: %v", err)
 		return exitCode
 	}
 
-	exitCode = e.RunCommand(fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName), true, "")
+	cmd = fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName)
+	exitCode = e.RunCommand(cmd, true, "")
 	if exitCode != 0 {
-		log.Errorf("Error saving source line to .bash_profile: %v", err)
 		return exitCode
 	}
 
@@ -646,12 +643,7 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 			return exitCode
 		}
 
-		var tmpPath string
-		if runtime.GOOS == "windows" {
-			tmpPath = fmt.Sprintf("%s\\file", e.tmpDirectory)
-		} else {
-			tmpPath = fmt.Sprintf("%s/file", e.tmpDirectory)
-		}
+		tmpPath := fmt.Sprintf("%s/file", e.tmpDirectory)
 
 		// #nosec
 		err = ioutil.WriteFile(tmpPath, []byte(content), 0644)

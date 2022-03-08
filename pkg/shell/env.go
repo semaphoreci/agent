@@ -15,7 +15,7 @@ type Environment struct {
 	env map[string]string
 }
 
-func EnvFromAPI(envVars []api.EnvVar) (*Environment, error) {
+func CreateEnvironment(envVars []api.EnvVar, HostEnvVars []config.HostEnvVar) (*Environment, error) {
 	newEnv := Environment{}
 	for _, envVar := range envVars {
 		value, err := envVar.Decode()
@@ -26,10 +26,18 @@ func EnvFromAPI(envVars []api.EnvVar) (*Environment, error) {
 		newEnv.Set(envVar.Name, string(value))
 	}
 
+	for _, envVar := range HostEnvVars {
+		newEnv.Set(envVar.Name, envVar.Value)
+	}
+
 	return &newEnv, nil
 }
 
-func EnvFromDump(fileName string) (*Environment, error) {
+/*
+ * Create an environment by reading a file created with
+ * an environment dump in Windows with the 'SET > <fileName>' command.
+ */
+func CreateEnvironmentFromFile(fileName string) (*Environment, error) {
 	// #nosec
 	bytes, err := ioutil.ReadFile(fileName)
 	if err != nil {
@@ -77,12 +85,6 @@ func (e *Environment) Remove(key string) {
 	}
 }
 
-func (e *Environment) Merge(envVars []config.HostEnvVar) {
-	for _, envVar := range envVars {
-		e.Set(envVar.Name, envVar.Value)
-	}
-}
-
 func (e *Environment) Keys() []string {
 	var keys []string
 	for k := range e.env {
@@ -103,7 +105,7 @@ func (e *Environment) Append(otherEnv *Environment, callback func(name, value st
 	}
 }
 
-func (e *Environment) ToArray() []string {
+func (e *Environment) ToSlice() []string {
 	arr := []string{}
 	for name, value := range e.env {
 		arr = append(arr, fmt.Sprintf("%s=%s", name, value))

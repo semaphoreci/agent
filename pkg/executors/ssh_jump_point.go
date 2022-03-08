@@ -2,12 +2,11 @@ package executors
 
 import (
 	"os"
-
-	"github.com/semaphoreci/agent/pkg/osinfo"
+	"path/filepath"
 )
 
 func SetUpSSHJumpPoint(script string) error {
-	path := osinfo.FormTempDirPath("ssh_jump_point")
+	path := filepath.Join(os.TempDir(), "ssh_jump_point")
 
 	// #nosec
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0644)

@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -15,7 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/semaphoreci/agent/pkg/osinfo"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -26,15 +26,6 @@ import (
  * getting the whole environment after a command is executed and
  * updating our shell with it.
  */
-const WindowsBatchScript = `
-@echo off
-%s
-SET SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS=%%ERRORLEVEL%%
-SET SEMAPHORE_AGENT_CURRENT_DIR=%%CD%%
-SET > "%s.env.after"
-EXIT \B %%SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS%%
-`
-
 const WindowsPwshScript = `
 $ErrorActionPreference = "STOP"
 %s
@@ -45,15 +36,15 @@ exit $Env:SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS
 `
 
 type Config struct {
-	noPTY           bool
-	Command         string
-	Shell           *Shell
-	ExtraVars       *Environment
-	tempStoragePath string
+	Shell       *Shell
+	StoragePath string
+	Command     string
 }
 
 type Process struct {
-	Config           Config
+	Command          string
+	Shell            *Shell
+	StoragePath      string
 	StartedAt        int
 	FinishedAt       int
 	ExitCode         int
@@ -62,12 +53,9 @@ type Process struct {
 	startMark        string
 	endMark          string
 	commandEndRegex  *regexp.Regexp
-	cmdFilePath      string
 	inputBuffer      []byte
 	outputBuffer     *OutputBuffer
 	SysProcAttr      *syscall.SysProcAttr
-
-	windowsJobObject uintptr
 }
 
 func randomMagicMark() string {
@@ -81,14 +69,23 @@ func NewProcess(config Config) *Process {
 	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d+)` + "[\r\n]+")
 
 	return &Process{
-		Config:          config,
+		Shell:           config.Shell,
+		StoragePath:     config.StoragePath,
+		Command:         config.Command,
 		ExitCode:        1,
 		startMark:       startMark,
 		endMark:         endMark,
 		commandEndRegex: commandEndRegex,
-		cmdFilePath:     osinfo.FormDirPath(config.tempStoragePath, "current-agent-cmd"),
 		outputBuffer:    NewOutputBuffer(),
 	}
+}
+
+func (p *Process) CmdFilePath() string {
+	return filepath.Join(p.StoragePath, "current-agent-cmd")
+}
+
+func (p *Process) EnvironmentFilePath() string {
+	return fmt.Sprintf("%s.env.after", p.CmdFilePath())
 }
 
 func (p *Process) OnStdout(callback func(string)) {
@@ -134,30 +131,6 @@ func (p *Process) flushInputBufferTill(index int) {
 }
 
 func (p *Process) Run() {
-	if !p.Config.noPTY {
-		p.runWithPTY()
-		return
-	}
-
-	/*
-	 * If we are not using a PTY, we need to keep track of
-	 * environment variables and the current working directory.
-	 */
-	p.setup()
-	p.runWithoutPTY()
-
-	after, _ := EnvFromDump(fmt.Sprintf("%s.env.after", p.cmdFilePath))
-	newCwd, _ := after.Get("SEMAPHORE_AGENT_CURRENT_DIR")
-	p.Config.Shell.Chdir(newCwd)
-
-	// Remove variables we added
-	after.Remove("SEMAPHORE_AGENT_CURRENT_DIR")
-	after.Remove("SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS")
-
-	p.Config.Shell.UpdateEnvironment(after)
-}
-
-func (p *Process) runWithoutPTY() {
 	instruction := p.constructShellInstruction()
 	p.StartedAt = int(time.Now().Unix())
 	defer func() {
@@ -170,130 +143,132 @@ func (p *Process) runWithoutPTY() {
 		return
 	}
 
-	shell := p.findShell()
-	command := shell[0]
-	args := shell[1:]
-	args = append(args, instruction)
-
-	cmd := exec.Command(command, args...)
-	cmd.Dir = p.Config.Shell.Cwd
-	cmd.SysProcAttr = p.SysProcAttr
-
-	if p.Config.Shell.Env != nil {
-		cmd.Env = append(os.Environ(), p.Config.Shell.Env.ToArray()...)
+	/*
+	 * If the agent is running in an non-windows environment,
+	 * we use a PTY session to run commands.
+	 */
+	if runtime.GOOS != "windows" {
+		p.runWithPTY(instruction)
+		return
 	}
 
-	if p.Config.ExtraVars != nil {
-		// #nosec
-		cmd.Env = append(cmd.Env, p.Config.ExtraVars.ToArray()...)
-	}
+	// In windows, so no PTY support.
+	p.setup()
+	p.runWithoutPTY(instruction)
 
-	reader, writer := io.Pipe()
-	cmd.Stdout = writer
-	cmd.Stderr = writer
+	/*
+	 * If we are not using a PTY, we need to keep track of shell "state" ourselves.
+	 * We use a file with all the environment variables available after the command
+	 * is executed. From that file, we can update our shell "state".
+	 */
+	after, _ := CreateEnvironmentFromFile(p.EnvironmentFilePath())
 
-	err = cmd.Start()
+	/*
+	 * CMD.exe does not have an environment variable such as $PWD,
+	 * so we use a custom one to get the current working directory
+	 * after a command is executed.
+	 */
+	newCwd, _ := after.Get("SEMAPHORE_AGENT_CURRENT_DIR")
+	p.Shell.Chdir(newCwd)
+
+	/*
+	 * We use two custom environment variables to track
+	 * things we need, but we don't want to mess the environment
+	 * so we remove them before updating our shell state.
+	 */
+	after.Remove("SEMAPHORE_AGENT_CURRENT_DIR")
+	after.Remove("SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS")
+	p.Shell.UpdateEnvironment(after)
+}
+
+func (p *Process) runWithoutPTY(instruction string) {
+	cmd, reader, writer := p.buildNonPTYCommand(instruction)
+	err := cmd.Start()
 	if err != nil {
 		log.Errorf("Error starting command: %v\n", err)
 		p.ExitCode = 1
 		return
 	}
 
+	/*
+	 * In Windows, we need to assign the process created by the command
+	 * with the job object handle we created for it earlier,
+	 * for process termination purposes.
+	 */
 	p.Pid = cmd.Process.Pid
-	err = p.afterCreation()
+	err = p.afterCreation(p.Shell.windowsJobObject)
 	if err != nil {
 		log.Errorf("Process after creation procedure failed: %v", err)
 	}
 
+	/*
+	 * Start reading the command's output and wait until it finishes.
+	 */
 	done := make(chan bool, 1)
-	go func() {
-		for {
-			log.Debug("Reading started")
-			buffer := make([]byte, p.readBufferSize())
-			n, err := reader.Read(buffer)
-			if err != nil && err != io.EOF {
-				log.Errorf("Error while reading. Error: %v", err)
-			}
-
-			p.inputBuffer = append(p.inputBuffer, buffer[0:n]...)
-			log.Debugf("reading data from command. Input buffer: %#v", string(p.inputBuffer))
-			p.flushInputAll()
-			p.StreamToStdout()
-
-			if err == io.EOF {
-				log.Debug("Finished reading")
-				p.flushOutputBuffer()
-				break
-			}
-		}
-
-		done <- true
-	}()
-
+	go p.readNonPTY(reader, done)
 	waitResult := cmd.Wait()
 
+	/*
+	 * Command is done, We close our output writer
+	 * so our output reader knows the command is over.
+	 */
 	err = writer.Close()
 	if err != nil {
 		log.Errorf("Error closing writer: %v", err)
 	}
 
-	log.Debug("Waiting for reading to finish...")
+	/*
+	 * Let's wait for the reader to finish, just to make sure
+	 * we don't leave any goroutines hanging around.
+	 */
+	log.Debug("Waiting for reading to finish")
 	<-done
 
+	/*
+	 * The command was successful, so we just return.
+	 */
 	if waitResult == nil {
 		p.ExitCode = 0
 		return
 	}
 
+	/*
+	 * The command returned an error, so we need to figure out the exit code from it.
+	 * If we can't figure it out, we just use 1 and carry on.
+	 */
 	if err, ok := waitResult.(*exec.ExitError); ok {
 		if s, ok := err.Sys().(syscall.WaitStatus); ok {
 			p.ExitCode = s.ExitStatus()
 		} else {
-			log.Error("Unimplemented for system where exec.ExitError.Sys() is not syscall.WaitStatus.")
+			log.Errorf("Could not cast *exec.ExitError to syscall.WaitStatus: %v\n", err)
+			p.ExitCode = 1
 		}
 	} else {
-		log.Errorf("Unexpected error type %T: %v", waitResult, waitResult)
+		log.Errorf("Unexpected %T returned after Wait(): %v", waitResult, waitResult)
+		p.ExitCode = 1
 	}
 }
 
-func (p *Process) findShell() []string {
-	if runtime.GOOS == "windows" {
-		shell := os.Getenv("SEMAPHORE_AGENT_SHELL")
-		if shell == "powershell" {
-			return []string{
-				"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-				"-NoProfile",
-				"-NonInteractive",
-			}
-		}
+func (p *Process) buildNonPTYCommand(instruction string) (*exec.Cmd, *io.PipeReader, *io.PipeWriter) {
+	args := append(p.Shell.Args, instruction)
 
-		// CMD.exe is the default
-		return []string{
-			"C:\\Windows\\System32\\CMD.exe",
-			"/S",
-			"/C",
-		}
-	} else {
-		// #nosec
-		return []string{"bash", "-c"}
+	// #nosec
+	cmd := exec.Command(p.Shell.Executable, args...)
+	cmd.Dir = p.Shell.Cwd
+	cmd.SysProcAttr = p.SysProcAttr
+
+	if p.Shell.Env != nil {
+		cmd.Env = append(os.Environ(), p.Shell.Env.ToSlice()...)
 	}
+
+	reader, writer := io.Pipe()
+	cmd.Stdout = writer
+	cmd.Stderr = writer
+	return cmd, reader, writer
 }
 
-func (p *Process) runWithPTY() {
-	instruction := p.constructShellInstruction()
-
-	p.StartedAt = int(time.Now().Unix())
-	defer func() {
-		p.FinishedAt = int(time.Now().Unix())
-	}()
-
-	err := p.loadCommand()
-	if err != nil {
-		log.Errorf("Err: %v", err)
-		return
-	}
-
-	_, err = p.Config.Shell.Write(instruction)
+func (p *Process) runWithPTY(instruction string) {
+	_, err := p.Shell.Write(instruction)
 	if err != nil {
 		log.Errorf("Error writing instruction: %v", err)
 		return
@@ -304,13 +279,7 @@ func (p *Process) runWithPTY() {
 
 func (p *Process) constructShellInstruction() string {
 	if runtime.GOOS == "windows" {
-		shell := os.Getenv("SEMAPHORE_AGENT_SHELL")
-		if shell == "powershell" {
-			return fmt.Sprintf(`%s.ps1`, p.cmdFilePath)
-		}
-
-		// CMD.exe is the default on Windows
-		return fmt.Sprintf(`%s.bat`, p.cmdFilePath)
+		return fmt.Sprintf(`%s.ps1`, p.CmdFilePath())
 	}
 
 	//
@@ -325,7 +294,7 @@ func (p *Process) constructShellInstruction() string {
 	//
 	template := `echo -e "\001 %s"; source %s; AGENT_CMD_RESULT=$?; echo -e "\001 %s $AGENT_CMD_RESULT"; echo "exit $AGENT_CMD_RESULT" | sh`
 
-	return fmt.Sprintf(template, p.startMark, p.cmdFilePath, p.endMark)
+	return fmt.Sprintf(template, p.startMark, p.CmdFilePath(), p.endMark)
 }
 
 /*
@@ -334,23 +303,15 @@ func (p *Process) constructShellInstruction() string {
  */
 func (p *Process) loadCommand() error {
 	if runtime.GOOS != "windows" {
-		return p.writeCommand(p.cmdFilePath, p.Config.Command)
+		return p.writeCommandToFile(p.CmdFilePath(), p.Command)
 	}
 
-	shell := os.Getenv("SEMAPHORE_AGENT_SHELL")
-	if shell == "powershell" {
-		cmdFilePath := fmt.Sprintf("%s.ps1", p.cmdFilePath)
-		command := fmt.Sprintf(WindowsPwshScript, buildCommand(p.Config.Command), p.cmdFilePath)
-		return p.writeCommand(cmdFilePath, command)
-	}
-
-	// CMD.exe is the default on Windows
-	cmdFilePath := fmt.Sprintf("%s.bat", p.cmdFilePath)
-	command := fmt.Sprintf(WindowsBatchScript, buildCommand(p.Config.Command), p.cmdFilePath)
-	return p.writeCommand(cmdFilePath, command)
+	cmdFilePath := fmt.Sprintf("%s.ps1", p.CmdFilePath())
+	command := fmt.Sprintf(WindowsPwshScript, p.Command, p.CmdFilePath())
+	return p.writeCommandToFile(cmdFilePath, command)
 }
 
-func (p *Process) writeCommand(cmdFilePath, command string) error {
+func (p *Process) writeCommandToFile(cmdFilePath, command string) error {
 	// #nosec
 	err := ioutil.WriteFile(cmdFilePath, []byte(command), 0644)
 	if err != nil {
@@ -378,6 +339,30 @@ func (p *Process) readBufferSize() int {
 	return rand.Intn(max-min) + min
 }
 
+func (p *Process) readNonPTY(reader *io.PipeReader, done chan bool) {
+	for {
+		log.Debug("Reading started")
+		buffer := make([]byte, p.readBufferSize())
+		n, err := reader.Read(buffer)
+		if err != nil && err != io.EOF {
+			log.Errorf("Error while reading. Error: %v", err)
+		}
+
+		p.inputBuffer = append(p.inputBuffer, buffer[0:n]...)
+		log.Debugf("reading data from command. Input buffer: %#v", string(p.inputBuffer))
+		p.flushInputAll()
+		p.StreamToStdout()
+
+		if err == io.EOF {
+			log.Debug("Finished reading")
+			p.flushOutputBuffer()
+			break
+		}
+	}
+
+	done <- true
+}
+
 //
 // Read state from shell into the inputBuffer
 //
@@ -385,7 +370,7 @@ func (p *Process) read() error {
 	buffer := make([]byte, p.readBufferSize())
 
 	log.Debug("Reading started")
-	n, err := p.Config.Shell.Read(&buffer)
+	n, err := p.Shell.Read(&buffer)
 	if err != nil {
 		log.Errorf("Error while reading from the tty. Error: '%s'.", err.Error())
 		return err
@@ -507,26 +492,4 @@ func (p *Process) scan() error {
 	p.ExitCode = code
 
 	return nil
-}
-
-func buildCommand(fullCommand string) string {
-	commands := strings.Split(fullCommand, "\n")
-	finalCommand := []string{}
-
-	for _, command := range commands {
-		parts := strings.Fields(strings.TrimSpace(command))
-		if len(parts) < 1 {
-			finalCommand = append(finalCommand, command)
-			continue
-		}
-
-		firstPart := strings.ToLower(parts[0])
-		if strings.HasSuffix(firstPart, ".bat") || strings.HasSuffix(firstPart, ".cmd") {
-			finalCommand = append(finalCommand, fmt.Sprintf("CALL %s", command))
-		} else {
-			finalCommand = append(finalCommand, command)
-		}
-	}
-
-	return strings.Join(finalCommand, "\n")
 }

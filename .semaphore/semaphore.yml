@@ -8,9 +8,9 @@ agent:
 execution_time_limit:
   minutes: 15
 
-# fail_fast:
-#   stop:
-#     when: true
+fail_fast:
+  stop:
+    when: true
 
 blocks:
   - name: "Lint"
@@ -111,7 +111,6 @@ blocks:
                 - stty_restoration
                 - epilogue_on_pass
                 - epilogue_on_fail
-                - ssh_jump_points
                 - unicode
                 - unknown_command
                 - broken_unicode

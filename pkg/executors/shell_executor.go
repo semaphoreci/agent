@@ -2,45 +2,42 @@ package executors
 
 import (
 	"fmt"
-	"io"
-	"io/fs"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
-	"github.com/semaphoreci/agent/pkg/osinfo"
 	shell "github.com/semaphoreci/agent/pkg/shell"
 	log "github.com/sirupsen/logrus"
 )
 
 type ShellExecutor struct {
 	Executor
-	Logger       *eventlogger.Logger
-	Shell        *shell.Shell
-	jobRequest   *api.JobRequest
-	NoPTY        bool
-	tmpDirectory string
+	Logger            *eventlogger.Logger
+	Shell             *shell.Shell
+	SelfHosted        bool
+	jobRequest        *api.JobRequest
+	tmpDirectory      string
+	cleanupAfterClose []string
 }
 
-func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger, noPTY bool) *ShellExecutor {
+func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger, selfHosted bool) *ShellExecutor {
 	return &ShellExecutor{
-		Logger:       logger,
-		jobRequest:   request,
-		NoPTY:        noPTY,
-		tmpDirectory: os.TempDir(),
+		Logger:            logger,
+		jobRequest:        request,
+		tmpDirectory:      os.TempDir(),
+		SelfHosted:        selfHosted,
+		cleanupAfterClose: []string{},
 	}
 }
 
 func (e *ShellExecutor) Prepare() int {
-	if runtime.GOOS == "windows" {
+	if e.SelfHosted {
 		return 0
 	}
 
@@ -75,15 +72,13 @@ func (e *ShellExecutor) setUpSSHJumpPoint() int {
 }
 
 func (e *ShellExecutor) Start() int {
-	cmd := exec.Command("bash", "--login")
-
-	shell, err := shell.NewShell(cmd, e.tmpDirectory, e.NoPTY)
+	sh, err := shell.NewShell(e.tmpDirectory)
 	if err != nil {
-		log.Debug(shell)
+		log.Debug(sh)
 		return 1
 	}
 
-	e.Shell = shell
+	e.Shell = sh
 
 	err = e.Shell.Start()
 	if err != nil {
@@ -107,15 +102,17 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 		e.Logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
-	environment, err := shell.EnvFromAPI(envVars)
+	environment, err := shell.CreateEnvironment(envVars, hostEnvVars)
 	if err != nil {
 		exitCode = 1
 		return exitCode
 	}
 
-	environment.Merge(hostEnvVars)
-
-	if e.NoPTY {
+	/*
+	 * In windows, no PTY is used, so the environment state
+	 * is tracked in the shell itself.
+	 */
+	if runtime.GOOS == "windows" {
 		e.Shell.Env.Append(environment, func(name, value string) {
 			e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))
 		})
@@ -124,7 +121,11 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 		return exitCode
 	}
 
-	envFileName := osinfo.FormDirPath(e.tmpDirectory, ".env")
+	/*
+	 * If not windows, we use a PTY, so there's no need to track
+	 * the environment state here.
+	 */
+	envFileName := filepath.Join(e.tmpDirectory, fmt.Sprintf(".env-%d", time.Now().UnixNano()))
 	err = environment.ToFile(envFileName, func(name string) {
 		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))
 	})
@@ -134,14 +135,24 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 		return exitCode
 	}
 
-	exitCode = e.RunCommand(fmt.Sprintf("source %s", envFileName), true, "")
+	e.cleanupAfterClose = append(e.cleanupAfterClose, envFileName)
+
+	cmd := fmt.Sprintf("source %s", envFileName)
+	exitCode = e.RunCommand(cmd, true, "")
 	if exitCode != 0 {
 		return exitCode
 	}
 
-	exitCode = e.RunCommand(fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName), true, "")
-	if exitCode != 0 {
-		return exitCode
+	/*
+	 * Debug sessions are not supported in self-hosted environments,
+	 * so we don't need to mess with the shell profiles there.
+	 */
+	if !e.SelfHosted {
+		cmd = fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName)
+		exitCode = e.RunCommand(cmd, true, "")
+		if exitCode != 0 {
+			return exitCode
+		}
 	}
 
 	return exitCode
@@ -172,34 +183,7 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 			return exitCode
 		}
 
-		tmpPath := osinfo.FormDirPath(e.tmpDirectory, "file")
-
-		// #nosec
-		tmpFile, err := os.OpenFile(tmpPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-		if err != nil {
-			e.Logger.LogCommandOutput(err.Error() + "\n")
-			exitCode = 255
-			break
-		}
-
-		_, err = tmpFile.Write(content)
-		if err != nil {
-			e.Logger.LogCommandOutput(err.Error() + "\n")
-			exitCode = 255
-			break
-		}
-
-		destPath := ""
-		switch p := f.Path; {
-		case p[0] == '/':
-			destPath = f.Path
-		case p[0] == '~':
-			destPath = strings.ReplaceAll(p, "~", homeDir)
-		default:
-			destPath = fmt.Sprintf("%s/%s", homeDir, f.Path)
-		}
-
-		destPath = filepath.FromSlash(destPath)
+		destPath := f.NormalizePath(homeDir)
 		err = os.MkdirAll(path.Dir(destPath), 0644)
 		if err != nil {
 			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to create directories for '%s': %v\n", destPath, err))
@@ -215,28 +199,21 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 			break
 		}
 
-		_, err = tmpFile.Seek(0, io.SeekStart)
+		_, err = destFile.Write(content)
 		if err != nil {
-			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to rewind '%s': %v\n", tmpPath, err))
+			e.Logger.LogCommandOutput(err.Error() + "\n")
+			exitCode = 255
+			break
+		}
+
+		fileMode, err := f.ParseMode()
+		if err != nil {
+			e.Logger.LogCommandOutput(err.Error() + "\n")
 			exitCode = 1
 			break
 		}
 
-		_, err = io.Copy(destFile, tmpFile)
-		if err != nil {
-			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to move '%s' to '%s': %v\n", tmpPath, destPath, err))
-			exitCode = 1
-			break
-		}
-
-		fileMode, err := strconv.ParseUint(f.Mode, 8, 32)
-		if err != nil {
-			e.Logger.LogCommandOutput(fmt.Sprintf("Bad file permission '%s' for '%s'\n", f.Mode, f.Path))
-			exitCode = 1
-			break
-		}
-
-		err = os.Chmod(destPath, fs.FileMode(fileMode))
+		err = os.Chmod(destPath, fileMode)
 		if err != nil {
 			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to set file mode '%s' for '%s': %v\n", f.Mode, destPath, err))
 			exitCode = 1
@@ -258,7 +235,6 @@ func (e *ShellExecutor) RunCommand(command string, silent bool, alias string) in
 	}
 
 	p := e.Shell.NewProcess(command)
-	e.Shell.CurrentProcess = p
 
 	if !silent {
 		e.Logger.LogCommandStarted(directive)
@@ -291,10 +267,16 @@ func (e *ShellExecutor) Stop() int {
 		log.Error(err)
 	}
 
-	err = e.Shell.CurrentProcess.Terminate()
+	err = e.Shell.Terminate()
 	if err != nil {
-		log.Errorf("Error terminating process: %v", err)
+		log.Errorf("Error terminating shell: %v", err)
 		return 1
+	}
+
+	exitCode := e.Cleanup()
+	if exitCode != 0 {
+		log.Errorf("Error cleaning up executor resources: %v", err)
+		return exitCode
 	}
 
 	log.Debug("Process killing finished without errors")
@@ -302,5 +284,11 @@ func (e *ShellExecutor) Stop() int {
 }
 
 func (e *ShellExecutor) Cleanup() int {
+	for _, resource := range e.cleanupAfterClose {
+		if err := os.Remove(resource); err != nil {
+			log.Errorf("Error removing %s: %v\n", resource, err)
+		}
+	}
+
 	return 0
 }
