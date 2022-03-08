@@ -8,10 +8,10 @@ package shell
  * Therefore, no special handling here is necessary.
  */
 
-func (p *Process) setup() {
+func (s *Shell) Setup() {
 
 }
 
-func (p *Process) afterCreation(jobObject uintptr) error {
+func (s *Shell) Terminate() error {
 	return nil
 }
