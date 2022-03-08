@@ -20,24 +20,24 @@ import (
 var UnicodeOutput1 = `特定の伝説に拠る物語の由来については諸説存在し。特定の伝説に拠る物語の由来については諸説存在し。特定の伝説に拠る物語の由来については諸説存在し。`
 var UnicodeOutput2 = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
 
-func Test__ShellExecutor__SSHJumpPoint(t *testing.T) {
+func Test__ShellExecutor__SSHJumpPointIsCreatedForHosted(t *testing.T) {
 	sshJumpPointPath := filepath.Join(os.TempDir(), "ssh_jump_point")
 	os.Remove(sshJumpPointPath)
+	_, _ = setupShellExecutor(t, false)
+	assert.FileExists(t, sshJumpPointPath)
+	os.Remove(sshJumpPointPath)
+}
 
-	_, _ = setupShellExecutor(t)
-
-	// ssh jump point is not set up in windows
-	if runtime.GOOS == "windows" {
-		assert.NoFileExists(t, sshJumpPointPath)
-	} else {
-		assert.FileExists(t, sshJumpPointPath)
-	}
-
+func Test__ShellExecutor__SSHJumpPointIsNotCreatedForSelfHosted(t *testing.T) {
+	sshJumpPointPath := filepath.Join(os.TempDir(), "ssh_jump_point")
+	os.Remove(sshJumpPointPath)
+	_, _ = setupShellExecutor(t, true)
+	assert.FileExists(t, sshJumpPointPath)
 	os.Remove(sshJumpPointPath)
 }
 
 func Test__ShellExecutor__EnvVars(t *testing.T) {
-	e, testLoggerBackend := setupShellExecutor(t)
+	e, testLoggerBackend := setupShellExecutor(t, true)
 	assert.Zero(t, e.ExportEnvVars(
 		[]api.EnvVar{
 			{Name: "A", Value: base64.StdEncoding.EncodeToString([]byte("AAA"))},
@@ -104,7 +104,7 @@ func Test__ShellExecutor__EnvVars(t *testing.T) {
 }
 
 func Test__ShellExecutor__InjectFiles(t *testing.T) {
-	e, testLoggerBackend := setupShellExecutor(t)
+	e, testLoggerBackend := setupShellExecutor(t, true)
 	homeDir, _ := os.UserHomeDir()
 
 	absoluteFile := api.File{
@@ -212,7 +212,7 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 }
 
 func Test__ShellExecutor__MultilineCommand(t *testing.T) {
-	e, testLoggerBackend := setupShellExecutor(t)
+	e, testLoggerBackend := setupShellExecutor(t, true)
 
 	assert.Zero(t, e.RunCommand(testsupport.Multiline(), false, ""))
 	assert.Zero(t, e.Stop())
@@ -229,7 +229,7 @@ func Test__ShellExecutor__MultilineCommand(t *testing.T) {
 }
 
 func Test__ShellExecutor__ChangesCurrentDirectory(t *testing.T) {
-	e, testLoggerBackend := setupShellExecutor(t)
+	e, testLoggerBackend := setupShellExecutor(t, true)
 
 	dirName := "somedir"
 	absolutePath := filepath.Join(os.TempDir(), dirName, "some-file.txt")
@@ -272,7 +272,7 @@ func Test__ShellExecutor__ChangesCurrentDirectory(t *testing.T) {
 }
 
 func Test__ShellExecutor__ChangesEnvVars(t *testing.T) {
-	e, testLoggerBackend := setupShellExecutor(t)
+	e, testLoggerBackend := setupShellExecutor(t, true)
 
 	varName := "IMPORTANT_VAR"
 	assert.Zero(t, e.RunCommand(testsupport.EchoEnvVar(varName), false, ""))
@@ -303,7 +303,7 @@ func Test__ShellExecutor__ChangesEnvVars(t *testing.T) {
 }
 
 func Test__ShellExecutor__StoppingRunningJob(t *testing.T) {
-	e, testLoggerBackend := setupShellExecutor(t)
+	e, testLoggerBackend := setupShellExecutor(t, true)
 
 	go func() {
 		e.RunCommand("echo here", false, "")
@@ -330,7 +330,7 @@ func Test__ShellExecutor__StoppingRunningJob(t *testing.T) {
 }
 
 func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
-	e, testLoggerBackend := setupShellExecutor(t)
+	e, testLoggerBackend := setupShellExecutor(t, true)
 
 	go func() {
 		assert.Zero(t, e.RunCommand(testsupport.LargeOutputCommand(), false, ""))
@@ -358,7 +358,7 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 }
 
 func Test__ShellExecutor__Unicode(t *testing.T) {
-	e, testLoggerBackend := setupShellExecutor(t)
+	e, testLoggerBackend := setupShellExecutor(t, true)
 	assert.Zero(t, e.RunCommand(testsupport.Output(UnicodeOutput1), false, ""))
 	assert.Zero(t, e.RunCommand(testsupport.Output(UnicodeOutput2), false, ""))
 	assert.Zero(t, e.Stop())
@@ -390,7 +390,7 @@ func Test__ShellExecutor__BrokenUnicode(t *testing.T) {
 		t.Skip()
 	}
 
-	e, testLoggerBackend := setupShellExecutor(t)
+	e, testLoggerBackend := setupShellExecutor(t, true)
 
 	go func() {
 		assert.Zero(t, e.RunCommand(testsupport.EchoBrokenUnicode(), false, ""))
@@ -428,12 +428,12 @@ func assertFileMode(t *testing.T, fileName string, fileMode fs.FileMode) {
 	}
 }
 
-func setupShellExecutor(t *testing.T) (*ShellExecutor, *eventlogger.InMemoryBackend) {
+func setupShellExecutor(t *testing.T, selfHosted bool) (*ShellExecutor, *eventlogger.InMemoryBackend) {
 	testsupport.SetupTestLogs()
 	testsupport.RemovePermanentEnvironmentFile()
 
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
-	e := NewShellExecutor(basicRequest(), testLogger, true)
+	e := NewShellExecutor(basicRequest(), testLogger, selfHosted)
 
 	assert.Zero(t, e.Prepare())
 	assert.Zero(t, e.Start())
