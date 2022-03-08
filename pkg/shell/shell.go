@@ -14,15 +14,20 @@ import (
 )
 
 type Shell struct {
-	Executable     string
-	Args           []string
-	BootCommand    *exec.Cmd
-	StoragePath    string
-	TTY            *os.File
-	ExitSignal     chan string
-	Env            *Environment
-	Cwd            string
-	CurrentProcess *Process
+	Executable  string
+	Args        []string
+	BootCommand *exec.Cmd
+	StoragePath string
+	TTY         *os.File
+	ExitSignal  chan string
+	Env         *Environment
+	Cwd         string
+
+	/*
+	 * A job object handle used to interrupt the command
+	 * process in case of a stop request.
+	 */
+	windowsJobObject uintptr
 }
 
 func NewShell(storagePath string) (*Shell, error) {
@@ -50,10 +55,11 @@ func NewShellFromExecAndArgs(executable string, args []string, storagePath strin
 func (s *Shell) Start() error {
 
 	/*
-	 * In windows, we don't use a PTY, so there's
-	 * nothing for us to do there.
+	 * In windows, we don't use a PTY, so we need to create a job object
+	 * to assign the processes started by the user.
 	 */
 	if runtime.GOOS == "windows" {
+		s.Setup()
 		return nil
 	}
 

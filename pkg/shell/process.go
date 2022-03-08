@@ -55,12 +55,6 @@ type Process struct {
 	inputBuffer      []byte
 	outputBuffer     *OutputBuffer
 	SysProcAttr      *syscall.SysProcAttr
-
-	/*
-	 * A job object handle used to interrupt the command
-	 * process in case of a stop request.
-	 */
-	windowsJobObject uintptr
 }
 
 func randomMagicMark() string {
@@ -157,15 +151,8 @@ func (p *Process) Run() {
 		return
 	}
 
-	/*
-	 * WHen running in windows, we need to create a job object handle,
-	 * which will be assigned a process after the command's process starts.
-	 * This is needed in order to properly terminate the processes in case
-	 * the job is stopped.
-	 */
-	p.setup()
-
 	// In windows, so no PTY support.
+	p.setup()
 	p.runWithoutPTY(instruction)
 
 	/*
@@ -208,7 +195,7 @@ func (p *Process) runWithoutPTY(instruction string) {
 	 * for process termination purposes.
 	 */
 	p.Pid = cmd.Process.Pid
-	err = p.afterCreation()
+	err = p.afterCreation(p.Shell.windowsJobObject)
 	if err != nil {
 		log.Errorf("Process after creation procedure failed: %v", err)
 	}
