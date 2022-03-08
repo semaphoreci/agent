@@ -1,10 +1,47 @@
 $ProgressPreference = 'SilentlyContinue'
 $ErrorActionPreference = "Stop"
+$InstallationDirectory = $PSScriptRoot
+
+#
+# Assert required variables are set
+#
+if (Test-Path env:SemaphoreEndpoint) {
+  $SemaphoreEndpoint = $env:SemaphoreEndpoint
+} else {
+  if (-not (Test-Path env:SemaphoreOrganization)) {
+    Write-Warning 'Either $env:SemaphoreOrganization or $env:SemaphoreEndpoint needs to be specified. Exiting...'
+    Exit 1
+  }
+
+  $SemaphoreEndpoint = "$env:SemaphoreOrganization.semaphoreci.com"
+  Write-Warning "`$env:SemaphoreEndpoint not set, using '$SemaphoreEndpoint'"
+}
+
+if (-not (Test-Path env:SemaphoreRegistrationToken)) {
+  Write-Warning 'Registration token cannot be empty, set $env:SemaphoreRegistrationToken. Exiting...'
+  Exit 1
+}
+
+#
+# Set defaults in case some variables are not set
+#
+if (Test-Path env:SemaphoreAgentDisconnectAfterJob) {
+  $DisconnectAfterJob = $env:SemaphoreAgentDisconnectAfterJob
+} else {
+  $DisconnectAfterJob = "false"
+}
+
+if (Test-Path env:SemaphoreAgentDisconnectAfterIdleTimeout) {
+  $DisconnectAfterIdleTimeout = $env:SemaphoreAgentDisconnectAfterIdleTimeout
+} else {
+  $DisconnectAfterIdleTimeout = 0
+}
 
 #
 # Download and install toolbox
 #
-$ToolboxDirectory="$HOME\.toolbox"
+$ToolboxDirectory = Join-Path $HOME ".toolbox"
+$InstallScriptPath = Join-Path $ToolboxDirectory "install-toolbox.ps1"
 
 Write-Output "Toolbox will be installed at $ToolboxDirectory."
 if (Test-Path $ToolboxDirectory) {
@@ -12,34 +49,39 @@ if (Test-Path $ToolboxDirectory) {
   Remove-Item -Path $ToolboxDirectory -Force -Recurse
 }
 
-Write-Output "Downloading toolbox..."
+Write-Output "Downloading and unpacking toolbox..."
 Invoke-WebRequest "https://github.com/semaphoreci/toolbox/releases/latest/download/self-hosted-windows.tar" -OutFile toolbox.tar
-if (-not (Test-Path "toolbox.tar")) {
-  Write-Output "Error downloading toolbox"
-  Exit 1
-}
-
-Write-Output "Unpacking toolbox..."
-tar -xf toolbox.tar -C $HOME
-if (-not (Test-Path "$HOME\toolbox")) {
-  Write-Output "Error unpacking toolbox"
-  Exit 1
-}
-
+tar.exe -xf toolbox.tar -C $HOME
 Rename-Item "$HOME\toolbox" $ToolboxDirectory
-if (-not (Test-Path "$HOME\.toolbox")) {
-  Write-Output "Error renaming toolbox directory"
-  Exit 1
-}
+Remove-Item toolbox.tar -Force
 
 Write-Output "Installing toolbox..."
-& "$ToolboxDirectory\install-toolbox.ps1"
+& $InstallScriptPath
 if (-not $?) {
   Write-Output "Error installing toolbox"
   Exit 1
 }
 
-Remove-Item toolbox.tar
+#
+# Create agent config in current directory
+#
+$AgentConfig = @"
+endpoint: "$SemaphoreEndpoint"
+token: "$env:SemaphoreRegistrationToken"
+no-https: false
+shutdown-hook-path: "$env:SemaphoreAgentShutdownHook"
+disconnect-after-job: $DisconnectAfterJob
+disconnect-after-idle-timeout: $DisconnectAfterIdleTimeout
+env-vars: []
+files: []
+fail-on-missing-files: false
+"@
 
-# TODO: create agent config
-# TODO: create nssm service for agent
+$AgentConfigPath = Join-Path $InstallationDirectory "config.yaml"
+New-Item -ItemType File -Path $AgentConfigPath > $null
+Set-Content -Path $AgentConfigPath -Value $AgentConfig
+
+Write-Output "Successfully installed the agent in $InstallationDirectory!"
+Write-Output "
+  Start the agent with: $InstallationDirectory\agent.exe start --config-file $AgentConfigPath
+"
