@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"os/exec"
 	"runtime"
 	"testing"
 	"time"
@@ -655,4 +656,144 @@ func Test__STTYRestoration(t *testing.T) {
 
 		"job_finished: passed",
 	})
+}
+
+func Test__BackgroundJobIsKilledAfterJobIsDoneInWindows(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip()
+	}
+
+	testsupport.RemovePermanentEnvironmentFile()
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		EnvVars: []api.EnvVar{},
+		Commands: []api.Command{
+			{Directive: "Start-Process ping -ArgumentList '-n','300','127.0.0.1'"},
+			{Directive: "sleep 5"},
+			{Directive: "(Get-Process ping -ErrorAction SilentlyContinue) -and ($true)"},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+		},
+	}
+
+	job, err := NewJobWithOptions(&JobOptions{Request: request, Client: http.DefaultClient, Logger: testLogger})
+	assert.Nil(t, err)
+
+	job.Run()
+	assert.True(t, job.Finished)
+
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		"directive: Start-Process ping -ArgumentList '-n','300','127.0.0.1'",
+		"Exit Code: 0",
+
+		"directive: sleep 5",
+		"Exit Code: 0",
+
+		"directive: (Get-Process ping -ErrorAction SilentlyContinue) -and ($true)",
+		"True\n",
+		"Exit Code: 0",
+
+		"directive: Exporting environment variables",
+		"Exporting SEMAPHORE_JOB_RESULT\n",
+		"Exit Code: 0",
+
+		"job_finished: passed",
+	})
+
+	// assert process is not running anymore
+	cmd := exec.Command(
+		"powershell",
+		"-NoProfile",
+		"-NonInteractive",
+		"-Command",
+		"(Get-Process ping -ErrorAction SilentlyContinue) -and ($true)",
+	)
+
+	output, err := cmd.CombinedOutput()
+	assert.Nil(t, err)
+	assert.Equal(t, "False\r\n", string(output))
+}
+
+func Test__BackgroundJobIsKilledAfterJobIsDoneInNonWindows(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
+	testsupport.RemovePermanentEnvironmentFile()
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		EnvVars: []api.EnvVar{},
+		Commands: []api.Command{
+			{Directive: "ping -c 300 127.0.0.1 > /dev/null &"},
+			{Directive: "sleep 5"},
+			{Directive: "pgrep ping > /dev/null && true"},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+		},
+	}
+
+	job, err := NewJobWithOptions(&JobOptions{Request: request, Client: http.DefaultClient, Logger: testLogger})
+	assert.Nil(t, err)
+
+	job.Run()
+	assert.True(t, job.Finished)
+
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		"directive: ping -c 300 127.0.0.1 > /dev/null &",
+		"Exit Code: 0",
+
+		"directive: sleep 5",
+		"Exit Code: 0",
+
+		"directive: pgrep ping > /dev/null && true",
+		"Exit Code: 0",
+
+		"directive: Exporting environment variables",
+		"Exporting SEMAPHORE_JOB_RESULT\n",
+		"Exit Code: 0",
+
+		"job_finished: passed",
+	})
+
+	// assert process is not running anymore
+	cmd := exec.Command(
+		"bash",
+		"-c",
+		"'pgrep ping > /dev/null && true'",
+	)
+
+	_, err = cmd.CombinedOutput()
+	assert.NotNil(t, err)
 }
