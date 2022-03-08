@@ -107,7 +107,6 @@ blocks:
                 - listen
             - env_var: TEST
               values:
-                - ssh_jump_points
                 - killing_root_bash
                 - set_e
                 - set_pipefail
@@ -178,6 +177,31 @@ blocks:
                 - check_dev_kvm
                 - host_setup_commands
                 - multiple_containers
+
+  - name: "Hosted E2E tests"
+    dependencies: []
+    task:
+      env_vars:
+        - name: GO111MODULE
+          value: "on"
+
+      prologue:
+        commands:
+          - sem-version go 1.16
+          - checkout
+          - go version
+          - go get
+          - go build
+          - mkdir /tmp/agent
+
+      epilogue:
+        commands:
+          - docker exec -ti agent cat /tmp/agent_log
+
+      jobs:
+        - name: SSH jump points
+          commands:
+            - "TEST_MODE=api make e2e TEST=shell/ssh_jump_points"
 
   - name: "Self hosted E2E"
     dependencies: []
