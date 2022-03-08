@@ -32,7 +32,7 @@ func Test__ShellExecutor__SSHJumpPointIsNotCreatedForSelfHosted(t *testing.T) {
 	sshJumpPointPath := filepath.Join(os.TempDir(), "ssh_jump_point")
 	os.Remove(sshJumpPointPath)
 	_, _ = setupShellExecutor(t, true)
-	assert.FileExists(t, sshJumpPointPath)
+	assert.NoFileExists(t, sshJumpPointPath)
 	os.Remove(sshJumpPointPath)
 }
 
