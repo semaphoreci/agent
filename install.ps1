@@ -38,29 +38,28 @@ if (Test-Path env:SemaphoreAgentDisconnectAfterIdleTimeout) {
 }
 
 #
-# Download and install toolbox
+# Download and unpack toolbox
 #
 $ToolboxDirectory = Join-Path $HOME ".toolbox"
 $InstallScriptPath = Join-Path $ToolboxDirectory "install-toolbox.ps1"
 
-Write-Output "Toolbox will be installed at $ToolboxDirectory."
+Write-Output "> Toolbox will be installed at $ToolboxDirectory."
 if (Test-Path $ToolboxDirectory) {
-  Write-Output "Toolbox was already installed at $ToolboxDirectory. Overriding it..."
+  Write-Output "> Toolbox already installed at $ToolboxDirectory. Overriding it..."
   Remove-Item -Path $ToolboxDirectory -Force -Recurse
 }
 
-Write-Output "Downloading and unpacking toolbox..."
+Write-Output "> Downloading and unpacking toolbox..."
 Invoke-WebRequest "https://github.com/semaphoreci/toolbox/releases/latest/download/self-hosted-windows.tar" -OutFile toolbox.tar
 tar.exe -xf toolbox.tar -C $HOME
 Rename-Item "$HOME\toolbox" $ToolboxDirectory
 Remove-Item toolbox.tar -Force
 
-Write-Output "Installing toolbox..."
+#
+# Install toolbox
+#
+Write-Output "> Installing toolbox..."
 & $InstallScriptPath
-if (-not $?) {
-  Write-Output "Error installing toolbox"
-  Exit 1
-}
 
 #
 # Create agent config in current directory
@@ -78,10 +77,15 @@ fail-on-missing-files: false
 "@
 
 $AgentConfigPath = Join-Path $InstallationDirectory "config.yaml"
+if (Test-Path $AgentConfigPath) {
+  Write-Output "> Agent configuration file already exists in $AgentConfigPath. Overriding it..."
+  Remove-Item -Path $AgentConfigPath -Force -Recurse
+}
+
 New-Item -ItemType File -Path $AgentConfigPath > $null
 Set-Content -Path $AgentConfigPath -Value $AgentConfig
 
-Write-Output "Successfully installed the agent in $InstallationDirectory!"
+Write-Output "> Successfully installed the agent in $InstallationDirectory."
 Write-Output "
   Start the agent with: $InstallationDirectory\agent.exe start --config-file $AgentConfigPath
 "
