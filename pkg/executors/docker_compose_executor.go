@@ -82,7 +82,8 @@ func (e *DockerComposeExecutor) Prepare() int {
 	log.Debug("Compose File:")
 	log.Debug(compose)
 
-	err = ioutil.WriteFile(e.dockerComposeManifestPath, []byte(compose), 0600)
+	// #nosec
+	err = ioutil.WriteFile(e.dockerComposeManifestPath, []byte(compose), 0644)
 	if err != nil {
 		log.Errorf("Error writing docker compose manifest file: %v", err)
 		return 1
