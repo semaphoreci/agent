@@ -17,26 +17,28 @@ import (
 
 type ShellExecutor struct {
 	Executor
-	Logger            *eventlogger.Logger
-	Shell             *shell.Shell
-	SelfHosted        bool
-	jobRequest        *api.JobRequest
-	tmpDirectory      string
-	cleanupAfterClose []string
+	Logger                  *eventlogger.Logger
+	Shell                   *shell.Shell
+	jobRequest              *api.JobRequest
+	tmpDirectory            string
+	hasSSHJumpPoint         bool
+	shouldUpdateBashProfile bool
+	cleanupAfterClose       []string
 }
 
 func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger, selfHosted bool) *ShellExecutor {
 	return &ShellExecutor{
-		Logger:            logger,
-		jobRequest:        request,
-		tmpDirectory:      os.TempDir(),
-		SelfHosted:        selfHosted,
-		cleanupAfterClose: []string{},
+		Logger:                  logger,
+		jobRequest:              request,
+		tmpDirectory:            os.TempDir(),
+		hasSSHJumpPoint:         !selfHosted,
+		shouldUpdateBashProfile: !selfHosted,
+		cleanupAfterClose:       []string{},
 	}
 }
 
 func (e *ShellExecutor) Prepare() int {
-	if e.SelfHosted {
+	if !e.hasSSHJumpPoint {
 		return 0
 	}
 
@@ -142,11 +144,7 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 		return exitCode
 	}
 
-	/*
-	 * Debug sessions are not supported in self-hosted environments,
-	 * so we don't need to mess with the shell profiles there.
-	 */
-	if !e.SelfHosted {
+	if e.shouldUpdateBashProfile {
 		cmd = fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName)
 		exitCode = e.RunCommand(cmd, true, "")
 		if exitCode != 0 {
