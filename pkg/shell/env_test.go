@@ -49,6 +49,32 @@ func Test__CreateEnvironment(t *testing.T) {
 		assert.NotNil(t, err)
 		assert.Nil(t, env)
 	})
+
+	t.Run("var is overwritten by subsequent var in request", func(t *testing.T) {
+		varsFromRequest := []api.EnvVar{
+			{Name: "FOO", Value: base64.StdEncoding.EncodeToString([]byte("FOO"))},
+			{Name: "FOO", Value: base64.StdEncoding.EncodeToString([]byte("BAR"))},
+		}
+
+		env, err := CreateEnvironment(varsFromRequest, []config.HostEnvVar{})
+		assert.Nil(t, err)
+		assertValueExists(t, env, "FOO", "BAR")
+	})
+
+	t.Run("var is overwritten by subsequent host var", func(t *testing.T) {
+		varsFromRequest := []api.EnvVar{
+			{Name: "FOO", Value: base64.StdEncoding.EncodeToString([]byte("FOO"))},
+			{Name: "FOO", Value: base64.StdEncoding.EncodeToString([]byte("BAR"))},
+		}
+
+		varsFromHost := []config.HostEnvVar{
+			{Name: "FOO", Value: "AAA"},
+		}
+
+		env, err := CreateEnvironment(varsFromRequest, varsFromHost)
+		assert.Nil(t, err)
+		assertValueExists(t, env, "FOO", "AAA")
+	})
 }
 
 func Test__CreateEnvironmentFromFile(t *testing.T) {
