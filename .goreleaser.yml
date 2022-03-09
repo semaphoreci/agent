@@ -3,13 +3,25 @@ before:
   hooks:
   - go get ./...
 builds:
-- env:
+- id: non-windows-build
+  env:
   - CGO_ENABLED=0
   ldflags:
      - -s -w -X main.VERSION={{.Tag}}
   goos:
     - linux
     - darwin
+  goarch:
+    - 386
+    - amd64
+    - arm
+    - arm64
+- id: windows-build
+  env:
+  - CGO_ENABLED=0
+  ldflags:
+     - -s -w -X main.VERSION={{.Tag}}
+  goos:
     - windows
   goarch:
     - 386
@@ -18,7 +30,9 @@ builds:
     - arm64
 
 archives:
-  - id: agent
+  - id: non-windows-archive
+    builds:
+      - non-windows-build
     name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
     files:
       - README.md
@@ -28,6 +42,18 @@ archives:
       linux: Linux
       386: i386
       amd64: x86_64
+
+  - id: windows-archive
+    builds:
+      - windows-build
+    name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    files:
+      - README.md
+      - install.ps1
+    replacements:
+      386: i386
+      amd64: x86_64
+      windows: Windows
 
 checksum:
   name_template: '{{ .ProjectName }}_checksums.txt'
