@@ -76,7 +76,8 @@ func (e *DockerComposeExecutor) Prepare() int {
 	log.Debug("Compose File:")
 	log.Debug(compose)
 
-	err = ioutil.WriteFile(e.dockerComposeManifestPath, []byte(compose), 0600)
+	// #nosec
+	err = ioutil.WriteFile(e.dockerComposeManifestPath, []byte(compose), 0644)
 	if err != nil {
 		log.Errorf("Error writing docker compose manifest file: %v", err)
 		return 1
@@ -606,7 +607,9 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars 
 	}
 
 	envPath := fmt.Sprintf("%s/.env", e.tmpDirectory)
-	err := ioutil.WriteFile(envPath, []byte(envFile), 0600)
+
+	// #nosec
+	err := ioutil.WriteFile(envPath, []byte(envFile), 0644)
 
 	if err != nil {
 		exitCode = 255
