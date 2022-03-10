@@ -52,6 +52,18 @@ func (l *FileBackend) Write(event interface{}) error {
 }
 
 func (l *FileBackend) Close() error {
+	err := l.file.Close()
+	if err != nil {
+		log.Errorf("Error closing file %s: %v\n", l.file.Name(), err)
+		return err
+	}
+
+	log.Debugf("Removing %s\n", l.file.Name())
+	if err := os.Remove(l.file.Name()); err != nil {
+		log.Errorf("Error removing logger file %s: %v\n", l.file.Name(), err)
+		return err
+	}
+
 	return nil
 }
 

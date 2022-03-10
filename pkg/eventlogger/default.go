@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/semaphoreci/agent/pkg/api"
 )
@@ -24,7 +25,7 @@ func CreateLogger(request *api.JobRequest) (*Logger, error) {
 }
 
 func Default() (*Logger, error) {
-	path := filepath.Join(os.TempDir(), "job_log.json")
+	path := filepath.Join(os.TempDir(), fmt.Sprintf("job_log_%d.json", time.Now().UnixNano()))
 	backend, err := NewFileBackend(path)
 	if err != nil {
 		return nil, err
