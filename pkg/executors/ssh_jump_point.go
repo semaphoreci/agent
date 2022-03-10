@@ -15,6 +15,6 @@ func SetUpSSHJumpPoint(script string) error {
 	}
 
 	_, err = f.WriteString(script)
-
+	_ = f.Close()
 	return err
 }

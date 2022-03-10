@@ -17,20 +17,20 @@ func startComposeExecutor() (*DockerComposeExecutor, *eventlogger.Logger, *event
 	request := &api.JobRequest{
 		Compose: api.Compose{
 			Containers: []api.Container{
-				api.Container{
+				{
 					Name:  "main",
 					Image: "ruby:2.6",
 				},
-				api.Container{
+				{
 					Name:    "db",
 					Image:   "postgres:9.6",
 					Command: "postgres start",
 					EnvVars: []api.EnvVar{
-						api.EnvVar{
+						{
 							Name:  "FOO",
 							Value: base64.StdEncoding.EncodeToString([]byte("BAR")),
 						},
-						api.EnvVar{
+						{
 							Name:  "FAZ",
 							Value: base64.StdEncoding.EncodeToString([]byte("ZEZ")),
 						},
@@ -105,7 +105,10 @@ func Test__DockerComposeExecutor(t *testing.T) {
 	e.Stop()
 	e.Cleanup()
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEventsWithoutDockerPull(), []string{
+	simplifiedLogEvents, err := testLoggerBackend.SimplifiedEventsWithoutDockerPull()
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedLogEvents, []string{
 		"directive: Pulling docker images...",
 		"Exit Code: 0",
 
@@ -162,7 +165,10 @@ func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	assert.Equal(t, testLoggerBackend.SimplifiedEventsWithoutDockerPull(), []string{
+	simplifiedLogEvents, err := testLoggerBackend.SimplifiedEventsWithoutDockerPull()
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedLogEvents, []string{
 		"directive: Pulling docker images...",
 		"Exit Code: 0",
 

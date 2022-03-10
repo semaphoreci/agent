@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -313,12 +312,32 @@ func (p *Process) loadCommand() error {
 
 func (p *Process) writeCommandToFile(cmdFilePath, command string) error {
 	// #nosec
-	err := ioutil.WriteFile(cmdFilePath, []byte(command), 0644)
+	file, err := os.OpenFile(cmdFilePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
 
-	return nil
+	/*
+	 * UTF8 files without a BOM containing non-ASCII characters may break in Windows PowerShell,
+	 * since it misinterprets it as being encoded in the legacy "ANSI" codepage.
+	 * Since we need to support non-ASCII characters, we need a UTF-8 file with a BOM.
+	 * See: https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_character_encoding
+	 */
+	if runtime.GOOS == "windows" {
+		_, err = file.Write([]byte{0xEF, 0xBB, 0xBF})
+		if err != nil {
+			_ = file.Close()
+			return err
+		}
+	}
+
+	_, err = file.Write([]byte(command))
+	if err != nil {
+		_ = file.Close()
+		return err
+	}
+
+	return file.Close()
 }
 
 func (p *Process) readBufferSize() int {
