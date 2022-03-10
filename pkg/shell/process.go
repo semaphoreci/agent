@@ -160,15 +160,21 @@ func (p *Process) Run() {
 	 * We use a file with all the environment variables available after the command
 	 * is executed. From that file, we can update our shell "state".
 	 */
-	after, _ := CreateEnvironmentFromFile(p.EnvironmentFilePath())
+	after, err := CreateEnvironmentFromFile(p.EnvironmentFilePath())
+	if err != nil {
+		log.Errorf("Error creating environment from file %s: %v\n", p.EnvironmentFilePath(), err)
+		return
+	}
 
 	/*
 	 * CMD.exe does not have an environment variable such as $PWD,
 	 * so we use a custom one to get the current working directory
 	 * after a command is executed.
 	 */
-	newCwd, _ := after.Get("SEMAPHORE_AGENT_CURRENT_DIR")
-	p.Shell.Chdir(newCwd)
+	newCwd, exists := after.Get("SEMAPHORE_AGENT_CURRENT_DIR")
+	if exists {
+		p.Shell.Chdir(newCwd)
+	}
 
 	/*
 	 * We use two custom environment variables to track
