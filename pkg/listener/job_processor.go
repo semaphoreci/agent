@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
 	"github.com/semaphoreci/agent/pkg/retry"
+	"github.com/semaphoreci/agent/pkg/shell"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -172,6 +174,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 		ExposeKvmDevice:    false,
 		FileInjections:     p.FileInjections,
 		FailOnMissingFiles: p.FailOnMissingFiles,
+		SelfHosted:         true,
 	})
 
 	if err != nil {
@@ -267,20 +270,27 @@ func (p *JobProcessor) Shutdown(reason ShutdownReason, code int) {
 }
 
 func (p *JobProcessor) executeShutdownHook(reason ShutdownReason) {
-	if p.ShutdownHookPath != "" {
-		log.Infof("Executing shutdown hook from %s", p.ShutdownHookPath)
+	if p.ShutdownHookPath == "" {
+		return
+	}
 
-		// #nosec
-		cmd := exec.Command("bash", p.ShutdownHookPath)
-		cmd.Env = os.Environ()
-		cmd.Env = append(cmd.Env, fmt.Sprintf("SEMAPHORE_AGENT_SHUTDOWN_REASON=%s", reason))
+	var cmd *exec.Cmd
+	log.Infof("Executing shutdown hook from %s", p.ShutdownHookPath)
 
-		output, err := cmd.Output()
-		if err != nil {
-			log.Errorf("Error executing shutdown hook: %v", err)
-			log.Errorf("Output: %s", string(output))
-		} else {
-			log.Infof("Output: %s", string(output))
-		}
+	// #nosec
+	if runtime.GOOS == "windows" {
+		args := append(shell.Args(), p.ShutdownHookPath)
+		cmd = exec.Command(shell.Executable(), args...)
+	} else {
+		cmd = exec.Command("bash", p.ShutdownHookPath)
+	}
+
+	cmd.Env = append(os.Environ(), fmt.Sprintf("SEMAPHORE_AGENT_SHUTDOWN_REASON=%s", reason))
+	output, err := cmd.Output()
+	if err != nil {
+		log.Errorf("Error executing shutdown hook: %v", err)
+		log.Errorf("Output: %s", string(output))
+	} else {
+		log.Infof("Output: %s", string(output))
 	}
 }

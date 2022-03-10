@@ -3,6 +3,7 @@ package executors
 import (
 	"encoding/base64"
 	"os/exec"
+	"runtime"
 	"testing"
 	"time"
 
@@ -66,6 +67,10 @@ func startComposeExecutor() (*DockerComposeExecutor, *eventlogger.Logger, *event
 }
 
 func Test__DockerComposeExecutor(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("docker-compose executor is not yet support in Windows")
+	}
+
 	e, _, testLoggerBackend := startComposeExecutor()
 
 	e.RunCommand("echo 'here'", false, "")
@@ -78,14 +83,14 @@ func Test__DockerComposeExecutor(t *testing.T) {
 	e.RunCommand(multilineCmd, false, "")
 
 	envVars := []api.EnvVar{
-		api.EnvVar{Name: "A", Value: "Zm9vCg=="},
+		{Name: "A", Value: "Zm9vCg=="},
 	}
 
 	e.ExportEnvVars(envVars, []config.HostEnvVar{})
 	e.RunCommand("echo $A", false, "")
 
 	files := []api.File{
-		api.File{
+		{
 			Path:    "/tmp/random-file.txt",
 			Content: "YWFhYmJiCgo=",
 			Mode:    "0600",
@@ -139,6 +144,10 @@ func Test__DockerComposeExecutor(t *testing.T) {
 }
 
 func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("docker-compose executor is not yet support in Windows")
+	}
+
 	e, _, testLoggerBackend := startComposeExecutor()
 
 	go func() {

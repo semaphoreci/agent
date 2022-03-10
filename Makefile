@@ -40,13 +40,17 @@ serve:
 .PHONY: serve
 
 test:
-	go test -short -v ./...
+	go test -p 1 -short -v ./...
 .PHONY: test
 
 build:
 	rm -rf build
 	env GOOS=linux GOARCH=386 go build -o build/agent main.go
 .PHONY: build
+
+build.windows:
+	rm -rf build
+	env GOOS=windows GOARCH=amd64 go build -o build/agent.exe main.go
 
 e2e: build
 	ruby test/e2e/$(TEST).rb

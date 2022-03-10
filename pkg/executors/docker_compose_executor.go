@@ -7,10 +7,11 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
-	pty "github.com/creack/pty"
 	watchman "github.com/renderedtext/go-watchman"
 	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
@@ -56,6 +57,11 @@ func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logge
 }
 
 func (e *DockerComposeExecutor) Prepare() int {
+	if runtime.GOOS == "windows" {
+		log.Error("docker-compose executor is not supported in Windows")
+		return 1
+	}
+
 	err := os.MkdirAll(e.tmpDirectory, os.ModePerm)
 	if err != nil {
 		return 1
@@ -204,8 +210,8 @@ func (e *DockerComposeExecutor) startBashSession() int {
 	log.Debug("Starting stateful shell")
 
 	// #nosec
-	cmd := exec.Command(
-		"docker-compose",
+	executable := "docker-compose"
+	args := []string{
 		"--ansi",
 		"never",
 		"-f",
@@ -220,9 +226,9 @@ func (e *DockerComposeExecutor) startBashSession() int {
 		fmt.Sprintf("%s:%s:ro", e.tmpDirectory, e.tmpDirectory),
 		e.mainContainerName,
 		"bash",
-	)
+	}
 
-	shell, err := shell.NewShell(cmd, e.tmpDirectory)
+	shell, err := shell.NewShellFromExecAndArgs(executable, args, e.tmpDirectory)
 	if err != nil {
 		log.Errorf("Failed to start stateful shell err: %+v", err)
 
@@ -538,7 +544,7 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 		e.mainContainerName,
 		"true")
 
-	tty, err := pty.Start(cmd)
+	tty, err := shell.StartPTY(cmd)
 	if err != nil {
 		log.Errorf("Failed to initialize docker pull, err: %+v", err)
 		return 1
@@ -586,43 +592,30 @@ func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars 
 		e.Logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
-	envFile := ""
-
-	for _, env := range envVars {
-		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", env.Name))
-
-		value, err := env.Decode()
-
-		if err != nil {
-			exitCode = 1
-			return exitCode
-		}
-
-		envFile += fmt.Sprintf("export %s=%s\n", env.Name, ShellQuote(string(value)))
+	environment, err := shell.CreateEnvironment(envVars, hostEnvVars)
+	if err != nil {
+		log.Errorf("Error creating environment: %v", err)
+		exitCode = 1
+		return exitCode
 	}
 
-	for _, env := range hostEnvVars {
-		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", env.Name))
-		envFile += fmt.Sprintf("export %s=%s\n", env.Name, ShellQuote(env.Value))
-	}
-
-	envPath := fmt.Sprintf("%s/.env", e.tmpDirectory)
-
-	// #nosec
-	err := ioutil.WriteFile(envPath, []byte(envFile), 0644)
+	envFileName := filepath.Join(e.tmpDirectory, ".env")
+	err = environment.ToFile(envFileName, func(name string) {
+		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))
+	})
 
 	if err != nil {
 		exitCode = 255
 		return exitCode
 	}
 
-	cmd := fmt.Sprintf("source %s", envPath)
+	cmd := fmt.Sprintf("source %s", envFileName)
 	exitCode = e.RunCommand(cmd, true, "")
 	if exitCode != 0 {
 		return exitCode
 	}
 
-	cmd = fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envPath)
+	cmd = fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName)
 	exitCode = e.RunCommand(cmd, true, "")
 	if exitCode != 0 {
 		return exitCode

@@ -6,34 +6,68 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
-	pty "github.com/creack/pty"
 	log "github.com/sirupsen/logrus"
 )
 
 type Shell struct {
+	Executable  string
+	Args        []string
 	BootCommand *exec.Cmd
 	StoragePath string
 	TTY         *os.File
 	ExitSignal  chan string
+	Env         *Environment
+	Cwd         string
+
+	/*
+	 * A job object handle used to interrupt the command
+	 * process in case of a stop request.
+	 */
+	windowsJobObject uintptr
 }
 
-func NewShell(bootCommand *exec.Cmd, storagePath string) (*Shell, error) {
+func NewShell(storagePath string) (*Shell, error) {
+	return NewShellFromExecAndArgs(Executable(), Args(), storagePath)
+}
+
+func NewShellFromExecAndArgs(executable string, args []string, storagePath string) (*Shell, error) {
 	exitChannel := make(chan string, 1)
 
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("error finding current working directory: %v", err)
+	}
+
 	return &Shell{
-		BootCommand: bootCommand,
+		Executable:  executable,
+		Args:        args,
 		StoragePath: storagePath,
 		ExitSignal:  exitChannel,
+		Env:         &Environment{},
+		Cwd:         cwd,
 	}, nil
 }
 
 func (s *Shell) Start() error {
+
+	/*
+	 * In windows, we don't use a PTY, so we need to create a job object
+	 * to assign the processes started by the user.
+	 */
+	if runtime.GOOS == "windows" {
+		s.Setup()
+		return nil
+	}
+
 	log.Debug("Starting stateful shell")
 
-	tty, err := pty.Start(s.BootCommand)
+	// #nosec
+	s.BootCommand = exec.Command(s.Executable, s.Args...)
+	tty, err := StartPTY(s.BootCommand)
 	if err != nil {
 		log.Errorf("Failed to start stateful shell: %v", err)
 		return err
@@ -182,7 +216,12 @@ func (s *Shell) silencePromptAndDisablePS1() error {
 }
 
 func (s *Shell) NewProcess(command string) *Process {
-	return NewProcess(command, s.StoragePath, s)
+	return NewProcess(
+		Config{
+			Command:     command,
+			Shell:       s,
+			StoragePath: s.StoragePath,
+		})
 }
 
 func (s *Shell) Close() error {
@@ -194,7 +233,7 @@ func (s *Shell) Close() error {
 		}
 	}
 
-	if s.BootCommand.Process != nil {
+	if s.BootCommand != nil && s.BootCommand.Process != nil {
 		err := s.BootCommand.Process.Kill()
 		if err != nil && !errors.Is(err, os.ErrProcessDone) {
 			log.Errorf("Process killing procedure returned an error %+v", err)
@@ -203,4 +242,30 @@ func (s *Shell) Close() error {
 	}
 
 	return nil
+}
+
+func (s *Shell) Chdir(newCwd string) {
+	if newCwd != s.Cwd {
+		s.Cwd = newCwd
+	}
+}
+
+func (s *Shell) UpdateEnvironment(newEnvironment *Environment) {
+	s.Env = newEnvironment
+}
+
+func Executable() string {
+	if runtime.GOOS == "windows" {
+		return "powershell"
+	}
+
+	return "bash"
+}
+
+func Args() []string {
+	if runtime.GOOS == "windows" {
+		return []string{"-NoProfile", "-NonInteractive"}
+	}
+
+	return []string{"--login"}
 }

@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"time"
@@ -37,6 +38,7 @@ type JobOptions struct {
 	ExposeKvmDevice    bool
 	FileInjections     []config.FileInjection
 	FailOnMissingFiles bool
+	SelfHosted         bool
 }
 
 func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
@@ -46,6 +48,7 @@ func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
 		ExposeKvmDevice:    true,
 		FileInjections:     []config.FileInjection{},
 		FailOnMissingFiles: false,
+		SelfHosted:         false,
 	})
 }
 
@@ -85,7 +88,7 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOptions JobOptions) (executors.Executor, error) {
 	switch request.Executor {
 	case executors.ExecutorTypeShell:
-		return executors.NewShellExecutor(request, logger), nil
+		return executors.NewShellExecutor(request, logger, jobOptions.SelfHosted), nil
 	case executors.ExecutorTypeDockerCompose:
 		executorOptions := executors.DockerComposeExecutorOptions{
 			ExposeKvmDevice:    jobOptions.ExposeKvmDevice,
@@ -132,13 +135,9 @@ func (job *Job) RunWithOptions(options RunOptions) {
 	if executorRunning {
 		result = job.RunRegularCommands(options.EnvVars)
 		log.Debug("Exporting job result")
-		job.RunCommandsUntilFirstFailure([]api.Command{
-			{
-				Directive: fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%s", result),
-			},
-		})
 
 		if result != JobStopped {
+			log.Debug("Handling epilogues")
 			job.handleEpilogues(result)
 		}
 	}
@@ -204,6 +203,15 @@ func (job *Job) RunRegularCommands(hostEnvVars []config.HostEnvVar) string {
 }
 
 func (job *Job) handleEpilogues(result string) {
+	envVars := []api.EnvVar{
+		{Name: "SEMAPHORE_JOB_RESULT", Value: base64.RawStdEncoding.EncodeToString([]byte(result))},
+	}
+
+	exitCode := job.Executor.ExportEnvVars(envVars, []config.HostEnvVar{})
+	if exitCode != 0 {
+		log.Errorf("Error setting SEMAPHORE_JOB_RESULT: exit code %d", exitCode)
+	}
+
 	job.executeIfNotStopped(func() {
 		log.Info("Starting epilogue always commands")
 		job.RunCommandsUntilFirstFailure(job.Request.EpilogueAlwaysCommands)

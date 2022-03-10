@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -90,7 +91,7 @@ func getLogLevel() log.Level {
 func getLogFilePath() string {
 	logFilePath := os.Getenv("SEMAPHORE_AGENT_LOG_FILE_PATH")
 	if logFilePath == "" {
-		return "/tmp/agent_log"
+		return filepath.Join(os.TempDir(), "agent_log")
 	}
 
 	parentDirectory := path.Dir(logFilePath)

@@ -4,8 +4,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	yaml "gopkg.in/yaml.v3"
 )
@@ -44,6 +47,27 @@ type File struct {
 	Path    string `json:"path" yaml:"path"`
 	Content string `json:"content" yaml:"content"`
 	Mode    string `json:"mode" yaml:"mode"`
+}
+
+func (f *File) NormalizePath(homeDir string) string {
+	if filepath.IsAbs(f.Path) {
+		return filepath.FromSlash(f.Path)
+	}
+
+	if strings.HasPrefix(f.Path, "~") {
+		return filepath.FromSlash(strings.ReplaceAll(f.Path, "~", homeDir))
+	}
+
+	return filepath.FromSlash(filepath.Join(homeDir, f.Path))
+}
+
+func (f *File) ParseMode() (fs.FileMode, error) {
+	fileMode, err := strconv.ParseUint(f.Mode, 8, 32)
+	if err != nil {
+		return 0, fmt.Errorf("bad file permission '%s'", f.Mode)
+	}
+
+	return fs.FileMode(fileMode), nil
 }
 
 type Callbacks struct {

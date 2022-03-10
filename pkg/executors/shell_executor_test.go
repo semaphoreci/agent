@@ -23,7 +23,7 @@ func Test__ShellExecutor(t *testing.T) {
 		},
 	}
 
-	e := NewShellExecutor(request, testLogger)
+	e := NewShellExecutor(request, testLogger, true)
 
 	e.Prepare()
 	e.Start()
@@ -35,17 +35,18 @@ func Test__ShellExecutor(t *testing.T) {
 	    echo 'etc exists, multiline huzzahh!'
 	  fi
 	`
+
 	e.RunCommand(multilineCmd, false, "")
 
 	envVars := []api.EnvVar{
-		api.EnvVar{Name: "A", Value: "Zm9vCg=="},
+		{Name: "A", Value: "Zm9vCg=="},
 	}
 
 	e.ExportEnvVars(envVars, []config.HostEnvVar{})
 	e.RunCommand("echo $A", false, "")
 
 	files := []api.File{
-		api.File{
+		{
 			Path:    "/tmp/random-file.txt",
 			Content: "YWFhYmJiCgo=",
 			Mode:    "0600",
@@ -102,7 +103,7 @@ func Test__ShellExecutor__StopingRunningJob(t *testing.T) {
 		},
 	}
 
-	e := NewShellExecutor(request, testLogger)
+	e := NewShellExecutor(request, testLogger, true)
 
 	e.Prepare()
 	e.Start()
@@ -139,7 +140,7 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 		},
 	}
 
-	e := NewShellExecutor(request, testLogger)
+	e := NewShellExecutor(request, testLogger, true)
 
 	e.Prepare()
 	e.Start()

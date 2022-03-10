@@ -1,12 +1,15 @@
 package executors
 
-import "os"
-
-const SSHJumpPointPath = "/tmp/ssh_jump_point"
+import (
+	"os"
+	"path/filepath"
+)
 
 func SetUpSSHJumpPoint(script string) error {
+	path := filepath.Join(os.TempDir(), "ssh_jump_point")
+
 	// #nosec
-	f, err := os.OpenFile(SSHJumpPointPath, os.O_WRONLY|os.O_CREATE, 0644)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return err
 	}

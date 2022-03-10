@@ -111,7 +111,6 @@ blocks:
                 - stty_restoration
                 - epilogue_on_pass
                 - epilogue_on_fail
-                - ssh_jump_points
                 - unicode
                 - unknown_command
                 - broken_unicode

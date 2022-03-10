@@ -6,7 +6,7 @@ services:
       context: ../..
       dockerfile: Dockerfile.test
 
-    command: 'bash -c "service ssh restart && ./agent start --config-file /tmp/agent/config.yaml"'
+    command: 'bash -c "service ssh restart && SEMAPHORE_AGENT_LOG_LEVEL=DEBUG ./agent start --config-file /tmp/agent/config.yaml"'
 
     ports:
       - "30000:8000"

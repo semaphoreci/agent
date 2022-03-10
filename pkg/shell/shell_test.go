@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io/ioutil"
 	"log"
-	"os/exec"
 	"testing"
 
 	assert "github.com/stretchr/testify/assert"
@@ -80,9 +79,7 @@ func tempStorageFolder() string {
 
 func bashShell() *Shell {
 	dir := tempStorageFolder()
-	cmd := exec.Command("bash", "--login")
-
-	shell, _ := NewShell(cmd, dir)
+	shell, _ := NewShell(dir)
 	shell.Start()
 
 	return shell

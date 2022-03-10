@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -22,7 +24,8 @@ type HTTPBackend struct {
 }
 
 func NewHTTPBackend(url, token string) (*HTTPBackend, error) {
-	fileBackend, err := NewFileBackend("/tmp/job_log.json")
+	path := filepath.Join(os.TempDir(), "job_log.json")
+	fileBackend, err := NewFileBackend(path)
 	if err != nil {
 		return nil, err
 	}
