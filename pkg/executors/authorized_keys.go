@@ -12,9 +12,13 @@ func InjectEntriesToAuthorizedKeys(keys []api.PublicKey) error {
 		return nil
 	}
 
-	sshDirectory := filepath.Join(UserHomeDir(), ".ssh")
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
 
-	err := os.MkdirAll(sshDirectory, os.ModePerm)
+	sshDirectory := filepath.Join(homeDir, ".ssh")
+	err = os.MkdirAll(sshDirectory, os.ModePerm)
 	if err != nil {
 		return err
 	}

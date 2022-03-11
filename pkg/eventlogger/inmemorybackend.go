@@ -1,7 +1,6 @@
 package eventlogger
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -27,31 +26,15 @@ func (l *InMemoryBackend) Close() error {
 	return nil
 }
 
-func (l *InMemoryBackend) SimplifiedEvents() []string {
-	events := []string{}
-
-	for _, event := range l.Events {
-		switch e := event.(type) {
-		case *JobStartedEvent:
-			events = append(events, "job_started")
-		case *JobFinishedEvent:
-			events = append(events, "job_finished")
-		case *CommandStartedEvent:
-			events = append(events, "directive: "+e.Directive)
-		case *CommandOutputEvent:
-			events = append(events, e.Output)
-		case *CommandFinishedEvent:
-			events = append(events, fmt.Sprintf("Exit Code: %d", e.ExitCode))
-		default:
-			panic("Unknown shell event")
-		}
-	}
-
-	return events
+func (l *InMemoryBackend) SimplifiedEvents(includeOutput bool) ([]string, error) {
+	return SimplifyLogEvents(l.Events, includeOutput)
 }
 
-func (l *InMemoryBackend) SimplifiedEventsWithoutDockerPull() []string {
-	logs := l.SimplifiedEvents()
+func (l *InMemoryBackend) SimplifiedEventsWithoutDockerPull() ([]string, error) {
+	logs, err := l.SimplifiedEvents(true)
+	if err != nil {
+		return []string{}, err
+	}
 
 	start := 0
 
@@ -71,5 +54,5 @@ func (l *InMemoryBackend) SimplifiedEventsWithoutDockerPull() []string {
 		}
 	}
 
-	return append([]string{logs[start]}, logs[end:]...)
+	return append([]string{logs[start]}, logs[end:]...), nil
 }

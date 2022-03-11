@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
 	"github.com/semaphoreci/agent/pkg/retry"
+	"github.com/semaphoreci/agent/pkg/shell"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -26,17 +28,20 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		State:                      selfhostedapi.AgentStateWaitingForJobs,
 		SyncInterval:               5 * time.Second,
 		DisconnectRetryAttempts:    100,
+		GetJobRetryAttempts:        config.GetJobRetryLimit,
+		CallbackRetryAttempts:      config.CallbackRetryLimit,
 		ShutdownHookPath:           config.ShutdownHookPath,
 		DisconnectAfterJob:         config.DisconnectAfterJob,
 		DisconnectAfterIdleTimeout: config.DisconnectAfterIdleTimeout,
 		EnvVars:                    config.EnvVars,
 		FileInjections:             config.FileInjections,
 		FailOnMissingFiles:         config.FailOnMissingFiles,
+		ExitOnShutdown:             config.ExitOnShutdown,
 	}
 
 	go p.Start()
 
-	p.SetupInteruptHandler()
+	p.SetupInterruptHandler()
 
 	return p, nil
 }
@@ -52,6 +57,8 @@ type JobProcessor struct {
 	LastSuccessfulSync         time.Time
 	LastStateChangeAt          time.Time
 	DisconnectRetryAttempts    int
+	GetJobRetryAttempts        int
+	CallbackRetryAttempts      int
 	ShutdownHookPath           string
 	StopSync                   bool
 	DisconnectAfterJob         bool
@@ -59,6 +66,8 @@ type JobProcessor struct {
 	EnvVars                    []config.HostEnvVar
 	FileInjections             []config.FileInjection
 	FailOnMissingFiles         bool
+	ExitOnShutdown             bool
+	ShutdownReason             ShutdownReason
 }
 
 func (p *JobProcessor) Start() {
@@ -172,6 +181,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 		ExposeKvmDevice:    false,
 		FileInjections:     p.FileInjections,
 		FailOnMissingFiles: p.FailOnMissingFiles,
+		SelfHosted:         true,
 	})
 
 	if err != nil {
@@ -184,9 +194,10 @@ func (p *JobProcessor) RunJob(jobID string) {
 	p.CurrentJob = job
 
 	go job.RunWithOptions(jobs.RunOptions{
-		EnvVars:              p.EnvVars,
-		FileInjections:       p.FileInjections,
-		OnSuccessfulTeardown: p.JobFinished,
+		EnvVars:               p.EnvVars,
+		CallbackRetryAttempts: p.CallbackRetryAttempts,
+		FileInjections:        p.FileInjections,
+		OnSuccessfulTeardown:  p.JobFinished,
 		OnFailedTeardown: func() {
 			if p.DisconnectAfterJob {
 				p.Shutdown(ShutdownReasonJobFinished, 1)
@@ -199,7 +210,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 
 func (p *JobProcessor) getJobWithRetries(jobID string) (*api.JobRequest, error) {
 	var jobRequest *api.JobRequest
-	err := retry.RetryWithConstantWait("Get job", 10, 3*time.Second, func() error {
+	err := retry.RetryWithConstantWait("Get job", p.GetJobRetryAttempts, 3*time.Second, func() error {
 		job, err := p.APIClient.GetJob(jobID)
 		if err != nil {
 			return err
@@ -233,7 +244,7 @@ func (p *JobProcessor) WaitForJobs() {
 	p.setState(selfhostedapi.AgentStateWaitingForJobs)
 }
 
-func (p *JobProcessor) SetupInteruptHandler() {
+func (p *JobProcessor) SetupInterruptHandler() {
 	c := make(chan os.Signal)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -260,27 +271,39 @@ func (p *JobProcessor) disconnect() {
 }
 
 func (p *JobProcessor) Shutdown(reason ShutdownReason, code int) {
+	p.ShutdownReason = reason
+
 	p.disconnect()
 	p.executeShutdownHook(reason)
 	log.Infof("Agent shutting down due to: %s", reason)
-	os.Exit(code)
+
+	if p.ExitOnShutdown {
+		os.Exit(code)
+	}
 }
 
 func (p *JobProcessor) executeShutdownHook(reason ShutdownReason) {
-	if p.ShutdownHookPath != "" {
-		log.Infof("Executing shutdown hook from %s", p.ShutdownHookPath)
+	if p.ShutdownHookPath == "" {
+		return
+	}
 
-		// #nosec
-		cmd := exec.Command("bash", p.ShutdownHookPath)
-		cmd.Env = os.Environ()
-		cmd.Env = append(cmd.Env, fmt.Sprintf("SEMAPHORE_AGENT_SHUTDOWN_REASON=%s", reason))
+	var cmd *exec.Cmd
+	log.Infof("Executing shutdown hook from %s", p.ShutdownHookPath)
 
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			log.Errorf("Error executing shutdown hook: %v", err)
-			log.Errorf("Output: %s", string(output))
-		} else {
-			log.Infof("Output: %s", string(output))
-		}
+	// #nosec
+	if runtime.GOOS == "windows" {
+		args := append(shell.Args(), p.ShutdownHookPath)
+		cmd = exec.Command(shell.Executable(), args...)
+	} else {
+		cmd = exec.Command("bash", p.ShutdownHookPath)
+	}
+
+	cmd.Env = append(os.Environ(), fmt.Sprintf("SEMAPHORE_AGENT_SHUTDOWN_REASON=%s", reason))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Errorf("Error executing shutdown hook: %v", err)
+		log.Errorf("Output: %s", string(output))
+	} else {
+		log.Infof("Output: %s", string(output))
 	}
 }

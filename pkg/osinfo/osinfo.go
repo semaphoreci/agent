@@ -8,18 +8,6 @@ import (
 	"strings"
 )
 
-func Name() string {
-	switch runtime.GOOS {
-	case "linux":
-		return namelinux()
-	case "darwin":
-		return namemac()
-	default:
-		// TODO handle other OSes
-		return ""
-	}
-}
-
 func Hostname() string {
 	hostname, err := os.Hostname()
 	if err != nil {

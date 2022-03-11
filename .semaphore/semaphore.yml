@@ -67,57 +67,13 @@ blocks:
       jobs:
         - name: Unit Tests
           commands:
+            - go install gotest.tools/gotestsum@latest
             - make test
 
-  - name: "Shell Executor E2E tests"
-    dependencies: []
-    task:
-      env_vars:
-        - name: GO111MODULE
-          value: "on"
-
-      prologue:
-        commands:
-          - sem-version go 1.16
-          - checkout
-          - go version
-          - go get
-          - go build
-          - mkdir /tmp/agent
-
       epilogue:
-        commands:
-          - if [ "$TEST_MODE" = "api" ]; then docker exec -ti agent cat /tmp/agent_log; else docker logs e2e_support_agent_1; fi
-          - if [ "$TEST_MODE" = "api" ]; then echo "No hub"; else docker logs e2e_support_hub_1; fi
-
-      jobs:
-        - name: Shell
+        always:
           commands:
-            - "make e2e TEST=shell/$TEST"
-          matrix:
-            - env_var: TEST_MODE
-              values:
-                - api
-                - listen
-            - env_var: TEST
-              values:
-                - command_aliases
-                - env_vars
-                - failed_job
-                - job_stopping
-                - job_stopping_on_epilogue
-                - file_injection
-                - file_injection_broken_file_mode
-                - stty_restoration
-                - epilogue_on_pass
-                - epilogue_on_fail
-                - ssh_jump_points
-                - unicode
-                - unknown_command
-                - broken_unicode
-                - killing_root_bash
-                - set_e
-                - set_pipefail
+            - test-results publish junit-report.xml
 
   - name: "Docker Executor E2E"
     dependencies: []
@@ -189,6 +145,31 @@ blocks:
                 - host_setup_commands
                 - multiple_containers
 
+  - name: "Hosted E2E tests"
+    dependencies: []
+    task:
+      env_vars:
+        - name: GO111MODULE
+          value: "on"
+
+      prologue:
+        commands:
+          - sem-version go 1.16
+          - checkout
+          - go version
+          - go get
+          - go build
+          - mkdir /tmp/agent
+
+      epilogue:
+        commands:
+          - docker exec -ti agent cat /tmp/agent_log
+
+      jobs:
+        - name: Test SSH jump point
+          commands:
+            - "TEST_MODE=api make e2e TEST=hosted/ssh_jump_points"
+
   - name: "Self hosted E2E"
     dependencies: []
     task:
@@ -219,17 +200,10 @@ blocks:
           matrix:
             - env_var: TEST
               values:
-                - broken_finished_callback
-                - broken_teardown_callback
-                - broken_get_job
                 - docker_compose_host_env_vars
                 - docker_compose_host_files
                 - docker_compose_missing_host_files
                 - docker_compose_fail_on_missing_host_files
-                - shell_host_env_vars
-                - shutdown
-                - shutdown_idle
-                - shutdown_while_waiting
 
 promotions:
   - name: Release

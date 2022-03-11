@@ -31,14 +31,14 @@ func Test__OutputBuffer__SimpleAscii__ShorterThanMinimalCutLength(t *testing.T) 
 	input := []byte("aaa")
 
 	buffer.Append(input)
-	flushed, ok := buffer.Flush()
+	_, ok := buffer.Flush()
 
 	// We need to wait a bit before flushing, the buffer is still too short
 	assert.Equal(t, ok, false)
 
 	time.Sleep(OutputBufferMaxTimeSinceLastAppend)
 
-	flushed, ok = buffer.Flush()
+	flushed, ok := buffer.Flush()
 	assert.Equal(t, ok, true)
 	assert.Equal(t, flushed, string(input))
 }

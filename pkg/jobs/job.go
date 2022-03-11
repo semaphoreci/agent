@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"time"
@@ -34,9 +35,11 @@ type Job struct {
 type JobOptions struct {
 	Request            *api.JobRequest
 	Client             *http.Client
+	Logger             *eventlogger.Logger
 	ExposeKvmDevice    bool
 	FileInjections     []config.FileInjection
 	FailOnMissingFiles bool
+	SelfHosted         bool
 }
 
 func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
@@ -46,10 +49,13 @@ func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
 		ExposeKvmDevice:    true,
 		FileInjections:     []config.FileInjection{},
 		FailOnMissingFiles: false,
+		SelfHosted:         false,
 	})
 }
 
 func NewJobWithOptions(options *JobOptions) (*Job, error) {
+	log.Debugf("Job Request %+v", options.Request)
+
 	if options.Request.Executor == "" {
 		log.Infof("No executor specified - using %s executor", executors.ExecutorTypeShell)
 		options.Request.Executor = executors.ExecutorTypeShell
@@ -60,32 +66,37 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 		options.Request.Logger.Method = eventlogger.LoggerMethodPull
 	}
 
-	logger, err := eventlogger.CreateLogger(options.Request)
-	if err != nil {
-		return nil, err
-	}
-
-	executor, err := CreateExecutor(options.Request, logger, *options)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Debugf("Job Request %+v", options.Request)
-
-	return &Job{
+	job := &Job{
 		Client:         options.Client,
 		Request:        options.Request,
-		Executor:       executor,
 		JobLogArchived: false,
 		Stopped:        false,
-		Logger:         logger,
-	}, nil
+	}
+
+	if options.Logger != nil {
+		job.Logger = options.Logger
+	} else {
+		l, err := eventlogger.CreateLogger(options.Request)
+		if err != nil {
+			return nil, err
+		}
+
+		job.Logger = l
+	}
+
+	executor, err := CreateExecutor(options.Request, job.Logger, *options)
+	if err != nil {
+		return nil, err
+	}
+
+	job.Executor = executor
+	return job, nil
 }
 
 func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOptions JobOptions) (executors.Executor, error) {
 	switch request.Executor {
 	case executors.ExecutorTypeShell:
-		return executors.NewShellExecutor(request, logger), nil
+		return executors.NewShellExecutor(request, logger, jobOptions.SelfHosted), nil
 	case executors.ExecutorTypeDockerCompose:
 		executorOptions := executors.DockerComposeExecutorOptions{
 			ExposeKvmDevice:    jobOptions.ExposeKvmDevice,
@@ -100,18 +111,20 @@ func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOpti
 }
 
 type RunOptions struct {
-	EnvVars              []config.HostEnvVar
-	FileInjections       []config.FileInjection
-	OnSuccessfulTeardown func()
-	OnFailedTeardown     func()
+	EnvVars               []config.HostEnvVar
+	FileInjections        []config.FileInjection
+	OnSuccessfulTeardown  func()
+	OnFailedTeardown      func()
+	CallbackRetryAttempts int
 }
 
 func (job *Job) Run() {
 	job.RunWithOptions(RunOptions{
-		EnvVars:              []config.HostEnvVar{},
-		FileInjections:       []config.FileInjection{},
-		OnSuccessfulTeardown: nil,
-		OnFailedTeardown:     nil,
+		EnvVars:               []config.HostEnvVar{},
+		FileInjections:        []config.FileInjection{},
+		OnSuccessfulTeardown:  nil,
+		OnFailedTeardown:      nil,
+		CallbackRetryAttempts: 60,
 	})
 }
 
@@ -132,18 +145,14 @@ func (job *Job) RunWithOptions(options RunOptions) {
 	if executorRunning {
 		result = job.RunRegularCommands(options.EnvVars)
 		log.Debug("Exporting job result")
-		job.RunCommandsUntilFirstFailure([]api.Command{
-			{
-				Directive: fmt.Sprintf("export SEMAPHORE_JOB_RESULT=%s", result),
-			},
-		})
 
 		if result != JobStopped {
+			log.Debug("Handling epilogues")
 			job.handleEpilogues(result)
 		}
 	}
 
-	err := job.Teardown(result)
+	err := job.Teardown(result, options.CallbackRetryAttempts)
 	if err != nil {
 		callFuncIfNotNull(options.OnFailedTeardown)
 	} else {
@@ -189,7 +198,11 @@ func (job *Job) RunRegularCommands(hostEnvVars []config.HostEnvVar) string {
 		return JobFailed
 	}
 
-	exitCode = job.RunCommandsUntilFirstFailure(job.Request.Commands)
+	if len(job.Request.Commands) == 0 {
+		exitCode = 0
+	} else {
+		exitCode = job.RunCommandsUntilFirstFailure(job.Request.Commands)
+	}
 
 	if job.Stopped {
 		log.Info("Regular commands were stopped")
@@ -204,6 +217,15 @@ func (job *Job) RunRegularCommands(hostEnvVars []config.HostEnvVar) string {
 }
 
 func (job *Job) handleEpilogues(result string) {
+	envVars := []api.EnvVar{
+		{Name: "SEMAPHORE_JOB_RESULT", Value: base64.RawStdEncoding.EncodeToString([]byte(result))},
+	}
+
+	exitCode := job.Executor.ExportEnvVars(envVars, []config.HostEnvVar{})
+	if exitCode != 0 {
+		log.Errorf("Error setting SEMAPHORE_JOB_RESULT: exit code %d", exitCode)
+	}
+
 	job.executeIfNotStopped(func() {
 		log.Info("Starting epilogue always commands")
 		job.RunCommandsUntilFirstFailure(job.Request.EpilogueAlwaysCommands)
@@ -245,13 +267,13 @@ func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command) int {
 	return lastExitCode
 }
 
-func (job *Job) Teardown(result string) error {
+func (job *Job) Teardown(result string, callbackRetryAttempts int) error {
 	// if job was stopped during the epilogues, result should be stopped
 	if job.Stopped {
 		result = JobStopped
 	}
 
-	err := job.SendFinishedCallback(result)
+	err := job.SendFinishedCallback(result, callbackRetryAttempts)
 	if err != nil {
 		log.Errorf("Could not send finished callback: %v", err)
 		return err
@@ -278,7 +300,7 @@ func (job *Job) Teardown(result string) error {
 		log.Errorf("Error closing logger: %+v", err)
 	}
 
-	err = job.SendTeardownFinishedCallback()
+	err = job.SendTeardownFinishedCallback(callbackRetryAttempts)
 	if err != nil {
 		log.Errorf("Could not send teardown finished callback: %v", err)
 		return err
@@ -300,17 +322,17 @@ func (job *Job) Stop() {
 	})
 }
 
-func (job *Job) SendFinishedCallback(result string) error {
+func (job *Job) SendFinishedCallback(result string, retries int) error {
 	payload := fmt.Sprintf(`{"result": "%s"}`, result)
 	log.Infof("Sending finished callback: %+v", payload)
-	return retry.RetryWithConstantWait("Send finished callback", 60, time.Second, func() error {
+	return retry.RetryWithConstantWait("Send finished callback", retries, time.Second, func() error {
 		return job.SendCallback(job.Request.Callbacks.Finished, payload)
 	})
 }
 
-func (job *Job) SendTeardownFinishedCallback() error {
+func (job *Job) SendTeardownFinishedCallback(retries int) error {
 	log.Info("Sending teardown finished callback")
-	return retry.RetryWithConstantWait("Send teardown finished callback", 60, time.Second, func() error {
+	return retry.RetryWithConstantWait("Send teardown finished callback", retries, time.Second, func() error {
 		return job.SendCallback(job.Request.Callbacks.TeardownFinished, "{}")
 	})
 }

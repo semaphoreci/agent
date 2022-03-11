@@ -21,13 +21,6 @@ check.deps: check.prepare
 		registry.semaphoreci.com/ruby:2.7 \
 		bash -c 'cd /app && $(SECURITY_TOOLBOX_TMP_DIR)/dependencies --language go -d'
 
-go.install:
-	cd /tmp
-	sudo curl -O https://dl.google.com/go/go1.11.linux-amd64.tar.gz
-	sudo tar -xf go1.11.linux-amd64.tar.gz
-	sudo mv go /usr/local
-	cd -
-
 lint:
 	revive -formatter friendly -config lint.toml ./...
 
@@ -40,13 +33,17 @@ serve:
 .PHONY: serve
 
 test:
-	go test -short -v ./...
+	gotestsum --format short-verbose --junitfile junit-report.xml --packages="./..." -- -p 1
 .PHONY: test
 
 build:
 	rm -rf build
 	env GOOS=linux GOARCH=386 go build -o build/agent main.go
 .PHONY: build
+
+build.windows:
+	rm -rf build
+	env GOOS=windows GOARCH=amd64 go build -o build/agent.exe main.go
 
 e2e: build
 	ruby test/e2e/$(TEST).rb

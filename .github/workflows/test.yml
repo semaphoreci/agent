@@ -1,0 +1,16 @@
+on: [push, pull_request]
+name: Test
+jobs:
+  unit-testing:
+    runs-on: windows-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.16.x
+      - name: Check out repository code
+        uses: actions/checkout@v2
+      - name: Install gotestsum
+        run: go install gotest.tools/gotestsum@latest
+      - name: Test
+        run: gotestsum --format short-verbose --packages="./..." -- -p 1

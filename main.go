@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -90,7 +91,7 @@ func getLogLevel() log.Level {
 func getLogFilePath() string {
 	logFilePath := os.Getenv("SEMAPHORE_AGENT_LOG_FILE_PATH")
 	if logFilePath == "" {
-		return "/tmp/agent_log"
+		return filepath.Join(os.TempDir(), "agent_log")
 	}
 
 	parentDirectory := path.Dir(logFilePath)
@@ -159,6 +160,8 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		Endpoint:                   viper.GetString(config.Endpoint),
 		Token:                      viper.GetString(config.Token),
 		RegisterRetryLimit:         30,
+		GetJobRetryLimit:           10,
+		CallbackRetryLimit:         60,
 		Scheme:                     scheme,
 		ShutdownHookPath:           viper.GetString(config.ShutdownHookPath),
 		DisconnectAfterJob:         viper.GetBool(config.DisconnectAfterJob),
@@ -167,10 +170,11 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		FileInjections:             fileInjections,
 		FailOnMissingFiles:         viper.GetBool(config.FailOnMissingFiles),
 		AgentVersion:               VERSION,
+		ExitOnShutdown:             true,
 	}
 
 	go func() {
-		_, err := listener.Start(httpClient, config, logfile)
+		_, err := listener.Start(httpClient, config)
 		if err != nil {
 			log.Panicf("Could not start agent: %v", err)
 		}
