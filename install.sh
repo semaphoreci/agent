@@ -10,12 +10,16 @@ if [[ "$EUID" -ne 0 ]]; then
   exit 1
 fi
 
-if [[ -z $SEMAPHORE_ORGANIZATION ]]; then
-  read -p "Enter organization: " SEMAPHORE_ORGANIZATION
+if [[ -z $SEMAPHORE_ENDPOINT ]]; then
   if [[ -z $SEMAPHORE_ORGANIZATION ]]; then
-    echo "Organization cannot be empty."
-    exit 1
+    read -p "Enter organization: " SEMAPHORE_ORGANIZATION
+    if [[ -z $SEMAPHORE_ORGANIZATION ]]; then
+      echo "Organization cannot be empty."
+      exit 1
+    fi
   fi
+
+  SEMAPHORE_ENDPOINT="$SEMAPHORE_ORGANIZATION.semaphoreci.com"
 fi
 
 if [[ -z $SEMAPHORE_REGISTRATION_TOKEN ]]; then
@@ -64,7 +68,7 @@ rm toolbox.tar
 SEMAPHORE_AGENT_DISCONNECT_AFTER_JOB=${SEMAPHORE_AGENT_DISCONNECT_AFTER_JOB:-false}
 SEMAPHORE_AGENT_DISCONNECT_AFTER_IDLE_TIMEOUT=${SEMAPHORE_AGENT_DISCONNECT_AFTER_IDLE_TIMEOUT:-0}
 AGENT_CONFIG=$(cat <<-END
-endpoint: "$SEMAPHORE_ORGANIZATION.semaphoreci.com"
+endpoint: "$SEMAPHORE_ENDPOINT"
 token: "$SEMAPHORE_REGISTRATION_TOKEN"
 no-https: false
 shutdown-hook-path: "$SEMAPHORE_AGENT_SHUTDOWN_HOOK"
