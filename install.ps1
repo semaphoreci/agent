@@ -49,8 +49,14 @@ if (Test-Path $ToolboxDirectory) {
   Remove-Item -Path $ToolboxDirectory -Force -Recurse
 }
 
-Write-Output "> Downloading and unpacking toolbox..."
-Invoke-WebRequest "https://github.com/semaphoreci/toolbox/releases/latest/download/self-hosted-windows.tar" -OutFile toolbox.tar
+if (Test-Path env:SemaphoreToolboxVersion) {
+  Write-Output "> Downloading and unpacking env:SemaphoreToolboxVersion toolbox..."
+  Invoke-WebRequest "https://github.com/semaphoreci/toolbox/releases/download/$env:SemaphoreToolboxVersion/self-hosted-windows.tar" -OutFile toolbox.tar
+} else {
+  Write-Output '> $env:SemaphoreToolboxVersion is not set. Downloading and unpacking latest toolbox...'
+  Invoke-WebRequest "https://github.com/semaphoreci/toolbox/releases/latest/download/self-hosted-windows.tar" -OutFile toolbox.tar
+}
+
 tar.exe -xf toolbox.tar -C $HOME
 Rename-Item "$HOME\toolbox" $ToolboxDirectory
 Remove-Item toolbox.tar -Force
