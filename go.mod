@@ -10,11 +10,9 @@ require (
 	github.com/renderedtext/go-watchman v0.0.0-20210809121718-0632d0d12b0a
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/pflag v1.0.5
-	github.com/spf13/viper v1.9.0
-	github.com/stretchr/testify v1.7.0
-	golang.org/x/sys v0.0.0-20211117180635-dee7805ff2e1
-	golang.org/x/text v0.3.7 // indirect
-	gopkg.in/ini.v1 v1.64.0 // indirect
+	github.com/spf13/viper v1.11.0
+	github.com/stretchr/testify v1.7.1
+	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )
 
