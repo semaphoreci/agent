@@ -50,7 +50,7 @@ if (Test-Path $ToolboxDirectory) {
 }
 
 if (Test-Path env:SemaphoreToolboxVersion) {
-  Write-Output "> Downloading and unpacking env:SemaphoreToolboxVersion toolbox..."
+  Write-Output "> Downloading and unpacking $env:SemaphoreToolboxVersion toolbox..."
   Invoke-WebRequest "https://github.com/semaphoreci/toolbox/releases/download/$env:SemaphoreToolboxVersion/self-hosted-windows.tar" -OutFile toolbox.tar
 } else {
   Write-Output '> $env:SemaphoreToolboxVersion is not set. Downloading and unpacking latest toolbox...'
