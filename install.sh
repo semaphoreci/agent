@@ -44,7 +44,6 @@ fi
 #
 # Download toolbox
 #
-echo "Installing toolbox..."
 USER_HOME_DIRECTORY=$(sudo -u $SEMAPHORE_AGENT_INSTALLATION_USER -H bash -c 'echo $HOME')
 TOOLBOX_DIRECTORY="$USER_HOME_DIRECTORY/.toolbox"
 if [[ -d "$TOOLBOX_DIRECTORY" ]]; then
@@ -52,9 +51,15 @@ if [[ -d "$TOOLBOX_DIRECTORY" ]]; then
   rm -rf "$TOOLBOX_DIRECTORY"
 fi
 
-curl -sL "https://github.com/semaphoreci/toolbox/releases/latest/download/self-hosted-linux.tar" -o toolbox.tar
-tar -xf toolbox.tar
+if [[ -z "${SEMAPHORE_TOOLBOX_VERSION}" ]]; then
+  echo "SEMAPHORE_TOOLBOX_VERSION is not set. Installing latest toolbox..."
+  curl -sL "https://github.com/semaphoreci/toolbox/releases/latest/download/self-hosted-linux.tar" -o toolbox.tar
+else
+  echo "Installing ${SEMAPHORE_TOOLBOX_VERSION} toolbox..."
+  curl -sL "https://github.com/semaphoreci/toolbox/releases/download/${SEMAPHORE_TOOLBOX_VERSION}/self-hosted-linux.tar" -o toolbox.tar
+fi
 
+tar -xf toolbox.tar
 mv toolbox $TOOLBOX_DIRECTORY
 sudo chown -R $SEMAPHORE_AGENT_INSTALLATION_USER:$SEMAPHORE_AGENT_INSTALLATION_USER $TOOLBOX_DIRECTORY
 
