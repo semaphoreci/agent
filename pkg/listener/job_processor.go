@@ -274,7 +274,9 @@ func (p *JobProcessor) Shutdown(reason ShutdownReason, code int) {
 	// If there is a running job, we should make sure it is stopped
 	// before we disconnect the agent completely.
 	if p.CurrentJob != nil {
+		log.Infof("There is a currently running job, stopping it before disconnecting...")
 		p.StopJob()
+		p.waitUntilJobIsStopped()
 	}
 
 	p.disconnect()
@@ -284,6 +286,17 @@ func (p *JobProcessor) Shutdown(reason ShutdownReason, code int) {
 	if p.ExitOnShutdown {
 		os.Exit(code)
 	}
+}
+
+func (p *JobProcessor) waitUntilJobIsStopped() {
+	_ = retry.RetryWithConstantWait("wait for job to stop", 20, 500*time.Millisecond, func() error {
+		if p.State == selfhostedapi.AgentStateFinishedJob {
+			log.Infof("Current job was stopped.")
+			return nil
+		}
+
+		return fmt.Errorf("current job was not yet stopped - agent is in '%s' state", p.State)
+	})
 }
 
 func (p *JobProcessor) executeShutdownHook(reason ShutdownReason) {
