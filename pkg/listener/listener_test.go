@@ -399,6 +399,75 @@ func Test__ShutdownFromUpstreamWhileRunningJob(t *testing.T) {
 	loghubMockServer.Close()
 }
 
+func Test__ShutdownStopsRunningJob(t *testing.T) {
+	testsupport.SetupTestLogs()
+
+	loghubMockServer := testsupport.NewLoghubMockServer()
+	loghubMockServer.Init()
+
+	hubMockServer := testsupport.NewHubMockServer()
+	hubMockServer.Init()
+	hubMockServer.UseLogsURL(loghubMockServer.URL())
+
+	config := Config{
+		ExitOnShutdown:     false,
+		Endpoint:           hubMockServer.Host(),
+		Token:              "token",
+		RegisterRetryLimit: 5,
+		Scheme:             "http",
+		EnvVars:            []config.HostEnvVar{},
+		FileInjections:     []config.FileInjection{},
+		AgentVersion:       "0.0.7",
+	}
+
+	listener, err := Start(http.DefaultClient, config)
+	assert.Nil(t, err)
+
+	hubMockServer.AssignJob(&api.JobRequest{
+		ID: "Test__ShutdownStopsRunningJob",
+		Commands: []api.Command{
+			{Directive: "sleep 300"},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+			URL:    loghubMockServer.URL(),
+			Token:  "doesnotmatter",
+		},
+	})
+
+	assert.Nil(t, hubMockServer.WaitUntilRunningJob(5, 2*time.Second))
+	listener.Stop()
+	assert.Nil(t, hubMockServer.WaitUntilDisconnected(10, 2*time.Second))
+
+	eventObjects, err := eventlogger.TransformToObjects(loghubMockServer.GetLogs())
+	assert.Nil(t, err)
+
+	simplifiedEvents, err := eventlogger.SimplifyLogEvents(eventObjects, true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		"directive: sleep 300",
+		fmt.Sprintf("Exit Code: %d", testsupport.StoppedCommandExitCode()),
+
+		"job_finished: stopped",
+	}, simplifiedEvents)
+
+	hubMockServer.Close()
+	loghubMockServer.Close()
+}
+
 func Test__HostEnvVarsAreExposedToJob(t *testing.T) {
 	testsupport.SetupTestLogs()
 
