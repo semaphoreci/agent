@@ -152,7 +152,7 @@ func (p *JobProcessor) ProcessSyncResponse(response *selfhostedapi.SyncResponse)
 		return
 
 	case selfhostedapi.AgentActionStopJob:
-		go p.StopJob(response.JobID)
+		go p.StopJob()
 		return
 
 	case selfhostedapi.AgentActionShutdown:
@@ -223,10 +223,8 @@ func (p *JobProcessor) getJobWithRetries(jobID string) (*api.JobRequest, error) 
 	return jobRequest, err
 }
 
-func (p *JobProcessor) StopJob(jobID string) {
-	p.CurrentJobID = jobID
+func (p *JobProcessor) StopJob() {
 	p.setState(selfhostedapi.AgentStateStoppingJob)
-
 	p.CurrentJob.Stop()
 }
 
@@ -249,7 +247,7 @@ func (p *JobProcessor) SetupInterruptHandler() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		log.Info("Ctrl+C pressed in Terminal")
+		log.Info("Interruption signal received")
 		p.Shutdown(ShutdownReasonInterrupted, 0)
 	}()
 }
@@ -272,6 +270,12 @@ func (p *JobProcessor) disconnect() {
 
 func (p *JobProcessor) Shutdown(reason ShutdownReason, code int) {
 	p.ShutdownReason = reason
+
+	// If there is a running job, we should make sure it is stopped
+	// before we disconnect the agent completely.
+	if p.CurrentJob != nil {
+		p.StopJob()
+	}
 
 	p.disconnect()
 	p.executeShutdownHook(reason)
