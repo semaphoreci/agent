@@ -273,7 +273,7 @@ func (p *JobProcessor) Shutdown(reason ShutdownReason, code int) {
 
 	// If there is a running job, we should make sure it is stopped
 	// before we disconnect the agent completely.
-	if p.CurrentJob != nil {
+	if p.CurrentJob != nil && p.State == selfhostedapi.AgentStateRunningJob {
 		log.Infof("There is a currently running job, stopping it before disconnecting...")
 		p.StopJob()
 		p.waitUntilJobIsStopped()
