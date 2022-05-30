@@ -311,6 +311,10 @@ func (job *Job) Teardown(result string, callbackRetryAttempts int) error {
 }
 
 func (job *Job) Stop() {
+	if job.Stopped {
+		return
+	}
+
 	log.Info("Stopping job")
 
 	job.Stopped = true
