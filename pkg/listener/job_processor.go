@@ -199,10 +199,9 @@ func (p *JobProcessor) RunJob(jobID string) {
 		FileInjections:        p.FileInjections,
 		OnSuccessfulTeardown:  p.JobFinished,
 		OnFailedTeardown: func() {
+			p.setState(selfhostedapi.AgentStateFailedToSendCallback)
 			if p.DisconnectAfterJob {
 				p.Shutdown(ShutdownReasonJobFinished, 1)
-			} else {
-				p.setState(selfhostedapi.AgentStateFailedToSendCallback)
 			}
 		},
 	})
@@ -229,10 +228,9 @@ func (p *JobProcessor) StopJob() {
 }
 
 func (p *JobProcessor) JobFinished() {
+	p.setState(selfhostedapi.AgentStateFinishedJob)
 	if p.DisconnectAfterJob {
 		p.Shutdown(ShutdownReasonJobFinished, 0)
-	} else {
-		p.setState(selfhostedapi.AgentStateFinishedJob)
 	}
 }
 
