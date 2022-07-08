@@ -86,8 +86,7 @@ func Test__TokenIsRefreshed(t *testing.T) {
 	// Wait until everything is pushed
 	time.Sleep(2 * time.Second)
 
-	err = httpBackend.Close()
-	assert.Nil(t, err)
+	_ = httpBackend.Close()
 	assert.True(t, tokenWasRefreshed)
 
 	eventObjects, err := TransformToObjects(mockServer.GetLogs())
