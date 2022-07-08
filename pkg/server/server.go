@@ -211,6 +211,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 		ExposeKvmDevice: true,
 		FileInjections:  []config.FileInjection{},
 		SelfHosted:      false,
+		RefreshTokenFn:  nil,
 	})
 
 	if err != nil {

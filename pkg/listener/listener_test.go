@@ -533,6 +533,81 @@ func Test__HostEnvVarsAreExposedToJob(t *testing.T) {
 	loghubMockServer.Close()
 }
 
+func Test__LogTokenIsRefreshed(t *testing.T) {
+	testsupport.SetupTestLogs()
+
+	loghubMockServer := testsupport.NewLoghubMockServer()
+	loghubMockServer.Init()
+
+	hubMockServer := testsupport.NewHubMockServer()
+	hubMockServer.Init()
+	hubMockServer.UseLogsURL(loghubMockServer.URL())
+
+	config := Config{
+		ExitOnShutdown:     false,
+		Endpoint:           hubMockServer.Host(),
+		Token:              "token",
+		RegisterRetryLimit: 5,
+		Scheme:             "http",
+		EnvVars:            []config.HostEnvVar{},
+		FileInjections:     []config.FileInjection{},
+		AgentVersion:       "0.0.7",
+	}
+
+	listener, err := Start(http.DefaultClient, config)
+	assert.Nil(t, err)
+	assert.False(t, hubMockServer.TokenIsRefreshed)
+
+	hubMockServer.AssignJob(&api.JobRequest{
+		ID: "Test__LogTokenIsRefreshed",
+		Commands: []api.Command{
+			{Directive: testsupport.Output("hello")},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+			URL:    loghubMockServer.URL(),
+			Token:  testsupport.ExpiredLogToken,
+		},
+	})
+
+	assert.Nil(t, hubMockServer.WaitUntilFinishedJob(12, 5*time.Second))
+	assert.True(t, hubMockServer.TokenIsRefreshed)
+
+	eventObjects, err := eventlogger.TransformToObjects(loghubMockServer.GetLogs())
+	assert.Nil(t, err)
+
+	simplifiedEvents, err := eventlogger.SimplifyLogEvents(eventObjects, true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", testsupport.Output("hello")),
+		"hello",
+		"Exit Code: 0",
+
+		"directive: Exporting environment variables",
+		"Exporting SEMAPHORE_JOB_RESULT\n",
+		"Exit Code: 0",
+
+		"job_finished: passed",
+	}, simplifiedEvents)
+
+	listener.Stop()
+	hubMockServer.Close()
+	loghubMockServer.Close()
+}
+
 func Test__GetJobIsRetried(t *testing.T) {
 	testsupport.SetupTestLogs()
 
