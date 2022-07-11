@@ -182,6 +182,9 @@ func (p *JobProcessor) RunJob(jobID string) {
 		FileInjections:     p.FileInjections,
 		FailOnMissingFiles: p.FailOnMissingFiles,
 		SelfHosted:         true,
+		RefreshTokenFn: func() (string, error) {
+			return p.APIClient.RefreshToken()
+		},
 	})
 
 	if err != nil {

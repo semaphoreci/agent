@@ -28,6 +28,7 @@ type HubMockServer struct {
 	Disconnected              bool
 	RunningJob                bool
 	FinishedJob               bool
+	TokenIsRefreshed          bool
 	FailureStatus             string
 }
 
@@ -50,10 +51,29 @@ func (m *HubMockServer) Init() {
 			w.WriteHeader(200)
 		case strings.Contains(path, "/jobs/"):
 			m.handleGetJobRequest(w, r)
+		case strings.Contains(path, "/refresh"):
+			m.handleRefreshRequest(w, r)
 		}
 	}))
 
 	m.Server = mockServer
+}
+
+func (m *HubMockServer) handleRefreshRequest(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("[HUB MOCK] Received refresh request.\n")
+	refreshTokenResponse := &selfhostedapi.RefreshTokenResponse{
+		Token: "new-token",
+	}
+
+	response, err := json.Marshal(refreshTokenResponse)
+	if err != nil {
+		fmt.Printf("[HUB MOCK] Error marshaling refresh response: %v\n", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	m.TokenIsRefreshed = true
+	_, _ = w.Write(response)
 }
 
 func (m *HubMockServer) handleRegisterRequest(w http.ResponseWriter, r *http.Request) {

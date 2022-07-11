@@ -14,16 +14,17 @@ import (
 )
 
 type HTTPBackend struct {
-	client      *http.Client
-	url         string
-	token       string
-	fileBackend FileBackend
-	startFrom   int
-	streamChan  chan bool
-	pushLock    sync.Mutex
+	client         *http.Client
+	url            string
+	token          string
+	fileBackend    FileBackend
+	startFrom      int
+	streamChan     chan bool
+	pushLock       sync.Mutex
+	refreshTokenFn func() (string, error)
 }
 
-func NewHTTPBackend(url, token string) (*HTTPBackend, error) {
+func NewHTTPBackend(url, token string, refreshTokenFn func() (string, error)) (*HTTPBackend, error) {
 	path := filepath.Join(os.TempDir(), fmt.Sprintf("job_log_%d.json", time.Now().UnixNano()))
 	fileBackend, err := NewFileBackend(path)
 	if err != nil {
@@ -31,11 +32,12 @@ func NewHTTPBackend(url, token string) (*HTTPBackend, error) {
 	}
 
 	httpBackend := HTTPBackend{
-		client:      &http.Client{},
-		url:         url,
-		token:       token,
-		fileBackend: *fileBackend,
-		startFrom:   0,
+		client:         &http.Client{},
+		url:            url,
+		token:          token,
+		fileBackend:    *fileBackend,
+		startFrom:      0,
+		refreshTokenFn: refreshTokenFn,
 	}
 
 	httpBackend.startPushingLogs()
@@ -113,12 +115,30 @@ func (l *HTTPBackend) pushLogs() error {
 		return err
 	}
 
-	if response.StatusCode != 200 {
+	switch response.StatusCode {
+
+	// Everything went fine,
+	// just update the index and move on.
+	case http.StatusOK:
+		l.startFrom = nextStartFrom
+		return nil
+
+	// The token issued for the agent expired.
+	// Try to refresh the token and try again.
+	// Here, we only update the token, and we let the caller do the retrying.
+	case http.StatusUnauthorized:
+		newToken, err := l.refreshTokenFn()
+		if err != nil {
+			return err
+		}
+
+		l.token = newToken
+		return fmt.Errorf("request to %s failed: %s", url, response.Status)
+
+	// something else went wrong
+	default:
 		return fmt.Errorf("request to %s failed: %s", url, response.Status)
 	}
-
-	l.startFrom = nextStartFrom
-	return nil
 }
 
 func (l *HTTPBackend) Close() error {

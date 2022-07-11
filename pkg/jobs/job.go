@@ -40,6 +40,7 @@ type JobOptions struct {
 	FileInjections     []config.FileInjection
 	FailOnMissingFiles bool
 	SelfHosted         bool
+	RefreshTokenFn     func() (string, error)
 }
 
 func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
@@ -50,6 +51,7 @@ func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
 		FileInjections:     []config.FileInjection{},
 		FailOnMissingFiles: false,
 		SelfHosted:         false,
+		RefreshTokenFn:     nil,
 	})
 }
 
@@ -76,7 +78,7 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 	if options.Logger != nil {
 		job.Logger = options.Logger
 	} else {
-		l, err := eventlogger.CreateLogger(options.Request)
+		l, err := eventlogger.CreateLogger(options.Request, options.RefreshTokenFn)
 		if err != nil {
 			return nil, err
 		}
