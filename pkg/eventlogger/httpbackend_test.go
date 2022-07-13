@@ -12,7 +12,12 @@ func Test__LogsArePushedToHTTPEndpoint(t *testing.T) {
 	mockServer := testsupport.NewLoghubMockServer()
 	mockServer.Init()
 
-	httpBackend, err := NewHTTPBackend(mockServer.URL(), "token", func() (string, error) { return "", nil })
+	httpBackend, err := NewHTTPBackend(HTTPBackendConfig{
+		URL:            mockServer.URL(),
+		Token:          "token",
+		RefreshTokenFn: func() (string, error) { return "", nil },
+	})
+
 	assert.Nil(t, err)
 	assert.Nil(t, httpBackend.Open())
 
@@ -61,9 +66,13 @@ func Test__TokenIsRefreshed(t *testing.T) {
 
 	tokenWasRefreshed := false
 
-	httpBackend, err := NewHTTPBackend(mockServer.URL(), testsupport.ExpiredLogToken, func() (string, error) {
-		tokenWasRefreshed = true
-		return "some-new-and-shiny-valid-token", nil
+	httpBackend, err := NewHTTPBackend(HTTPBackendConfig{
+		URL:   mockServer.URL(),
+		Token: testsupport.ExpiredLogToken,
+		RefreshTokenFn: func() (string, error) {
+			tokenWasRefreshed = true
+			return "some-new-and-shiny-valid-token", nil
+		},
 	})
 
 	assert.Nil(t, err)
