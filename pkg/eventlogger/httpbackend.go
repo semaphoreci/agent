@@ -14,17 +14,22 @@ import (
 )
 
 type HTTPBackend struct {
-	client         *http.Client
-	url            string
-	token          string
-	fileBackend    FileBackend
-	startFrom      int
-	streamChan     chan bool
-	pushLock       sync.Mutex
-	refreshTokenFn func() (string, error)
+	client      *http.Client
+	fileBackend FileBackend
+	startFrom   int
+	streamChan  chan bool
+	pushLock    sync.Mutex
+	config      HTTPBackendConfig
 }
 
-func NewHTTPBackend(url, token string, refreshTokenFn func() (string, error)) (*HTTPBackend, error) {
+type HTTPBackendConfig struct {
+	URL             string
+	Token           string
+	LinesPerRequest int
+	RefreshTokenFn  func() (string, error)
+}
+
+func NewHTTPBackend(config HTTPBackendConfig) (*HTTPBackend, error) {
 	path := filepath.Join(os.TempDir(), fmt.Sprintf("job_log_%d.json", time.Now().UnixNano()))
 	fileBackend, err := NewFileBackend(path)
 	if err != nil {
@@ -32,12 +37,10 @@ func NewHTTPBackend(url, token string, refreshTokenFn func() (string, error)) (*
 	}
 
 	httpBackend := HTTPBackend{
-		client:         &http.Client{},
-		url:            url,
-		token:          token,
-		fileBackend:    *fileBackend,
-		startFrom:      0,
-		refreshTokenFn: refreshTokenFn,
+		client:      &http.Client{},
+		fileBackend: *fileBackend,
+		startFrom:   0,
+		config:      config,
 	}
 
 	httpBackend.startPushingLogs()
@@ -54,7 +57,7 @@ func (l *HTTPBackend) Write(event interface{}) error {
 }
 
 func (l *HTTPBackend) startPushingLogs() {
-	log.Debugf("Logs will be pushed to %s", l.url)
+	log.Debugf("Logs will be pushed to %s", l.config.URL)
 
 	ticker := time.NewTicker(time.Second)
 	l.streamChan = make(chan bool)
@@ -90,7 +93,7 @@ func (l *HTTPBackend) pushLogs() error {
 	defer l.pushLock.Unlock()
 
 	buffer := bytes.NewBuffer([]byte{})
-	nextStartFrom, err := l.fileBackend.Stream(l.startFrom, buffer)
+	nextStartFrom, err := l.fileBackend.Stream(l.startFrom, l.config.LinesPerRequest, buffer)
 	if err != nil {
 		return err
 	}
@@ -101,7 +104,7 @@ func (l *HTTPBackend) pushLogs() error {
 		return nil
 	}
 
-	url := fmt.Sprintf("%s?start_from=%d", l.url, l.startFrom)
+	url := fmt.Sprintf("%s?start_from=%d", l.config.URL, l.startFrom)
 	log.Debugf("Pushing logs to %s", url)
 	request, err := http.NewRequest("POST", url, buffer)
 	if err != nil {
@@ -109,7 +112,7 @@ func (l *HTTPBackend) pushLogs() error {
 	}
 
 	request.Header.Set("Content-Type", "text/plain")
-	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", l.token))
+	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", l.config.Token))
 	response, err := l.client.Do(request)
 	if err != nil {
 		return err
@@ -127,12 +130,12 @@ func (l *HTTPBackend) pushLogs() error {
 	// Try to refresh the token and try again.
 	// Here, we only update the token, and we let the caller do the retrying.
 	case http.StatusUnauthorized:
-		newToken, err := l.refreshTokenFn()
+		newToken, err := l.config.RefreshTokenFn()
 		if err != nil {
 			return err
 		}
 
-		l.token = newToken
+		l.config.Token = newToken
 		return fmt.Errorf("request to %s failed: %s", url, response.Status)
 
 	// something else went wrong
@@ -149,9 +152,9 @@ func (l *HTTPBackend) Close() error {
 	})
 
 	if err != nil {
-		log.Errorf("Could not push all logs to %s: %v", l.url, err)
+		log.Errorf("Could not push all logs to %s: %v", l.config.URL, err)
 	} else {
-		log.Infof("All logs successfully pushed to %s", l.url)
+		log.Infof("All logs successfully pushed to %s", l.config.URL)
 	}
 
 	return l.fileBackend.Close()
