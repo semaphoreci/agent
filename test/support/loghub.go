@@ -11,9 +11,11 @@ import (
 const ExpiredLogToken = "expired-token"
 
 type LoghubMockServer struct {
-	Logs    []string
-	Server  *httptest.Server
-	Handler http.Handler
+	Logs           []string
+	BatchSizesUsed []int
+	MaxSizeForLogs int
+	Server         *httptest.Server
+	Handler        http.Handler
 }
 
 func NewLoghubMockServer() *LoghubMockServer {
@@ -27,9 +29,19 @@ func (m *LoghubMockServer) Init() {
 	m.Server = mockServer
 }
 
+func (m *LoghubMockServer) SetMaxSizeForLogs(maxSize int) {
+	m.MaxSizeForLogs = maxSize
+}
+
 func (m *LoghubMockServer) handler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	// if max size is set, and is big enough, send 422.
+	if m.MaxSizeForLogs > 0 && len(m.Logs) >= m.MaxSizeForLogs {
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		return
 	}
 
@@ -40,14 +52,17 @@ func (m *LoghubMockServer) handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println("[LOGHUB MOCK] Received logs")
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		fmt.Printf("Error reading body: %v\n", err)
+		fmt.Printf("[LOGHUB MOCK] Error reading body: %v\n", err)
 	}
 
-	logs := strings.Split(string(body), "\n")
-	m.Logs = append(m.Logs, FilterEmpty(logs)...)
+	logs := FilterEmpty(strings.Split(string(body), "\n"))
+	fmt.Printf("[LOGHUB MOCK] Received %d log events\n", len(logs))
+
+	m.BatchSizesUsed = append(m.BatchSizesUsed, len(logs))
+	m.Logs = append(m.Logs, logs...)
+
 	w.WriteHeader(200)
 }
 
@@ -67,6 +82,10 @@ func (m *LoghubMockServer) findToken(r *http.Request) (string, error) {
 
 func (m *LoghubMockServer) GetLogs() []string {
 	return m.Logs
+}
+
+func (m *LoghubMockServer) GetBatchSizesUsed() []int {
+	return m.BatchSizesUsed
 }
 
 func (m *LoghubMockServer) URL() string {

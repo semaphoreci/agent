@@ -14,6 +14,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	MaxLinesPerRequest           = 2000
+	MaxFlushTimeoutInSeconds     = 900
+	DefaultFlushTimeoutInSeconds = 60
+)
+
 type HTTPBackend struct {
 	client      *http.Client
 	fileBackend FileBackend
@@ -24,13 +30,22 @@ type HTTPBackend struct {
 }
 
 type HTTPBackendConfig struct {
-	URL             string
-	Token           string
-	LinesPerRequest int
-	RefreshTokenFn  func() (string, error)
+	URL                   string
+	Token                 string
+	LinesPerRequest       int
+	FlushTimeoutInSeconds int
+	RefreshTokenFn        func() (string, error)
 }
 
 func NewHTTPBackend(config HTTPBackendConfig) (*HTTPBackend, error) {
+	if config.LinesPerRequest <= 0 || config.LinesPerRequest > MaxLinesPerRequest {
+		return nil, fmt.Errorf("config.LinesPerRequest must be between 1 and %d", MaxLinesPerRequest)
+	}
+
+	if config.FlushTimeoutInSeconds <= 0 || config.FlushTimeoutInSeconds > MaxFlushTimeoutInSeconds {
+		return nil, fmt.Errorf("config.FlushTimeoutInSeconds must be between 1 and %d", MaxFlushTimeoutInSeconds)
+	}
+
 	path := filepath.Join(os.TempDir(), fmt.Sprintf("job_log_%d.json", time.Now().UnixNano()))
 	fileBackend, err := NewFileBackend(path)
 	if err != nil {
@@ -216,7 +231,7 @@ func (l *HTTPBackend) Close() error {
 	log.Printf("Waiting for all logs to be flushed...")
 	err := retry.RetryWithConstantWait(retry.RetryOptions{
 		Task:                 "wait for logs to be flushed",
-		MaxAttempts:          60,
+		MaxAttempts:          l.config.FlushTimeoutInSeconds,
 		DelayBetweenAttempts: time.Second,
 		HideError:            true,
 		Fn: func() error {
@@ -230,8 +245,8 @@ func (l *HTTPBackend) Close() error {
 
 	if err != nil {
 		log.Errorf("Could not push all logs to %s - giving up", l.config.URL)
-		l.stop = true
 	}
 
+	l.stop = true
 	return l.fileBackend.Close()
 }
