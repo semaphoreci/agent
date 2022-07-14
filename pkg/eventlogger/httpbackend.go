@@ -71,6 +71,8 @@ func (l *HTTPBackend) delay() time.Duration {
 	if l.flush {
 		min := 500
 		max := 1000
+
+		// #nosec
 		interval := rand.Intn(max-min) + min
 		return time.Duration(interval) * time.Millisecond
 	}
@@ -81,6 +83,8 @@ func (l *HTTPBackend) delay() time.Duration {
 	 */
 	min := 1500
 	max := 3000
+
+	// #nosec
 	interval := rand.Intn(max-min) + min
 	return time.Duration(interval) * time.Millisecond
 }
