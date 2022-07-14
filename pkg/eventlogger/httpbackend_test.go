@@ -88,10 +88,11 @@ func Test__LogsArePushedToHTTPEndpoint(t *testing.T) {
 	mockServer.Init()
 
 	httpBackend, err := NewHTTPBackend(HTTPBackendConfig{
-		URL:             mockServer.URL(),
-		Token:           "token",
-		RefreshTokenFn:  func() (string, error) { return "", nil },
-		LinesPerRequest: 20,
+		URL:                   mockServer.URL(),
+		Token:                 "token",
+		RefreshTokenFn:        func() (string, error) { return "", nil },
+		LinesPerRequest:       20,
+		FlushTimeoutInSeconds: DefaultFlushTimeoutInSeconds,
 	})
 
 	assert.Nil(t, err)
@@ -126,10 +127,11 @@ func Test__RequestsAreCappedAtLinesPerRequest(t *testing.T) {
 	mockServer.Init()
 
 	httpBackend, err := NewHTTPBackend(HTTPBackendConfig{
-		URL:             mockServer.URL(),
-		Token:           "token",
-		RefreshTokenFn:  func() (string, error) { return "", nil },
-		LinesPerRequest: 2,
+		URL:                   mockServer.URL(),
+		Token:                 "token",
+		RefreshTokenFn:        func() (string, error) { return "", nil },
+		LinesPerRequest:       2,
+		FlushTimeoutInSeconds: DefaultFlushTimeoutInSeconds,
 	})
 
 	assert.Nil(t, err)
@@ -211,9 +213,10 @@ func Test__TokenIsRefreshed(t *testing.T) {
 	tokenWasRefreshed := false
 
 	httpBackend, err := NewHTTPBackend(HTTPBackendConfig{
-		URL:             mockServer.URL(),
-		Token:           testsupport.ExpiredLogToken,
-		LinesPerRequest: 20,
+		URL:                   mockServer.URL(),
+		Token:                 testsupport.ExpiredLogToken,
+		LinesPerRequest:       20,
+		FlushTimeoutInSeconds: DefaultFlushTimeoutInSeconds,
 		RefreshTokenFn: func() (string, error) {
 			tokenWasRefreshed = true
 			return "some-new-and-shiny-valid-token", nil
