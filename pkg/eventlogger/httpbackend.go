@@ -57,6 +57,44 @@ func (l *HTTPBackend) Write(event interface{}) error {
 	return l.fileBackend.Write(event)
 }
 
+func (l *HTTPBackend) push() {
+	log.Infof("Logs will be pushed to %s", l.config.URL)
+
+	for {
+
+		/*
+		 * Check if streaming is necessary. There are three cases where it isn't necessary anymore:
+		 *   1. The job has exhausted the amount of log space it has available.
+		 *      The API will reject all subsequent attempts, so we just stop trying.
+		 *   2. The job is finished and all the logs were already pushed.
+		 *   3. The job is finished, not all logs were pushed, but we gave up because it was taking too long.
+		 */
+		if l.stop {
+			break
+		}
+
+		/*
+		 * Wait for the appropriate amount of time
+		 * before trying to send the next batch of logs.
+		 */
+		delay := l.delay()
+		log.Infof("Waiting %v to push next batch of logs...", delay)
+		time.Sleep(delay)
+
+		/*
+		 * Send the next batch of logs.
+		 * If an error occurs, it will be retried in the next tick,
+		 * so there is no need to retry requests that failed here.
+		 */
+		err := l.newRequest()
+		if err != nil {
+			log.Errorf("Error pushing logs: %v", err)
+		}
+	}
+
+	log.Info("Stopped pushing logs.")
+}
+
 /*
  * The delay between log requests.
  * Note that this isn't a rate,
@@ -89,44 +127,6 @@ func (l *HTTPBackend) delay() time.Duration {
 	return time.Duration(interval) * time.Millisecond
 }
 
-func (l *HTTPBackend) push() {
-	log.Infof("Logs will be pushed to %s", l.config.URL)
-
-	for {
-
-		/*
-		 * Check if streaming is necessary. There are three cases where it isn't necessary anymore:
-		 *   1. The job has exhausted the amount of log space it has available.
-		 *      The API will reject all subsequent attemptsrequests, so we just stop.
-		 *   2. The job is finished and all the logs were already pushed.
-		 *   3. The job is finished, not all logs were pushed, but we gave up because it was taking too long.
-		 */
-		if l.stop {
-			break
-		}
-
-		/*
-		 * Wait for the appropriate amount of time
-		 * before trying to send the next batch of logs.
-		 */
-		delay := l.delay()
-		log.Infof("Waiting %v to push next batch of logs...", delay)
-		time.Sleep(delay)
-
-		/*
-		 * Send the next batch of logs.
-		 * If an error occurs, it will either be retried in the next tick,
-		 * or we are already done, so no need to do retry it here.
-		 */
-		err := l.newRequest()
-		if err != nil {
-			log.Errorf("Error pushing logs: %v", err)
-		}
-	}
-
-	log.Info("Stopped pushing logs.")
-}
-
 func (l *HTTPBackend) newRequest() error {
 	buffer := bytes.NewBuffer([]byte{})
 	nextStartFrom, err := l.fileBackend.Stream(l.startFrom, l.config.LinesPerRequest, buffer)
@@ -136,10 +136,8 @@ func (l *HTTPBackend) newRequest() error {
 
 	/*
 	 * If no more logs are found, we may be in two scenarios:
-	 *   1. The job is not done, so more logs might be generated.
-	 *      Here, we just skip this batch and will try to publish a new batch again on the next tick.
-	 *   2. The job is done, so no more logs will be generated.
-	 *      Here, we stop pushing altogether.
+	 *   1. The job is not done, so more logs might be generated. We just skip until there is some new logs.
+	 *   2. The job is done, so no more logs will be generated. We stop pushing altogether.
 	 */
 	if l.startFrom == nextStartFrom {
 		if l.flush {
