@@ -4,37 +4,23 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/semaphoreci/agent/pkg/retry"
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	// pushing logs while backend is open
-	statePushing = "pushing"
-
-	// pushing logs after backend was requested to be closed
-	stateFlushing = "flushing"
-
-	// stopped pushing logs after a "no more space" response from the API
-	stateStopped = "stopped"
-
-	// all logs were completely streamed to the API
-	stateDone = "done"
-)
-
 type HTTPBackend struct {
 	client      *http.Client
 	fileBackend FileBackend
 	startFrom   int
-	pushLock    sync.Mutex
 	config      HTTPBackendConfig
-	state       string
+	stop        bool
+	flush       bool
 }
 
 type HTTPBackendConfig struct {
@@ -56,7 +42,6 @@ func NewHTTPBackend(config HTTPBackendConfig) (*HTTPBackend, error) {
 		fileBackend: *fileBackend,
 		startFrom:   0,
 		config:      config,
-		state:       statePushing,
 	}
 
 	go httpBackend.push()
@@ -72,13 +57,32 @@ func (l *HTTPBackend) Write(event interface{}) error {
 	return l.fileBackend.Write(event)
 }
 
-// TODO: add noise
-func (l *HTTPBackend) interval() time.Duration {
-	if l.state == stateFlushing {
-		return 500 * time.Millisecond
+/*
+ * The delay between log requests.
+ * Note that this isn't a rate,
+ * but a delay between the end of one request and the start of the next one.
+ */
+func (l *HTTPBackend) delay() time.Duration {
+
+	/*
+	 * if we are flushing,
+	 * we use a tighter range of 500ms - 1000ms.
+	 */
+	if l.flush {
+		min := 500
+		max := 1000
+		interval := rand.Intn(max-min) + min
+		return time.Duration(interval) * time.Millisecond
 	}
 
-	return time.Second
+	/*
+	 * if we are not flushing,
+	 * we use a wider range of 1500ms - 3000ms.
+	 */
+	min := 1500
+	max := 3000
+	interval := rand.Intn(max-min) + min
+	return time.Duration(interval) * time.Millisecond
 }
 
 func (l *HTTPBackend) push() {
@@ -87,58 +91,65 @@ func (l *HTTPBackend) push() {
 	for {
 
 		/*
-		 * No more streaming is necessary.
-		 * This happens after the job exhausts the amount of log space it has available.
-		 * The API will simply reject any new requests, so we just stop.
+		 * Check if streaming is necessary. There are three cases where it isn't necessary anymore:
+		 *   1. The job has exhausted the amount of log space it has available.
+		 *      The API will reject all subsequent attemptsrequests, so we just stop.
+		 *   2. The job is finished and all the logs were already pushed.
+		 *   3. The job is finished, not all logs were pushed, but we gave up because it was taking too long.
 		 */
-		if l.state == stateStopped || l.state == stateDone {
+		if l.stop {
 			break
 		}
 
-		// wait for the appropriate amount
-		// of time before sending a new request.
-		time.Sleep(l.interval())
+		/*
+		 * Wait for the appropriate amount of time
+		 * before trying to send the next batch of logs.
+		 */
+		delay := l.delay()
+		log.Infof("Waiting %v to push next batch of logs...", delay)
+		time.Sleep(delay)
 
+		/*
+		 * Send the next batch of logs.
+		 * If an error occurs, it will either be retried in the next tick,
+		 * or we are already done, so no need to do retry it here.
+		 */
 		err := l.newRequest()
 		if err != nil {
 			log.Errorf("Error pushing logs: %v", err)
-			// we don't retry the request here because a new one
-			// will happen after a new tick.
 		}
-
 	}
 
-	log.Info("Stopped streaming logs.")
+	log.Info("Stopped pushing logs.")
 }
 
 func (l *HTTPBackend) newRequest() error {
-	l.pushLock.Lock()
-	defer l.pushLock.Unlock()
-
 	buffer := bytes.NewBuffer([]byte{})
 	nextStartFrom, err := l.fileBackend.Stream(l.startFrom, l.config.LinesPerRequest, buffer)
 	if err != nil {
 		return err
 	}
 
-	// We decide what to do when there are
-	// no logs to push based on the current state.
+	/*
+	 * If no more logs are found, we may be in two scenarios:
+	 *   1. The job is not done, so more logs might be generated.
+	 *      Here, we just skip this batch and will try to publish a new batch again on the next tick.
+	 *   2. The job is done, so no more logs will be generated.
+	 *      Here, we stop pushing altogether.
+	 */
 	if l.startFrom == nextStartFrom {
-
-		// if the current state is flushing,
-		// then the job is done, and no more logs will be written.
-		if l.state == stateFlushing {
-			l.state = stateDone
+		if l.flush {
+			log.Infof("No more logs to flush - stopping")
+			l.stop = true
 			return nil
 		}
 
-		// If not, we just keep streaming.
 		log.Infof("No logs to push - skipping")
 		return nil
 	}
 
+	log.Infof("Pushing next batch of logs with %d log events...", (nextStartFrom - l.startFrom))
 	url := fmt.Sprintf("%s?start_from=%d", l.config.URL, l.startFrom)
-	log.Infof("Pushing logs to %s", url)
 	request, err := http.NewRequest("POST", url, buffer)
 	if err != nil {
 		return err
@@ -162,7 +173,7 @@ func (l *HTTPBackend) newRequest() error {
 	// No more space is available for this job's logs.
 	// The API will keep rejecting the requests if we keep sending them, so just stop.
 	case http.StatusUnprocessableEntity:
-		l.state = stateStopped
+		l.stop = true
 		return errors.New("no more space available for logs - stopping")
 
 	// The token issued for the agent expired.
@@ -184,26 +195,40 @@ func (l *HTTPBackend) newRequest() error {
 }
 
 func (l *HTTPBackend) Close() error {
-	// if logs already stopped being streamed,
-	// there's no need to wait for anything to be flushed.
-	if l.state == stateStopped {
+
+	/*
+	 * If we have already stopped pushing logs
+	 * due to no more space available, we just proceed.
+	 */
+	if l.stop {
 		return l.fileBackend.Close()
 	}
 
-	l.state = stateFlushing
-	err := retry.RetryWithConstantWait("wait for logs to be flushed", 60, time.Second, func() error {
-		if l.state == stateDone {
-			return nil
-		}
+	/*
+	 * If not, we try to flush all the remaining logs.
+	 * We wait for them to be flushed for a period of time (60s).
+	 * If they are not yet completely flushed after that period of time, we give up.
+	 */
+	l.flush = true
 
-		return fmt.Errorf("logs are not yet fully flushed")
+	log.Printf("Waiting for all logs to be flushed...")
+	err := retry.RetryWithConstantWait(retry.RetryOptions{
+		Task:                 "wait for logs to be flushed",
+		MaxAttempts:          60,
+		DelayBetweenAttempts: time.Second,
+		HideError:            true,
+		Fn: func() error {
+			if l.stop {
+				return nil
+			}
+
+			return fmt.Errorf("not fully flushed")
+		},
 	})
 
 	if err != nil {
-		log.Errorf("Could not push all logs to %s: %v", l.config.URL, err)
-		l.state = stateStopped
-	} else {
-		log.Infof("All logs successfully pushed to %s", l.config.URL)
+		log.Errorf("Could not push all logs to %s - giving up", l.config.URL)
+		l.stop = true
 	}
 
 	return l.fileBackend.Close()

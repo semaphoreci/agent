@@ -232,52 +232,77 @@ func (m *HubMockServer) Host() string {
 }
 
 func (m *HubMockServer) WaitUntilFailure(status string, attempts int, wait time.Duration) error {
-	return retry.RetryWithConstantWait("WaitUntilRunningJob", attempts, wait, func() error {
-		if m.FailureStatus != status {
-			return fmt.Errorf("still haven't failed with %s", status)
-		}
+	return retry.RetryWithConstantWait(retry.RetryOptions{
+		Task:                 "WaitUntilRunningJob",
+		MaxAttempts:          attempts,
+		DelayBetweenAttempts: wait,
+		Fn: func() error {
+			if m.FailureStatus != status {
+				return fmt.Errorf("still haven't failed with %s", status)
+			}
 
-		return nil
+			return nil
+		},
 	})
 }
 
 func (m *HubMockServer) WaitUntilRunningJob(attempts int, wait time.Duration) error {
-	return retry.RetryWithConstantWait("WaitUntilRunningJob", attempts, wait, func() error {
-		if !m.RunningJob {
-			return fmt.Errorf("still not running job")
-		}
+	return retry.RetryWithConstantWait(retry.RetryOptions{
+		Task:                 "WaitUntilRunningJob",
+		MaxAttempts:          attempts,
+		DelayBetweenAttempts: wait,
+		Fn: func() error {
+			if !m.RunningJob {
+				return fmt.Errorf("still not running job")
+			}
 
-		return nil
+			return nil
+		},
 	})
 }
 
 func (m *HubMockServer) WaitUntilFinishedJob(attempts int, wait time.Duration) error {
-	return retry.RetryWithConstantWait("WaitUntilFinishedJob", attempts, wait, func() error {
-		if !m.FinishedJob {
-			return fmt.Errorf("still not finished job")
-		}
+	return retry.RetryWithConstantWait(retry.RetryOptions{
+		Task:                 "WaitUntilFinishedJob",
+		MaxAttempts:          attempts,
+		DelayBetweenAttempts: wait,
+		Fn: func() error {
+			if !m.FinishedJob {
+				return fmt.Errorf("still not finished job")
+			}
 
-		return nil
+			return nil
+		},
 	})
 }
 
 func (m *HubMockServer) WaitUntilDisconnected(attempts int, wait time.Duration) error {
-	return retry.RetryWithConstantWait("WaitUntilDisconnected", attempts, wait, func() error {
-		if !m.Disconnected {
-			return fmt.Errorf("still not disconnected")
-		}
+	return retry.RetryWithConstantWait(retry.RetryOptions{
+		Task:                 "WaitUntilDisconnected",
+		MaxAttempts:          attempts,
+		DelayBetweenAttempts: wait,
+		Fn: func() error {
+			if !m.Disconnected {
+				return fmt.Errorf("still not disconnected")
+			}
 
-		return nil
+			return nil
+		},
 	})
 }
 
 func (m *HubMockServer) WaitUntilRegistered() error {
-	return retry.RetryWithConstantWait("WaitUntilRegistered", 10, time.Second, func() error {
-		if m.RegisterRequest == nil {
-			return fmt.Errorf("still not registered")
-		}
+	return retry.RetryWithConstantWait(retry.RetryOptions{
+		Task:                 "WaitUntilRegistered",
+		MaxAttempts:          10,
+		DelayBetweenAttempts: time.Second,
+		Fn: func() error {
+			if m.RegisterRequest == nil {
+				return fmt.Errorf("still not registered")
+			}
 
-		return nil
+			return nil
+		},
 	})
 }
 

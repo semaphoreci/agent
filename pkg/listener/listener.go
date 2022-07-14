@@ -115,14 +115,19 @@ func (l *Listener) Register() error {
 		Hostname: osinfo.Hostname(),
 	}
 
-	err = retry.RetryWithConstantWait("Register", l.Config.RegisterRetryLimit, time.Second, func() error {
-		resp, err := l.Client.Register(req)
-		if err != nil {
-			return err
-		}
+	err = retry.RetryWithConstantWait(retry.RetryOptions{
+		Task:                 "Register",
+		MaxAttempts:          l.Config.RegisterRetryLimit,
+		DelayBetweenAttempts: time.Second,
+		Fn: func() error {
+			resp, err := l.Client.Register(req)
+			if err != nil {
+				return err
+			}
 
-		l.Client.SetAccessToken(resp.Token)
-		return nil
+			l.Client.SetAccessToken(resp.Token)
+			return nil
+		},
 	})
 
 	if err != nil {
