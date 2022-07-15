@@ -7,18 +7,39 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func RetryWithConstantWait(task string, maxAttempts int, wait time.Duration, f func() error) error {
+type RetryOptions struct {
+	Task                 string
+	MaxAttempts          int
+	DelayBetweenAttempts time.Duration
+	Fn                   func() error
+	HideError            bool
+}
+
+func RetryWithConstantWait(options RetryOptions) error {
+	if options.Fn == nil {
+		return fmt.Errorf("options.Fn cannot be nil")
+	}
+
 	for attempt := 1; ; attempt++ {
-		err := f()
+		err := options.Fn()
 		if err == nil {
 			return nil
 		}
 
-		if attempt >= maxAttempts {
-			return fmt.Errorf("[%s] failed after [%d] attempts - giving up: %v", task, attempt, err)
+		if attempt >= options.MaxAttempts {
+			return fmt.Errorf("[%s] failed after [%d] attempts - giving up: %v", options.Task, attempt, err)
 		}
 
-		log.Errorf("[%s] attempt [%d] failed with [%v] - retrying in %s", task, attempt, err, wait)
-		time.Sleep(wait)
+		if !options.HideError {
+			log.Errorf(
+				"[%s] attempt [%d] failed with [%v] - retrying in %s",
+				options.Task,
+				attempt,
+				err,
+				options.DelayBetweenAttempts,
+			)
+		}
+
+		time.Sleep(options.DelayBetweenAttempts)
 	}
 }

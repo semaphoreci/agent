@@ -53,7 +53,14 @@ func DefaultHTTP(request *api.JobRequest, refreshTokenFn func() (string, error))
 		return nil, errors.New("HTTP logger needs a refresh token function")
 	}
 
-	backend, err := NewHTTPBackend(request.Logger.URL, request.Logger.Token, refreshTokenFn)
+	backend, err := NewHTTPBackend(HTTPBackendConfig{
+		URL:                   request.Logger.URL,
+		Token:                 request.Logger.Token,
+		RefreshTokenFn:        refreshTokenFn,
+		LinesPerRequest:       MaxLinesPerRequest,
+		FlushTimeoutInSeconds: DefaultFlushTimeoutInSeconds,
+	})
+
 	if err != nil {
 		return nil, err
 	}

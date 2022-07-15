@@ -327,15 +327,25 @@ func (job *Job) Stop() {
 func (job *Job) SendFinishedCallback(result string, retries int) error {
 	payload := fmt.Sprintf(`{"result": "%s"}`, result)
 	log.Infof("Sending finished callback: %+v", payload)
-	return retry.RetryWithConstantWait("Send finished callback", retries, time.Second, func() error {
-		return job.SendCallback(job.Request.Callbacks.Finished, payload)
+	return retry.RetryWithConstantWait(retry.RetryOptions{
+		Task:                 "Send finished callback",
+		MaxAttempts:          retries,
+		DelayBetweenAttempts: time.Second,
+		Fn: func() error {
+			return job.SendCallback(job.Request.Callbacks.Finished, payload)
+		},
 	})
 }
 
 func (job *Job) SendTeardownFinishedCallback(retries int) error {
 	log.Info("Sending teardown finished callback")
-	return retry.RetryWithConstantWait("Send teardown finished callback", retries, time.Second, func() error {
-		return job.SendCallback(job.Request.Callbacks.TeardownFinished, "{}")
+	return retry.RetryWithConstantWait(retry.RetryOptions{
+		Task:                 "Send teardown finished callback",
+		MaxAttempts:          retries,
+		DelayBetweenAttempts: time.Second,
+		Fn: func() error {
+			return job.SendCallback(job.Request.Callbacks.TeardownFinished, "{}")
+		},
 	})
 }
 
