@@ -15,7 +15,6 @@ $jobs = []
 $payloads = {}
 $job_states = {}
 $finished = {}
-$teardown = {}
 $logs = []
 
 before do
@@ -72,20 +71,13 @@ post "/api/v1/self_hosted_agents/sync" do
             when "stopping-job"
               {"action" => "continue"}
             when "finished-job"
-              $should_shutdown ? {"action" => "shutdown"} : {"action" => "wait-for-jobs"}
+              $job_states[@json_request["job_id"]] = "finished"
+              if $should_shutdown
+                {"action" => "shutdown"}
+              else
+                {"action" => "wait-for-jobs"}
             when "starting-job"
               {"action" => "continue"}
-            when "failed-to-send-callback"
-              job_id = @json_request["job_id"]
-              $job_states[job_id] = "stuck"
-              $should_shutdown ? {"action" => "shutdown"} : {"action" => "continue"}
-            when "failed-to-fetch-job"
-              job_id = @json_request["job_id"]
-              $job_states[job_id] = "stuck"
-              $should_shutdown ? {"action" => "shutdown"} : {"action" => "continue"}
-            when "failed-to-construct-job"
-              $job_states[job_id] = "stuck"
-              $should_shutdown ? {"action" => "shutdown"} : {"action" => "continue"}
             else
               raise "unknown state"
             end
@@ -124,10 +116,6 @@ end
 post "/jobs/:id/callbacks/finished" do
   puts "[CALLBACK] Finished job #{params["id"]}"
   $job_states[params["id"]] = "finished"
-end
-
-post "/jobs/:id/callbacks/teardown" do
-  $teardown[params["id"]] = true
 end
 
 #

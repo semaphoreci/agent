@@ -203,11 +203,11 @@ class ListenerMode
   end
 
   def finished_callback_url
-    "http://hub:4567/jobs/#{$JOB_ID}/callbacks/finished"
+    ""
   end
 
   def teardown_callback_url
-    "http://hub:4567/jobs/#{$JOB_ID}/callbacks/finished"
+    ""
   end
 
   private
