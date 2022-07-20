@@ -276,47 +276,67 @@ func (job *Job) Teardown(result string, callbackRetryAttempts int) (string, erro
 		result = JobStopped
 	}
 
-	// Non self-hosted jobs still sends callbacks
 	if job.Request.Logger.Method == eventlogger.LoggerMethodPull {
-		err := job.SendFinishedCallback(result, callbackRetryAttempts)
-		if err != nil {
-			log.Errorf("Could not send finished callback: %v", err)
-			return result, err
-		}
+		return result, job.teardownWithCallbacks(result, callbackRetryAttempts)
+	}
+
+	return result, job.teardownWithNoCallbacks(result)
+}
+
+/*
+ * For hosted jobs, we use callbacks:
+ * 1. Send finished callback and log job_finished event
+ * 2. Wait for archivator to collect all the logs
+ * 3. Send teardown_finished callback and close the logger
+ */
+func (job *Job) teardownWithCallbacks(result string, callbackRetryAttempts int) error {
+	err := job.SendFinishedCallback(result, callbackRetryAttempts)
+	if err != nil {
+		log.Errorf("Could not send finished callback: %v", err)
+		return err
 	}
 
 	job.Logger.LogJobFinished(result)
+	log.Debug("Waiting for archivator")
 
-	if job.Request.Logger.Method == eventlogger.LoggerMethodPull {
-		log.Debug("Waiting for archivator")
-
-		for {
-			if job.JobLogArchived {
-				break
-			} else {
-				time.Sleep(1000 * time.Millisecond)
-			}
+	for {
+		if job.JobLogArchived {
+			break
+		} else {
+			time.Sleep(1000 * time.Millisecond)
 		}
-
-		log.Debug("Archivator finished")
 	}
+
+	log.Debug("Archivator finished")
+	err = job.Logger.Close()
+	if err != nil {
+		log.Errorf("Error closing logger: %+v", err)
+	}
+
+	err = job.SendTeardownFinishedCallback(callbackRetryAttempts)
+	if err != nil {
+		log.Errorf("Could not send teardown finished callback: %v", err)
+		return err
+	}
+
+	log.Info("Job teardown finished")
+	return nil
+}
+
+/*
+ * For self-hosted jobs, we don't use callbacks.
+ * The only thing we need to do is log the job_finished event and close the logger.
+ */
+func (job *Job) teardownWithNoCallbacks(result string) error {
+	job.Logger.LogJobFinished(result)
 
 	err := job.Logger.Close()
 	if err != nil {
 		log.Errorf("Error closing logger: %+v", err)
 	}
 
-	// Non self-hosted jobs still send callbacks
-	if job.Request.Logger.Method == eventlogger.LoggerMethodPull {
-		err = job.SendTeardownFinishedCallback(callbackRetryAttempts)
-		if err != nil {
-			log.Errorf("Could not send teardown finished callback: %v", err)
-			return result, err
-		}
-	}
-
 	log.Info("Job teardown finished")
-	return result, nil
+	return nil
 }
 
 func (job *Job) Stop() {
