@@ -651,7 +651,7 @@ func Test__GetJobIsRetried(t *testing.T) {
 		},
 	})
 
-	assert.Nil(t, hubMockServer.WaitUntilDisconnected(10, 2*time.Second))
+	assert.Nil(t, hubMockServer.WaitUntilDisconnected(20, 2*time.Second))
 	assert.Equal(t, listener.JobProcessor.ShutdownReason, ShutdownReasonJobFinished)
 	assert.Equal(t, hubMockServer.GetJobAttempts, 5)
 
@@ -671,7 +671,7 @@ func Test__ReportsFailedToFetchJob(t *testing.T) {
 	hubMockServer.RejectGetJobAttempts(100)
 
 	config := Config{
-		DisconnectAfterJob: true,
+		DisconnectAfterJob: false,
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -701,7 +701,7 @@ func Test__ReportsFailedToFetchJob(t *testing.T) {
 	})
 
 	assert.Nil(t, hubMockServer.WaitUntilFinishedJob(12, 5*time.Second))
-	assert.Equal(t, selfhostedapi.JobResultFailed, hubMockServer.GetLastJobResult())
+	assert.Equal(t, selfhostedapi.JobResult(selfhostedapi.JobResultFailed), hubMockServer.GetLastJobResult())
 
 	listener.Stop()
 	hubMockServer.Close()
@@ -719,7 +719,7 @@ func Test__ReportsFailedToConstructJob(t *testing.T) {
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
 	config := Config{
-		DisconnectAfterJob: true,
+		DisconnectAfterJob: false,
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -750,7 +750,7 @@ func Test__ReportsFailedToConstructJob(t *testing.T) {
 	})
 
 	assert.Nil(t, hubMockServer.WaitUntilFinishedJob(10, 2*time.Second))
-	assert.Equal(t, selfhostedapi.JobResultFailed, hubMockServer.GetLastJobResult())
+	assert.Equal(t, selfhostedapi.JobResult(selfhostedapi.JobResultFailed), hubMockServer.GetLastJobResult())
 
 	listener.Stop()
 	hubMockServer.Close()

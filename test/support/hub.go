@@ -310,8 +310,8 @@ func (m *HubMockServer) WaitUntilRegistered() error {
 	})
 }
 
-func (m *HubMockServer) GetLastJobResult() *selfhostedapi.JobResult {
-	return &m.JobResult
+func (m *HubMockServer) GetLastJobResult() selfhostedapi.JobResult {
+	return m.JobResult
 }
 
 func (m *HubMockServer) GetRegisterRequest() *selfhostedapi.RegisterRequest {

@@ -89,6 +89,7 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 
 	executor, err := CreateExecutor(options.Request, job.Logger, *options)
 	if err != nil {
+		_ = job.Logger.Close()
 		return nil, err
 	}
 
