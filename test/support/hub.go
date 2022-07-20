@@ -30,6 +30,7 @@ type HubMockServer struct {
 	FinishedJob               bool
 	TokenIsRefreshed          bool
 	JobResult                 selfhostedapi.JobResult
+	LastStateChange           *time.Time
 }
 
 func NewHubMockServer() *HubMockServer {
@@ -142,6 +143,15 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 	case selfhostedapi.AgentStateWaitingForJobs:
 		if m.ShouldShutdown {
 			syncResponse.Action = selfhostedapi.AgentActionShutdown
+			syncResponse.ShutdownReason = selfhostedapi.ShutdownReasonRequested
+		}
+
+		if m.RegisterRequest.IdleTimeout > 0 {
+			lastStateChange := int(time.Since(*m.LastStateChange) / time.Second)
+			if lastStateChange > m.RegisterRequest.IdleTimeout {
+				syncResponse.Action = selfhostedapi.AgentActionShutdown
+				syncResponse.ShutdownReason = selfhostedapi.ShutdownReasonIdle
+			}
 		}
 
 		if m.JobRequest != nil {
@@ -164,6 +174,10 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 
 		if m.ShouldShutdown {
 			syncResponse.Action = selfhostedapi.AgentActionShutdown
+			syncResponse.ShutdownReason = selfhostedapi.ShutdownReasonRequested
+		} else if m.RegisterRequest.SingleJob {
+			syncResponse.Action = selfhostedapi.AgentActionShutdown
+			syncResponse.ShutdownReason = selfhostedapi.ShutdownReasonJobFinished
 		} else {
 			syncResponse.Action = selfhostedapi.AgentActionWaitForJobs
 		}

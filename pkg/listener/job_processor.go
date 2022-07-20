@@ -125,7 +125,7 @@ func (p *JobProcessor) ProcessSyncResponse(response *selfhostedapi.SyncResponse)
 		return
 
 	case selfhostedapi.AgentActionShutdown:
-		log.Info("Agent shutdown requested by Semaphore due to: %s", response.ShutdownReason)
+		log.Infof("Agent shutdown requested by Semaphore due to: %s", response.ShutdownReason)
 		p.Shutdown(ShutdownReasonFromAPI(response.ShutdownReason), 0)
 
 	case selfhostedapi.AgentActionWaitForJobs:
