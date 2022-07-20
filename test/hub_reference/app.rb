@@ -76,6 +76,7 @@ post "/api/v1/self_hosted_agents/sync" do
                 {"action" => "shutdown"}
               else
                 {"action" => "wait-for-jobs"}
+              end
             when "starting-job"
               {"action" => "continue"}
             else
