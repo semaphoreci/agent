@@ -64,7 +64,7 @@ post "/api/v1/self_hosted_agents/sync" do
             when "running-job"
               job_id = @json_request["job_id"]
               if $should_shutdown || $job_states[job_id] == "stopping"
-                {"action" => "stop-job"}
+                {"action" => "stop-job", "job_id" => job_id}
               else
                 {"action" => "continue"}
               end
