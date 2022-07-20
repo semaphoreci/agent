@@ -30,12 +30,15 @@ type HubMockServer struct {
 	FinishedJob               bool
 	TokenIsRefreshed          bool
 	JobResult                 selfhostedapi.JobResult
+	LastState                 selfhostedapi.AgentState
 	LastStateChange           *time.Time
 }
 
 func NewHubMockServer() *HubMockServer {
+	now := time.Now()
 	return &HubMockServer{
 		RegisterAttempts: -1,
+		LastStateChange:  &now,
 	}
 }
 
@@ -114,6 +117,7 @@ func (m *HubMockServer) handleRegisterRequest(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	m.LastState = selfhostedapi.AgentActionWaitForJobs
 	_, _ = w.Write(response)
 }
 
@@ -190,6 +194,12 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if request.State != m.LastState {
+		now := time.Now()
+		m.LastStateChange = &now
+	}
+
+	m.LastState = request.State
 	_, _ = w.Write(response)
 }
 
