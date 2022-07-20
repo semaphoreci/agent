@@ -40,26 +40,6 @@ class ListenerMode
     end
   end
 
-  def wait_for_job_to_get_stuck
-    puts ""
-    puts "Waiting for job to get stuck"
-
-    loop do
-      response = `curl -s --fail -X GET -k "#{HUB_ENDPOINT}/api/v1/self_hosted_agents/jobs/#{$JOB_ID}/status"`.strip
-      puts "Job state #{response}"
-
-      if response == "stuck"
-        return
-      else
-        sleep 1
-      end
-    end
-
-    sleep 5
-
-    puts
-  end
-
   def wait_for_agent_to_shutdown
     puts ""
     puts "Waiting for agent to shutdown"
@@ -83,6 +63,7 @@ class ListenerMode
   def wait_for_job_to_finish
     puts ""
     puts "Waiting for job to finish"
+    attempts = 0
 
     loop do
       response = `curl -s --fail -X GET -k "#{HUB_ENDPOINT}/api/v1/self_hosted_agents/jobs/#{$JOB_ID}/status"`.strip
@@ -91,6 +72,10 @@ class ListenerMode
       if response == "finished"
         return
       else
+        attempts += 1
+        if attempts > 600
+          abort "Job did not finish in 10 minutes - giving up"
+        end
         sleep 1
       end
     end
