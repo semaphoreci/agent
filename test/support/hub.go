@@ -29,7 +29,7 @@ type HubMockServer struct {
 	RunningJob                bool
 	FinishedJob               bool
 	TokenIsRefreshed          bool
-	FailureStatus             string
+	JobResult                 selfhostedapi.JobResult
 }
 
 func NewHubMockServer() *HubMockServer {
@@ -160,18 +160,13 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 	case selfhostedapi.AgentStateFinishedJob:
 		m.JobRequest = nil
 		m.FinishedJob = true
+		m.JobResult = request.JobResult
 
 		if m.ShouldShutdown {
 			syncResponse.Action = selfhostedapi.AgentActionShutdown
 		} else {
 			syncResponse.Action = selfhostedapi.AgentActionWaitForJobs
 		}
-
-	case selfhostedapi.AgentStateFailedToFetchJob,
-		selfhostedapi.AgentStateFailedToConstructJob,
-		selfhostedapi.AgentStateFailedToSendCallback:
-		m.FailureStatus = string(request.State)
-		syncResponse.Action = selfhostedapi.AgentActionWaitForJobs
 	}
 
 	response, err := json.Marshal(syncResponse)
@@ -229,21 +224,6 @@ func (m *HubMockServer) URL() string {
 
 func (m *HubMockServer) Host() string {
 	return m.Server.Listener.Addr().String()
-}
-
-func (m *HubMockServer) WaitUntilFailure(status string, attempts int, wait time.Duration) error {
-	return retry.RetryWithConstantWait(retry.RetryOptions{
-		Task:                 "WaitUntilRunningJob",
-		MaxAttempts:          attempts,
-		DelayBetweenAttempts: wait,
-		Fn: func() error {
-			if m.FailureStatus != status {
-				return fmt.Errorf("still haven't failed with %s", status)
-			}
-
-			return nil
-		},
-	})
 }
 
 func (m *HubMockServer) WaitUntilRunningJob(attempts int, wait time.Duration) error {
@@ -304,6 +284,10 @@ func (m *HubMockServer) WaitUntilRegistered() error {
 			return nil
 		},
 	})
+}
+
+func (m *HubMockServer) GetLastJobResult() *selfhostedapi.JobResult {
+	return &m.JobResult
 }
 
 func (m *HubMockServer) GetRegisterRequest() *selfhostedapi.RegisterRequest {

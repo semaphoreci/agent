@@ -30,7 +30,7 @@ type Config struct {
 	Scheme                     string
 	ShutdownHookPath           string
 	DisconnectAfterJob         bool
-	DisconnectAfterIdleTimeout time.Duration
+	DisconnectAfterIdleSeconds int
 	EnvVars                    []config.HostEnvVar
 	FileInjections             []config.FileInjection
 	FailOnMissingFiles         bool
@@ -107,12 +107,14 @@ func (l *Listener) Register() error {
 	}
 
 	req := &selfhostedapi.RegisterRequest{
-		Version:  l.Config.AgentVersion,
-		Name:     name,
-		PID:      os.Getpid(),
-		OS:       osinfo.Name(),
-		Arch:     osinfo.Arch(),
-		Hostname: osinfo.Hostname(),
+		Version:     l.Config.AgentVersion,
+		Name:        name,
+		PID:         os.Getpid(),
+		OS:          osinfo.Name(),
+		Arch:        osinfo.Arch(),
+		Hostname:    osinfo.Hostname(),
+		SingleJob:   l.Config.DisconnectAfterJob,
+		IdleTimeout: l.Config.DisconnectAfterIdleSeconds,
 	}
 
 	err = retry.RetryWithConstantWait(retry.RetryOptions{

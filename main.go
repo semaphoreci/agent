@@ -155,7 +155,6 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		log.Fatalf("Error parsing --files: %v", err)
 	}
 
-	idleTimeout := viper.GetInt(config.DisconnectAfterIdleTimeout)
 	config := listener.Config{
 		Endpoint:                   viper.GetString(config.Endpoint),
 		Token:                      viper.GetString(config.Token),
@@ -165,7 +164,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		Scheme:                     scheme,
 		ShutdownHookPath:           viper.GetString(config.ShutdownHookPath),
 		DisconnectAfterJob:         viper.GetBool(config.DisconnectAfterJob),
-		DisconnectAfterIdleTimeout: time.Duration(int64(idleTimeout) * int64(time.Second)),
+		DisconnectAfterIdleSeconds: viper.GetInt(config.DisconnectAfterIdleTimeout),
 		EnvVars:                    hostEnvVars,
 		FileInjections:             fileInjections,
 		FailOnMissingFiles:         viper.GetBool(config.FailOnMissingFiles),
