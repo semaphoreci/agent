@@ -19,7 +19,7 @@ type RegisterRequest struct {
 	Arch        string `json:"arch"`
 	Hostname    string `json:"hostname"`
 	SingleJob   bool   `json:"single_job"`
-	IdleTimeout int    `json:"idleTimeout"`
+	IdleTimeout int    `json:"idle_timeout"`
 }
 
 type RegisterResponse struct {

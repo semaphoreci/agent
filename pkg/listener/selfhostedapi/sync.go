@@ -32,7 +32,7 @@ const JobResultFailed = "failed"
 const JobResultPassed = "passed"
 
 const ShutdownReasonIdle = "idle"
-const ShutdownReasonJobFinished = "job_finished"
+const ShutdownReasonJobFinished = "job-finished"
 const ShutdownReasonRequested = "requested"
 
 type SyncRequest struct {
