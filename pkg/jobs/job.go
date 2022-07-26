@@ -12,6 +12,7 @@ import (
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	executors "github.com/semaphoreci/agent/pkg/executors"
 	httputils "github.com/semaphoreci/agent/pkg/httputils"
+	"github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
 	"github.com/semaphoreci/agent/pkg/retry"
 	log "github.com/sirupsen/logrus"
 )
@@ -88,6 +89,7 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 
 	executor, err := CreateExecutor(options.Request, job.Logger, *options)
 	if err != nil {
+		_ = job.Logger.Close()
 		return nil, err
 	}
 
@@ -115,8 +117,7 @@ func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOpti
 type RunOptions struct {
 	EnvVars               []config.HostEnvVar
 	FileInjections        []config.FileInjection
-	OnSuccessfulTeardown  func()
-	OnFailedTeardown      func()
+	OnJobFinished         func(selfhostedapi.JobResult)
 	CallbackRetryAttempts int
 }
 
@@ -124,8 +125,7 @@ func (job *Job) Run() {
 	job.RunWithOptions(RunOptions{
 		EnvVars:               []config.HostEnvVar{},
 		FileInjections:        []config.FileInjection{},
-		OnSuccessfulTeardown:  nil,
-		OnFailedTeardown:      nil,
+		OnJobFinished:         nil,
 		CallbackRetryAttempts: 60,
 	})
 }
@@ -154,18 +154,19 @@ func (job *Job) RunWithOptions(options RunOptions) {
 		}
 	}
 
-	err := job.Teardown(result, options.CallbackRetryAttempts)
+	result, err := job.Teardown(result, options.CallbackRetryAttempts)
 	if err != nil {
-		callFuncIfNotNull(options.OnFailedTeardown)
-	} else {
-		callFuncIfNotNull(options.OnSuccessfulTeardown)
+		log.Errorf("Error tearing down job: %v", err)
 	}
-
-	job.Finished = true
 
 	// the executor is already stopped when the job is stopped, so there's no need to stop it again
 	if !job.Stopped {
 		job.Executor.Stop()
+	}
+
+	job.Finished = true
+	if options.OnJobFinished != nil {
+		options.OnJobFinished(selfhostedapi.JobResult(result))
 	}
 }
 
@@ -269,12 +270,26 @@ func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command) int {
 	return lastExitCode
 }
 
-func (job *Job) Teardown(result string, callbackRetryAttempts int) error {
+func (job *Job) Teardown(result string, callbackRetryAttempts int) (string, error) {
 	// if job was stopped during the epilogues, result should be stopped
 	if job.Stopped {
 		result = JobStopped
 	}
 
+	if job.Request.Logger.Method == eventlogger.LoggerMethodPull {
+		return result, job.teardownWithCallbacks(result, callbackRetryAttempts)
+	}
+
+	return result, job.teardownWithNoCallbacks(result)
+}
+
+/*
+ * For hosted jobs, we use callbacks:
+ * 1. Send finished callback and log job_finished event
+ * 2. Wait for archivator to collect all the logs
+ * 3. Send teardown_finished callback and close the logger
+ */
+func (job *Job) teardownWithCallbacks(result string, callbackRetryAttempts int) error {
 	err := job.SendFinishedCallback(result, callbackRetryAttempts)
 	if err != nil {
 		log.Errorf("Could not send finished callback: %v", err)
@@ -282,21 +297,17 @@ func (job *Job) Teardown(result string, callbackRetryAttempts int) error {
 	}
 
 	job.Logger.LogJobFinished(result)
+	log.Debug("Waiting for archivator")
 
-	if job.Request.Logger.Method == eventlogger.LoggerMethodPull {
-		log.Debug("Waiting for archivator")
-
-		for {
-			if job.JobLogArchived {
-				break
-			} else {
-				time.Sleep(1000 * time.Millisecond)
-			}
+	for {
+		if job.JobLogArchived {
+			break
+		} else {
+			time.Sleep(1000 * time.Millisecond)
 		}
-
-		log.Debug("Archivator finished")
 	}
 
+	log.Debug("Archivator finished")
 	err = job.Logger.Close()
 	if err != nil {
 		log.Errorf("Error closing logger: %+v", err)
@@ -306,6 +317,22 @@ func (job *Job) Teardown(result string, callbackRetryAttempts int) error {
 	if err != nil {
 		log.Errorf("Could not send teardown finished callback: %v", err)
 		return err
+	}
+
+	log.Info("Job teardown finished")
+	return nil
+}
+
+/*
+ * For self-hosted jobs, we don't use callbacks.
+ * The only thing we need to do is log the job_finished event and close the logger.
+ */
+func (job *Job) teardownWithNoCallbacks(result string) error {
+	job.Logger.LogJobFinished(result)
+
+	err := job.Logger.Close()
+	if err != nil {
+		log.Errorf("Error closing logger: %+v", err)
 	}
 
 	log.Info("Job teardown finished")
@@ -366,10 +393,4 @@ func (job *Job) SendCallback(url string, payload string) error {
 	}
 
 	return nil
-}
-
-func callFuncIfNotNull(function func()) {
-	if function != nil {
-		function()
-	}
 }

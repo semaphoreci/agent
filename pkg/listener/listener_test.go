@@ -296,7 +296,7 @@ func Test__ShutdownAfterIdleTimeout(t *testing.T) {
 
 	config := Config{
 		ExitOnShutdown:             false,
-		DisconnectAfterIdleTimeout: 15 * time.Second,
+		DisconnectAfterIdleSeconds: 15,
 		Endpoint:                   hubMockServer.Host(),
 		Token:                      "token",
 		RegisterRetryLimit:         5,
@@ -651,7 +651,7 @@ func Test__GetJobIsRetried(t *testing.T) {
 		},
 	})
 
-	assert.Nil(t, hubMockServer.WaitUntilDisconnected(10, 2*time.Second))
+	assert.Nil(t, hubMockServer.WaitUntilDisconnected(20, 2*time.Second))
 	assert.Equal(t, listener.JobProcessor.ShutdownReason, ShutdownReasonJobFinished)
 	assert.Equal(t, hubMockServer.GetJobAttempts, 5)
 
@@ -671,7 +671,7 @@ func Test__ReportsFailedToFetchJob(t *testing.T) {
 	hubMockServer.RejectGetJobAttempts(100)
 
 	config := Config{
-		DisconnectAfterJob: true,
+		DisconnectAfterJob: false,
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -700,7 +700,8 @@ func Test__ReportsFailedToFetchJob(t *testing.T) {
 		},
 	})
 
-	assert.Nil(t, hubMockServer.WaitUntilFailure(string(selfhostedapi.AgentStateFailedToFetchJob), 12, 5*time.Second))
+	assert.Nil(t, hubMockServer.WaitUntilFinishedJob(12, 5*time.Second))
+	assert.Equal(t, selfhostedapi.JobResult(selfhostedapi.JobResultFailed), hubMockServer.GetLastJobResult())
 
 	listener.Stop()
 	hubMockServer.Close()
@@ -718,7 +719,7 @@ func Test__ReportsFailedToConstructJob(t *testing.T) {
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
 	config := Config{
-		DisconnectAfterJob: true,
+		DisconnectAfterJob: false,
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -748,101 +749,8 @@ func Test__ReportsFailedToConstructJob(t *testing.T) {
 		},
 	})
 
-	assert.Nil(t, hubMockServer.WaitUntilFailure(string(selfhostedapi.AgentStateFailedToConstructJob), 10, 2*time.Second))
-
-	listener.Stop()
-	hubMockServer.Close()
-	loghubMockServer.Close()
-}
-
-func Test__ReportsFailedToSendFinishedCallback(t *testing.T) {
-	testsupport.SetupTestLogs()
-
-	loghubMockServer := testsupport.NewLoghubMockServer()
-	loghubMockServer.Init()
-
-	hubMockServer := testsupport.NewHubMockServer()
-	hubMockServer.Init()
-	hubMockServer.UseLogsURL(loghubMockServer.URL())
-
-	config := Config{
-		ExitOnShutdown:     false,
-		Endpoint:           hubMockServer.Host(),
-		Token:              "token",
-		RegisterRetryLimit: 5,
-		GetJobRetryLimit:   2,
-		CallbackRetryLimit: 5,
-		Scheme:             "http",
-		EnvVars:            []config.HostEnvVar{},
-		FileInjections:     []config.FileInjection{},
-		AgentVersion:       "0.0.7",
-	}
-
-	listener, err := Start(http.DefaultClient, config)
-	assert.Nil(t, err)
-
-	hubMockServer.AssignJob(&api.JobRequest{
-		ID:       "Test__ReportsFailedToSendFinishedCallback",
-		Commands: []api.Command{},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/500",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
-		Logger: api.Logger{
-			Method: eventlogger.LoggerMethodPush,
-			URL:    loghubMockServer.URL(),
-			Token:  "doesnotmatter",
-		},
-	})
-
-	assert.Nil(t, hubMockServer.WaitUntilFailure(string(selfhostedapi.AgentStateFailedToSendCallback), 10, 2*time.Second))
-
-	listener.Stop()
-	hubMockServer.Close()
-	loghubMockServer.Close()
-}
-
-func Test__ReportsFailedToSendTeardownFinishedCallback(t *testing.T) {
-	testsupport.SetupTestLogs()
-
-	loghubMockServer := testsupport.NewLoghubMockServer()
-	loghubMockServer.Init()
-
-	hubMockServer := testsupport.NewHubMockServer()
-	hubMockServer.Init()
-	hubMockServer.UseLogsURL(loghubMockServer.URL())
-
-	config := Config{
-		ExitOnShutdown:     false,
-		Endpoint:           hubMockServer.Host(),
-		Token:              "token",
-		RegisterRetryLimit: 5,
-		GetJobRetryLimit:   2,
-		CallbackRetryLimit: 5,
-		Scheme:             "http",
-		EnvVars:            []config.HostEnvVar{},
-		FileInjections:     []config.FileInjection{},
-		AgentVersion:       "0.0.7",
-	}
-
-	listener, err := Start(http.DefaultClient, config)
-	assert.Nil(t, err)
-
-	hubMockServer.AssignJob(&api.JobRequest{
-		ID:       "Test__ReportsFailedToSendTeardownFinishedCallback",
-		Commands: []api.Command{},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/500",
-		},
-		Logger: api.Logger{
-			Method: eventlogger.LoggerMethodPush,
-			URL:    loghubMockServer.URL(),
-			Token:  "doesnotmatter",
-		},
-	})
-
-	assert.Nil(t, hubMockServer.WaitUntilFailure(string(selfhostedapi.AgentStateFailedToSendCallback), 10, 2*time.Second))
+	assert.Nil(t, hubMockServer.WaitUntilFinishedJob(10, 2*time.Second))
+	assert.Equal(t, selfhostedapi.JobResult(selfhostedapi.JobResultFailed), hubMockServer.GetLastJobResult())
 
 	listener.Stop()
 	hubMockServer.Close()
