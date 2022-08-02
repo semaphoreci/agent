@@ -31,22 +31,18 @@ func (l *FileBackend) Open() error {
 }
 
 func (l *FileBackend) Write(event interface{}) error {
-	jsonString, err := json.Marshal(event)
+	jsonBytes, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	jsonBytes = append(jsonBytes, '\n')
+
+	_, err = l.file.Write(jsonBytes)
 	if err != nil {
 		return err
 	}
 
-	_, err = l.file.Write([]byte(jsonString))
-	if err != nil {
-		return err
-	}
-
-	_, err = l.file.Write([]byte("\n"))
-	if err != nil {
-		return err
-	}
-
-	log.Debugf("%s", jsonString)
+	log.Debugf("%s", jsonBytes)
 
 	return nil
 }
