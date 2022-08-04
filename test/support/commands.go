@@ -25,6 +25,9 @@ func AssertSimplifiedJobLogs(t *testing.T, actual, expected []string) {
 			} else {
 				actualIndex++
 			}
+		} else if expectedLine == "*** IGNORE LINE ***" {
+			actualIndex++
+			expectedIndex++
 		} else {
 			if !assert.Equal(t, actualLine, expectedLine) {
 				break
