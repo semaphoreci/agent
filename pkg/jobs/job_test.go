@@ -1000,7 +1000,7 @@ func Test__UsePreJobHook(t *testing.T) {
 		"Exit Code: 0",
 
 		"directive: Running the pre-job hook configured in the agent",
-		"*** IGNORE LINE ***", // we are using a temp file, it's hard to assert its path, just ignore it
+		"*** IGNORE SINGLE LINE ***", // we are using a temp file, it's hard to assert its path, just ignore it
 		"Warning: The agent is configured to proceed with the job even if the pre-job hook fails.\n",
 		"hello from pre-job hook",
 		"Exit Code: 0",
@@ -1039,7 +1039,7 @@ func Test__UsePreJobHookAndFailOnError(t *testing.T) {
 	assert.Nil(t, err)
 
 	hook, _ := testsupport.TempFileWithExtension()
-	_ = ioutil.WriteFile(hook, []byte("zzz"), 0777)
+	_ = ioutil.WriteFile(hook, []byte("badcommand"), 0777)
 
 	job.RunWithOptions(RunOptions{
 		EnvVars:               []config.HostEnvVar{},
@@ -1065,9 +1065,9 @@ func Test__UsePreJobHookAndFailOnError(t *testing.T) {
 		"Exit Code: 0",
 
 		"directive: Running the pre-job hook configured in the agent",
-		"*** IGNORE LINE ***", // we are using a temp file, it's hard to assert its path, just ignore it
+		"*** IGNORE SINGLE LINE ***", // we are using a temp file, it's hard to assert its path, just ignore it
 		"Warning: The agent is configured to fail the job if the pre-job hook fails.\n",
-		"*** IGNORE LINE ***", // also hard to assert the actual error message, just ignore it
+		"*** IGNORE LINES UNTIL EXIT CODE ***", // also hard to assert the actual error message, just ignore it
 		fmt.Sprintf("Exit Code: %d", testsupport.UnknownCommandExitCode()),
 
 		"directive: Exporting environment variables",
