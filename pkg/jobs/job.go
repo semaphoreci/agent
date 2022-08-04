@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
-	"os/exec"
 	"runtime"
 	"time"
 
@@ -16,7 +15,6 @@ import (
 	httputils "github.com/semaphoreci/agent/pkg/httputils"
 	"github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
 	"github.com/semaphoreci/agent/pkg/retry"
-	"github.com/semaphoreci/agent/pkg/shell"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -138,6 +136,20 @@ func (o *RunOptions) GetPreJobHookWarning() string {
 	return `The agent is configured to proceed with the job even if the pre-job hook fails.`
 }
 
+func (o *RunOptions) GetPreJobHookCommand() string {
+
+	/*
+	 * If we are dealing with PowerShell, we make sure to just call the script directly,
+	 * without creating a new powershell process. If we did, people would need to set
+	 * $ErrorActionPreference to "STOP" in order for errors to propagate properly.
+	 */
+	if runtime.GOOS == "windows" {
+		return o.PreJobHookPath
+	}
+
+	return fmt.Sprintf("bash %s", o.PreJobHookPath)
+}
+
 func (job *Job) Run() {
 	job.RunWithOptions(RunOptions{
 		EnvVars:               []config.HostEnvVar{},
@@ -249,19 +261,8 @@ func (job *Job) runPreJobHook(options RunOptions) bool {
 	}
 
 	log.Infof("Executing pre-job hook at %s", options.PreJobHookPath)
-
-	var cmd *exec.Cmd
-
-	// #nosec
-	if runtime.GOOS == "windows" {
-		args := append(shell.Args(), options.PreJobHookPath)
-		cmd = exec.Command(shell.Executable(), args...)
-	} else {
-		cmd = exec.Command("bash", options.PreJobHookPath)
-	}
-
 	exitCode := job.Executor.RunCommandWithOptions(executors.CommandOptions{
-		Command: cmd.String(),
+		Command: options.GetPreJobHookCommand(),
 		Silent:  false,
 		Alias:   "Running the pre-job hook configured in the agent",
 		Warning: options.GetPreJobHookWarning(),
