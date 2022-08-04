@@ -28,7 +28,7 @@ blocks:
       jobs:
         - name: Lint
           commands:
-            - go get -u github.com/mgechev/revive
+            - go install github.com/mgechev/revive@latest
             - make lint
 
   - name: "Security checks"
