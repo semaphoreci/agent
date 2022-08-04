@@ -251,6 +251,8 @@ func (job *Job) runPreJobHook(options RunOptions) bool {
 	log.Infof("Executing pre-job hook at %s", options.PreJobHookPath)
 
 	var cmd *exec.Cmd
+
+	// #nosec
 	if runtime.GOOS == "windows" {
 		args := append(shell.Args(), options.PreJobHookPath)
 		cmd = exec.Command(shell.Executable(), args...)
