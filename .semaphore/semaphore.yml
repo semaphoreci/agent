@@ -22,7 +22,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.16
+          - sem-version go 1.18
           - checkout
 
       jobs:
@@ -58,7 +58,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.16
+          - sem-version go 1.18
           - checkout
           - go version
           - go get
@@ -90,7 +90,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.16
+          - sem-version go 1.18
           - checkout
           - go version
           - go get
@@ -154,7 +154,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.16
+          - sem-version go 1.18
           - checkout
           - go version
           - go get
@@ -181,7 +181,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.16
+          - sem-version go 1.18
           - checkout
           - go version
           - go get
