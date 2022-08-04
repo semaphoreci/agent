@@ -126,6 +126,18 @@ type RunOptions struct {
 	CallbackRetryAttempts int
 }
 
+func (o *RunOptions) GetPreJobHookWarning() string {
+	if o.PreJobHookPath == "" {
+		return ""
+	}
+
+	if o.FailOnPreJobHookError {
+		return `The agent is configured to fail the job if the pre-job hook fails.`
+	}
+
+	return `The agent is configured to proceed with the job even if the pre-job hook fails.`
+}
+
 func (job *Job) Run() {
 	job.RunWithOptions(RunOptions{
 		EnvVars:               []config.HostEnvVar{},
@@ -246,7 +258,13 @@ func (job *Job) runPreJobHook(options RunOptions) bool {
 		cmd = exec.Command("bash", options.PreJobHookPath)
 	}
 
-	exitCode := job.Executor.RunCommand(cmd.String(), false, "Executing the agent pre-job hook")
+	exitCode := job.Executor.RunCommandWithOptions(executors.CommandOptions{
+		Command: cmd.String(),
+		Silent:  false,
+		Alias:   "Running the pre-job hook configured in the agent",
+		Warning: options.GetPreJobHookWarning(),
+	})
+
 	if exitCode == 0 {
 		log.Info("Pre-job hook executed successfully.")
 		return true
