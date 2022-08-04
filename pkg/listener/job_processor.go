@@ -30,9 +30,11 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		GetJobRetryAttempts:     config.GetJobRetryLimit,
 		CallbackRetryAttempts:   config.CallbackRetryLimit,
 		ShutdownHookPath:        config.ShutdownHookPath,
+		PreJobHookPath:          config.PreJobHookPath,
 		EnvVars:                 config.EnvVars,
 		FileInjections:          config.FileInjections,
 		FailOnMissingFiles:      config.FailOnMissingFiles,
+		FailOnPreJobHookError:   config.FailOnPreJobHookError,
 		ExitOnShutdown:          config.ExitOnShutdown,
 	}
 
@@ -57,10 +59,12 @@ type JobProcessor struct {
 	GetJobRetryAttempts     int
 	CallbackRetryAttempts   int
 	ShutdownHookPath        string
+	PreJobHookPath          string
 	StopSync                bool
 	EnvVars                 []config.HostEnvVar
 	FileInjections          []config.FileInjection
 	FailOnMissingFiles      bool
+	FailOnPreJobHookError   bool
 	ExitOnShutdown          bool
 	ShutdownReason          ShutdownReason
 }
@@ -167,6 +171,8 @@ func (p *JobProcessor) RunJob(jobID string) {
 
 	go job.RunWithOptions(jobs.RunOptions{
 		EnvVars:               p.EnvVars,
+		PreJobHookPath:        p.PreJobHookPath,
+		FailOnPreJobHookError: p.FailOnPreJobHookError,
 		CallbackRetryAttempts: p.CallbackRetryAttempts,
 		FileInjections:        p.FileInjections,
 		OnJobFinished:         p.JobFinished,

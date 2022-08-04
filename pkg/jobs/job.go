@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"os/exec"
+	"runtime"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
@@ -14,6 +16,7 @@ import (
 	httputils "github.com/semaphoreci/agent/pkg/httputils"
 	"github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
 	"github.com/semaphoreci/agent/pkg/retry"
+	"github.com/semaphoreci/agent/pkg/shell"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -117,6 +120,8 @@ func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOpti
 type RunOptions struct {
 	EnvVars               []config.HostEnvVar
 	FileInjections        []config.FileInjection
+	PreJobHookPath        string
+	FailOnPreJobHookError bool
 	OnJobFinished         func(selfhostedapi.JobResult)
 	CallbackRetryAttempts int
 }
@@ -125,6 +130,7 @@ func (job *Job) Run() {
 	job.RunWithOptions(RunOptions{
 		EnvVars:               []config.HostEnvVar{},
 		FileInjections:        []config.FileInjection{},
+		PreJobHookPath:        "",
 		OnJobFinished:         nil,
 		CallbackRetryAttempts: 60,
 	})
@@ -145,7 +151,7 @@ func (job *Job) RunWithOptions(options RunOptions) {
 	}
 
 	if executorRunning {
-		result = job.RunRegularCommands(options.EnvVars)
+		result = job.RunRegularCommands(options)
 		log.Debug("Exporting job result")
 
 		if result != JobStopped {
@@ -186,8 +192,8 @@ func (job *Job) PrepareEnvironment() int {
 	return 0
 }
 
-func (job *Job) RunRegularCommands(hostEnvVars []config.HostEnvVar) string {
-	exitCode := job.Executor.ExportEnvVars(job.Request.EnvVars, hostEnvVars)
+func (job *Job) RunRegularCommands(options RunOptions) string {
+	exitCode := job.Executor.ExportEnvVars(job.Request.EnvVars, options.EnvVars)
 	if exitCode != 0 {
 		log.Error("Failed to export env vars")
 
@@ -198,6 +204,11 @@ func (job *Job) RunRegularCommands(hostEnvVars []config.HostEnvVar) string {
 	if exitCode != 0 {
 		log.Error("Failed to inject files")
 
+		return JobFailed
+	}
+
+	shouldProceed := job.runPreJobHook(options)
+	if !shouldProceed {
 		return JobFailed
 	}
 
@@ -217,6 +228,37 @@ func (job *Job) RunRegularCommands(hostEnvVars []config.HostEnvVar) string {
 		log.Info("Regular commands finished with failure")
 		return JobFailed
 	}
+}
+
+func (job *Job) runPreJobHook(options RunOptions) bool {
+	if options.PreJobHookPath == "" {
+		log.Info("No pre-job hook configured.")
+		return true
+	}
+
+	log.Infof("Executing pre-job hook at %s", options.PreJobHookPath)
+
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		args := append(shell.Args(), options.PreJobHookPath)
+		cmd = exec.Command(shell.Executable(), args...)
+	} else {
+		cmd = exec.Command("bash", options.PreJobHookPath)
+	}
+
+	exitCode := job.Executor.RunCommand(cmd.String(), false, "Executing the agent pre-job hook")
+	if exitCode == 0 {
+		log.Info("Pre-job hook executed successfully.")
+		return true
+	}
+
+	if options.FailOnPreJobHookError {
+		log.Error("Error executing pre-job hook - failing job")
+		return false
+	}
+
+	log.Error("Error executing pre-job hook - proceeding")
+	return true
 }
 
 func (job *Job) handleEpilogues(result string) {
