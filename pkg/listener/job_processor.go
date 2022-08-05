@@ -14,6 +14,7 @@ import (
 	"github.com/semaphoreci/agent/pkg/config"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
+	"github.com/semaphoreci/agent/pkg/random"
 	"github.com/semaphoreci/agent/pkg/retry"
 	"github.com/semaphoreci/agent/pkg/shell"
 	log "github.com/sirupsen/logrus"
@@ -25,7 +26,6 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		APIClient:               apiClient,
 		LastSuccessfulSync:      time.Now(),
 		State:                   selfhostedapi.AgentStateWaitingForJobs,
-		SyncInterval:            5 * time.Second,
 		DisconnectRetryAttempts: 100,
 		GetJobRetryAttempts:     config.GetJobRetryLimit,
 		CallbackRetryAttempts:   config.CallbackRetryLimit,
@@ -50,7 +50,6 @@ type JobProcessor struct {
 	CurrentJobID            string
 	CurrentJobResult        selfhostedapi.JobResult
 	CurrentJob              *jobs.Job
-	SyncInterval            time.Duration
 	LastSyncErrorAt         *time.Time
 	LastSuccessfulSync      time.Time
 	DisconnectRetryAttempts int
@@ -76,7 +75,10 @@ func (p *JobProcessor) SyncLoop() {
 		}
 
 		p.Sync()
-		time.Sleep(p.SyncInterval)
+
+		delay, _ := random.DurationInRange(3000, 6000)
+		log.Infof("Waiting %v for next sync...", delay)
+		time.Sleep(*delay)
 	}
 }
 

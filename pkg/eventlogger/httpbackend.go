@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/semaphoreci/agent/pkg/random"
 	"github.com/semaphoreci/agent/pkg/retry"
 	log "github.com/sirupsen/logrus"
 )
@@ -122,24 +122,16 @@ func (l *HTTPBackend) delay() time.Duration {
 	 * we use a tighter range of 500ms - 1000ms.
 	 */
 	if l.flush {
-		min := 500
-		max := 1000
-
-		// #nosec
-		interval := rand.Intn(max-min) + min
-		return time.Duration(interval) * time.Millisecond
+		delay, _ := random.DurationInRange(500, 1000)
+		return *delay
 	}
 
 	/*
 	 * if we are not flushing,
 	 * we use a wider range of 1500ms - 3000ms.
 	 */
-	min := 1500
-	max := 3000
-
-	// #nosec
-	interval := rand.Intn(max-min) + min
-	return time.Duration(interval) * time.Millisecond
+	delay, _ := random.DurationInRange(1500, 3000)
+	return *delay
 }
 
 func (l *HTTPBackend) newRequest() error {
