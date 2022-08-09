@@ -356,7 +356,7 @@ func (job *Job) uploadLogsAsArtifact(filePath string) {
 	}
 
 	log.Infof("Uploading job logs as artifact...")
-	cmd := []string{"artifact", "push", "job", filePath, "-d", "logs.json"}
+	cmd := []string{"artifact", "push", "job", filePath, "-d", "agent/job_logs.json"}
 	exitCode := job.Executor.RunCommand(strings.Join(cmd, " "), true, "")
 	if exitCode != 0 {
 		log.Errorf("Error uploading job logs as job artifact")
