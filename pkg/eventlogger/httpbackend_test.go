@@ -1,6 +1,8 @@
 package eventlogger
 
 import (
+	"io/ioutil"
+	"strings"
 	"testing"
 	"time"
 
@@ -202,6 +204,46 @@ func Test__FlushingGivesUpAfterTimeout(t *testing.T) {
 
 	// logs are incomplete
 	assert.NotContains(t, simplifiedEvents, "job_finished: passed")
+
+	mockServer.Close()
+}
+
+func Test__ExecutesCallbackOnTrimmedLogs(t *testing.T) {
+	mockServer := testsupport.NewLoghubMockServer()
+	mockServer.Init()
+	mockServer.SetMaxSizeForLogs(30)
+
+	httpBackend, err := NewHTTPBackend(HTTPBackendConfig{
+		URL:                   mockServer.URL(),
+		Token:                 "token",
+		RefreshTokenFn:        func() (string, error) { return "", nil },
+		LinesPerRequest:       10,
+		FlushTimeoutInSeconds: 10,
+	})
+
+	assert.Nil(t, err)
+	assert.Nil(t, httpBackend.Open())
+
+	// 1000+ log events at 10 per request would take 4 requests
+	// to go over the max size of 30 events.
+	generateLogEvents(t, 1000, httpBackend)
+
+	var allLogs []byte
+	_ = httpBackend.CloseWithOptions(CloseOptions{OnTrimmedLogs: func(s string) {
+		logs, err := ioutil.ReadFile(s)
+		assert.Nil(t, err)
+		allLogs = logs
+	}})
+
+	eventsFromFile := testsupport.FilterEmpty(strings.Split(string(allLogs), "\n"))
+	eventObjectsFromStream, _ := TransformToObjects(mockServer.GetLogs())
+	simplifiedEventsFromStream, _ := SimplifyLogEvents(eventObjectsFromStream, true)
+	eventObjectsFromFile, _ := TransformToObjects(eventsFromFile)
+	simplifiedEventsFromFile, _ := SimplifyLogEvents(eventObjectsFromFile, true)
+
+	// logs were not fully streamed, but callback executed
+	assert.NotContains(t, simplifiedEventsFromStream, "job_finished: passed")
+	assert.Contains(t, simplifiedEventsFromFile, "job_finished: passed")
 
 	mockServer.Close()
 }
