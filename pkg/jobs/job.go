@@ -29,9 +29,10 @@ type Job struct {
 
 	Executor executors.Executor
 
-	JobLogArchived bool
-	Stopped        bool
-	Finished       bool
+	JobLogArchived    bool
+	Stopped           bool
+	Finished          bool
+	UploadTrimmedLogs bool
 }
 
 type JobOptions struct {
@@ -42,6 +43,7 @@ type JobOptions struct {
 	FileInjections     []config.FileInjection
 	FailOnMissingFiles bool
 	SelfHosted         bool
+	UploadTrimmedLogs  bool
 	RefreshTokenFn     func() (string, error)
 }
 
@@ -71,10 +73,11 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 	}
 
 	job := &Job{
-		Client:         options.Client,
-		Request:        options.Request,
-		JobLogArchived: false,
-		Stopped:        false,
+		Client:            options.Client,
+		Request:           options.Request,
+		JobLogArchived:    false,
+		Stopped:           false,
+		UploadTrimmedLogs: options.UploadTrimmedLogs,
 	}
 
 	if options.Logger != nil {
@@ -347,8 +350,12 @@ func (job *Job) teardownWithNoCallbacks(result string) error {
 }
 
 func (job *Job) uploadLogsAsArtifact(filePath string) {
-	log.Infof("Uploading job logs as artifact...")
+	if !job.UploadTrimmedLogs {
+		log.Infof("Logs were trimmed, but agent is not configured to upload them as artifact - skipping.")
+		return
+	}
 
+	log.Infof("Uploading job logs as artifact...")
 	cmd := []string{"artifact", "push", "job", filePath, "-d", "logs.json"}
 	exitCode := job.Executor.RunCommand(strings.Join(cmd, " "), true, "")
 	if exitCode != 0 {

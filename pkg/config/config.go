@@ -13,6 +13,7 @@ const (
 	EnvVars                    = "env-vars"
 	Files                      = "files"
 	FailOnMissingFiles         = "fail-on-missing-files"
+	UploadTrimmedLogs          = "upload-trimmed-logs"
 )
 
 var ValidConfigKeys = []string{
@@ -26,6 +27,7 @@ var ValidConfigKeys = []string{
 	EnvVars,
 	Files,
 	FailOnMissingFiles,
+	UploadTrimmedLogs,
 }
 
 type HostEnvVar struct {

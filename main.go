@@ -114,6 +114,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	_ = pflag.StringSlice(config.EnvVars, []string{}, "Export environment variables in jobs")
 	_ = pflag.StringSlice(config.Files, []string{}, "Inject files into container, when using docker compose executor")
 	_ = pflag.Bool(config.FailOnMissingFiles, false, "Fail job if files specified using --files are missing")
+	_ = pflag.Bool(config.UploadTrimmedLogs, false, "If logs reach the log size limit, upload them as a job artifact")
 
 	pflag.Parse()
 
@@ -168,6 +169,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		EnvVars:                    hostEnvVars,
 		FileInjections:             fileInjections,
 		FailOnMissingFiles:         viper.GetBool(config.FailOnMissingFiles),
+		UploadTrimmedLogs:          viper.GetBool(config.UploadTrimmedLogs),
 		AgentVersion:               VERSION,
 		ExitOnShutdown:             true,
 	}
