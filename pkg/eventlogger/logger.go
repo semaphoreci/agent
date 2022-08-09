@@ -22,6 +22,10 @@ func (l *Logger) Close() error {
 	return l.Backend.Close()
 }
 
+func (l *Logger) CloseWithOptions(options CloseOptions) error {
+	return l.Backend.CloseWithOptions(options)
+}
+
 func (l *Logger) LogJobStarted() {
 	event := &JobStartedEvent{
 		Timestamp: int(time.Now().Unix()),

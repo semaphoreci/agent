@@ -27,6 +27,7 @@ type HTTPBackend struct {
 	config      HTTPBackendConfig
 	stop        bool
 	flush       bool
+	useArtifact bool
 }
 
 type HTTPBackendConfig struct {
@@ -191,6 +192,7 @@ func (l *HTTPBackend) newRequest() error {
 	// The API will keep rejecting the requests if we keep sending them, so just stop.
 	case http.StatusUnprocessableEntity:
 		l.stop = true
+		l.useArtifact = true
 		return errors.New("no more space available for logs - stopping")
 
 	// The token issued for the agent expired.
@@ -211,18 +213,9 @@ func (l *HTTPBackend) newRequest() error {
 	}
 }
 
-func (l *HTTPBackend) Close() error {
-
+func (l *HTTPBackend) CloseWithOptions(options CloseOptions) error {
 	/*
-	 * If we have already stopped pushing logs
-	 * due to no more space available, we just proceed.
-	 */
-	if l.stop {
-		return l.fileBackend.Close()
-	}
-
-	/*
-	 * If not, we try to flush all the remaining logs.
+	 * Try to flush all the remaining logs.
 	 * We wait for them to be flushed for a period of time (60s).
 	 * If they are not yet completely flushed after that period of time, we give up.
 	 */
@@ -243,10 +236,21 @@ func (l *HTTPBackend) Close() error {
 		},
 	})
 
+	/*
+	* If logs exceeded the current limit, upload them as a job artifact.
+	 */
+	if l.useArtifact && options.OnTrimmedLogs != nil {
+		options.OnTrimmedLogs(l.fileBackend.path)
+	}
+
 	if err != nil {
 		log.Errorf("Could not push all logs to %s - giving up", l.config.URL)
 	}
 
 	l.stop = true
 	return l.fileBackend.Close()
+}
+
+func (l *HTTPBackend) Close() error {
+	return l.CloseWithOptions(CloseOptions{})
 }

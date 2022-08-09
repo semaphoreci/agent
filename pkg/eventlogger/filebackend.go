@@ -48,6 +48,10 @@ func (l *FileBackend) Write(event interface{}) error {
 }
 
 func (l *FileBackend) Close() error {
+	return l.CloseWithOptions(CloseOptions{})
+}
+
+func (l *FileBackend) CloseWithOptions(options CloseOptions) error {
 	err := l.file.Close()
 	if err != nil {
 		log.Errorf("Error closing file %s: %v\n", l.file.Name(), err)

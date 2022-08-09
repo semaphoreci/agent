@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
@@ -330,13 +331,32 @@ func (job *Job) teardownWithCallbacks(result string, callbackRetryAttempts int) 
 func (job *Job) teardownWithNoCallbacks(result string) error {
 	job.Logger.LogJobFinished(result)
 
-	err := job.Logger.Close()
+	// The job already finished, but executor is still open.
+	// We use the open executor to upload the job logs as an artifact,
+	// in case it has been trimmed during streaming.
+	err := job.Logger.CloseWithOptions(eventlogger.CloseOptions{
+		OnTrimmedLogs: job.uploadLogsAsArtifact,
+	})
+
 	if err != nil {
 		log.Errorf("Error closing logger: %+v", err)
 	}
 
 	log.Info("Job teardown finished")
 	return nil
+}
+
+func (job *Job) uploadLogsAsArtifact(filePath string) {
+	log.Infof("Uploading job logs as artifact...")
+
+	cmd := []string{"artifact", "push", "job", filePath, "-d", "logs.json"}
+	exitCode := job.Executor.RunCommand(strings.Join(cmd, " "), true, "")
+	if exitCode != 0 {
+		log.Errorf("Error uploading job logs as job artifact")
+		return
+	}
+
+	log.Info("Successfully uploaded job logs as a job artifact.")
 }
 
 func (job *Job) Stop() {

@@ -26,6 +26,10 @@ func (l *InMemoryBackend) Close() error {
 	return nil
 }
 
+func (l *InMemoryBackend) CloseWithOptions(options CloseOptions) error {
+	return nil
+}
+
 func (l *InMemoryBackend) SimplifiedEvents(includeOutput bool) ([]string, error) {
 	return SimplifyLogEvents(l.Events, includeOutput)
 }
