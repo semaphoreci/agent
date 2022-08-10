@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -349,21 +350,29 @@ func (job *Job) teardownWithNoCallbacks(result string) error {
 	return nil
 }
 
-func (job *Job) uploadLogsAsArtifact(filePath string) {
+func (job *Job) uploadLogsAsArtifact() {
 	if !job.UploadTrimmedLogs {
 		log.Infof("Logs were trimmed, but agent is not configured to upload them as artifact - skipping.")
 		return
 	}
 
 	log.Infof("Uploading job logs as artifact...")
-	cmd := []string{"artifact", "push", "job", filePath, "-d", "agent/job_logs.json"}
-	exitCode := job.Executor.RunCommand(strings.Join(cmd, " "), true, "")
-	if exitCode != 0 {
-		log.Errorf("Error uploading job logs as job artifact")
+	file, err := job.Logger.GeneratePlainTextFile()
+	if err != nil {
+		log.Errorf("Error converting '%s' to plain text: %v", file, err)
 		return
 	}
 
-	log.Info("Successfully uploaded job logs as a job artifact.")
+	defer os.Remove(file)
+
+	cmd := []string{"artifact", "push", "job", file, "-d", "agent/job_logs.txt"}
+	exitCode := job.Executor.RunCommand(strings.Join(cmd, " "), true, "")
+	if exitCode != 0 {
+		log.Errorf("Error uploading job logs as artifact")
+		return
+	}
+
+	log.Info("Successfully uploaded job logs as artifact.")
 }
 
 func (job *Job) Stop() {

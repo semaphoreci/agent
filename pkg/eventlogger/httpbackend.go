@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"os"
@@ -71,6 +72,10 @@ func (l *HTTPBackend) Open() error {
 
 func (l *HTTPBackend) Write(event interface{}) error {
 	return l.fileBackend.Write(event)
+}
+
+func (l *HTTPBackend) Read(startFrom, maxLines int, writer io.Writer) (int, error) {
+	return l.fileBackend.Read(startFrom, maxLines, writer)
 }
 
 func (l *HTTPBackend) push() {
@@ -145,7 +150,7 @@ func (l *HTTPBackend) delay() time.Duration {
 
 func (l *HTTPBackend) newRequest() error {
 	buffer := bytes.NewBuffer([]byte{})
-	nextStartFrom, err := l.fileBackend.Stream(l.startFrom, l.config.LinesPerRequest, buffer)
+	nextStartFrom, err := l.fileBackend.Read(l.startFrom, l.config.LinesPerRequest, buffer)
 	if err != nil {
 		return err
 	}
@@ -240,7 +245,7 @@ func (l *HTTPBackend) CloseWithOptions(options CloseOptions) error {
 	* If logs exceeded the current limit, upload them as a job artifact.
 	 */
 	if l.useArtifact && options.OnTrimmedLogs != nil {
-		options.OnTrimmedLogs(l.fileBackend.path)
+		options.OnTrimmedLogs()
 	}
 
 	if err != nil {

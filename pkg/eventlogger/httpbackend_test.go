@@ -1,8 +1,6 @@
 package eventlogger
 
 import (
-	"io/ioutil"
-	"strings"
 	"testing"
 	"time"
 
@@ -228,23 +226,12 @@ func Test__ExecutesCallbackOnTrimmedLogs(t *testing.T) {
 	// to go over the max size of 30 events.
 	generateLogEvents(t, 1000, httpBackend)
 
-	var allLogs []byte
-	_ = httpBackend.CloseWithOptions(CloseOptions{OnTrimmedLogs: func(s string) {
-		logs, err := ioutil.ReadFile(s)
-		assert.Nil(t, err)
-		allLogs = logs
+	callbackExecuted := false
+	_ = httpBackend.CloseWithOptions(CloseOptions{OnTrimmedLogs: func() {
+		callbackExecuted = true
 	}})
 
-	eventsFromFile := testsupport.FilterEmpty(strings.Split(string(allLogs), "\n"))
-	eventObjectsFromStream, _ := TransformToObjects(mockServer.GetLogs())
-	simplifiedEventsFromStream, _ := SimplifyLogEvents(eventObjectsFromStream, true)
-	eventObjectsFromFile, _ := TransformToObjects(eventsFromFile)
-	simplifiedEventsFromFile, _ := SimplifyLogEvents(eventObjectsFromFile, true)
-
-	// logs were not fully streamed, but callback executed
-	assert.NotContains(t, simplifiedEventsFromStream, "job_finished: passed")
-	assert.Contains(t, simplifiedEventsFromFile, "job_finished: passed")
-
+	assert.True(t, callbackExecuted)
 	mockServer.Close()
 }
 
@@ -291,7 +278,7 @@ func Test__TokenIsRefreshed(t *testing.T) {
 	mockServer.Close()
 }
 
-func generateLogEvents(t *testing.T, outputEventsCount int, backend *HTTPBackend) {
+func generateLogEvents(t *testing.T, outputEventsCount int, backend Backend) {
 	timestamp := int(time.Now().Unix())
 
 	assert.Nil(t, backend.Write(&JobStartedEvent{Timestamp: timestamp, Event: "job_started"}))
