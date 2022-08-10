@@ -109,12 +109,14 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	_ = pflag.String(config.Token, "", "Registration token")
 	_ = pflag.Bool(config.NoHTTPS, false, "Use http for communication")
 	_ = pflag.String(config.ShutdownHookPath, "", "Shutdown hook path")
+	_ = pflag.String(config.PreJobHookPath, "", "Pre-job hook path")
 	_ = pflag.Bool(config.DisconnectAfterJob, false, "Disconnect after job")
 	_ = pflag.Int(config.DisconnectAfterIdleTimeout, 0, "Disconnect after idle timeout, in seconds")
 	_ = pflag.StringSlice(config.EnvVars, []string{}, "Export environment variables in jobs")
 	_ = pflag.StringSlice(config.Files, []string{}, "Inject files into container, when using docker compose executor")
 	_ = pflag.Bool(config.FailOnMissingFiles, false, "Fail job if files specified using --files are missing")
 	_ = pflag.Bool(config.UploadTrimmedLogs, false, "If logs reach the log size limit, upload them as a job artifact")
+	_ = pflag.Bool(config.FailOnPreJobHookError, false, "Fail job if pre-job hook fails")
 
 	pflag.Parse()
 
@@ -164,12 +166,14 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		CallbackRetryLimit:         60,
 		Scheme:                     scheme,
 		ShutdownHookPath:           viper.GetString(config.ShutdownHookPath),
+		PreJobHookPath:             viper.GetString(config.PreJobHookPath),
 		DisconnectAfterJob:         viper.GetBool(config.DisconnectAfterJob),
 		DisconnectAfterIdleSeconds: viper.GetInt(config.DisconnectAfterIdleTimeout),
 		EnvVars:                    hostEnvVars,
 		FileInjections:             fileInjections,
 		FailOnMissingFiles:         viper.GetBool(config.FailOnMissingFiles),
 		UploadTrimmedLogs:          viper.GetBool(config.UploadTrimmedLogs),
+		FailOnPreJobHookError:      viper.GetBool(config.FailOnPreJobHookError),
 		AgentVersion:               VERSION,
 		ExitOnShutdown:             true,
 	}

@@ -19,12 +19,15 @@ func AssertSimplifiedJobLogs(t *testing.T, actual, expected []string) {
 		actualLine := actual[actualIndex]
 		expectedLine := expected[expectedIndex]
 
-		if expectedLine == "*** OUTPUT ***" {
+		if expectedLine == "*** OUTPUT ***" || expectedLine == "*** IGNORE LINES UNTIL EXIT CODE ***" {
 			if strings.HasPrefix(actualLine, "Exit Code: ") {
 				expectedIndex++
 			} else {
 				actualIndex++
 			}
+		} else if expectedLine == "*** IGNORE SINGLE LINE ***" {
+			actualIndex++
+			expectedIndex++
 		} else {
 			if !assert.Equal(t, actualLine, expectedLine) {
 				break

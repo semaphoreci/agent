@@ -8,12 +8,14 @@ const (
 	Token                      = "token"
 	NoHTTPS                    = "no-https"
 	ShutdownHookPath           = "shutdown-hook-path"
+	PreJobHookPath             = "pre-job-hook-path"
 	DisconnectAfterJob         = "disconnect-after-job"
 	DisconnectAfterIdleTimeout = "disconnect-after-idle-timeout"
 	EnvVars                    = "env-vars"
 	Files                      = "files"
 	FailOnMissingFiles         = "fail-on-missing-files"
 	UploadTrimmedLogs          = "upload-trimmed-logs"
+	FailOnPreJobHookError      = "fail-on-pre-job-hook-error"
 )
 
 var ValidConfigKeys = []string{
@@ -22,12 +24,14 @@ var ValidConfigKeys = []string{
 	Token,
 	NoHTTPS,
 	ShutdownHookPath,
+	PreJobHookPath,
 	DisconnectAfterJob,
 	DisconnectAfterIdleTimeout,
 	EnvVars,
 	Files,
 	FailOnMissingFiles,
 	UploadTrimmedLogs,
+	FailOnPreJobHookError,
 }
 
 type HostEnvVar struct {
