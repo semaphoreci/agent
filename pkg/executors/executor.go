@@ -11,8 +11,16 @@ type Executor interface {
 	ExportEnvVars([]api.EnvVar, []config.HostEnvVar) int
 	InjectFiles([]api.File) int
 	RunCommand(string, bool, string) int
+	RunCommandWithOptions(options CommandOptions) int
 	Stop() int
 	Cleanup() int
+}
+
+type CommandOptions struct {
+	Command string
+	Silent  bool
+	Alias   string
+	Warning string
 }
 
 const ExecutorTypeShell = "shell"

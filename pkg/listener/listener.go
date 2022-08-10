@@ -29,11 +29,13 @@ type Config struct {
 	Token                      string
 	Scheme                     string
 	ShutdownHookPath           string
+	PreJobHookPath             string
 	DisconnectAfterJob         bool
 	DisconnectAfterIdleSeconds int
 	EnvVars                    []config.HostEnvVar
 	FileInjections             []config.FileInjection
 	FailOnMissingFiles         bool
+	FailOnPreJobHookError      bool
 	ExitOnShutdown             bool
 	AgentVersion               string
 }

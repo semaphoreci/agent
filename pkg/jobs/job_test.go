@@ -3,13 +3,17 @@ package jobs
 import (
 	"encoding/base64"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	testsupport "github.com/semaphoreci/agent/test/support"
 	"github.com/stretchr/testify/assert"
@@ -950,4 +954,203 @@ func Test__BashSetPipefail(t *testing.T) {
 
 		"job_finished: failed",
 	})
+}
+
+func Test__UsePreJobHook(t *testing.T) {
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		EnvVars: []api.EnvVar{},
+		Commands: []api.Command{
+			{Directive: testsupport.Output("hello")},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+		},
+	}
+
+	job, err := NewJobWithOptions(&JobOptions{Request: request, Client: http.DefaultClient, Logger: testLogger})
+	assert.Nil(t, err)
+
+	hook, _ := testsupport.TempFileWithExtension()
+	_ = ioutil.WriteFile(hook, []byte(testsupport.Output("hello from pre-job hook")), 0777)
+
+	job.RunWithOptions(RunOptions{
+		EnvVars:               []config.HostEnvVar{},
+		FileInjections:        []config.FileInjection{},
+		PreJobHookPath:        hook,
+		OnJobFinished:         nil,
+		CallbackRetryAttempts: 1,
+	})
+
+	assert.True(t, job.Finished)
+
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	testsupport.AssertSimplifiedJobLogs(t, simplifiedEvents, []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		"directive: Running the pre-job hook configured in the agent",
+		"*** IGNORE SINGLE LINE ***", // we are using a temp file, it's hard to assert its path, just ignore it
+		"Warning: The agent is configured to proceed with the job even if the pre-job hook fails.\n",
+		"hello from pre-job hook",
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", testsupport.Output("hello")),
+		"hello",
+		"Exit Code: 0",
+
+		"directive: Exporting environment variables",
+		"Exporting SEMAPHORE_JOB_RESULT\n",
+		"Exit Code: 0",
+
+		"job_finished: passed",
+	})
+
+	os.Remove(hook)
+}
+
+func Test__PreJobHookHasAccessToEnvVars(t *testing.T) {
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		EnvVars: []api.EnvVar{
+			{Name: "A", Value: base64.StdEncoding.EncodeToString([]byte("VALUE_A"))},
+			{Name: "B", Value: base64.StdEncoding.EncodeToString([]byte("VALUE_B"))},
+		},
+		Commands: []api.Command{
+			{Directive: testsupport.Output("hello")},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+		},
+	}
+
+	job, err := NewJobWithOptions(&JobOptions{Request: request, Client: http.DefaultClient, Logger: testLogger})
+	assert.Nil(t, err)
+
+	hook, _ := testsupport.TempFileWithExtension()
+	hookContent := []string{
+		testsupport.EchoEnvVar("A"),
+		testsupport.Output(" - "),
+		testsupport.EchoEnvVar("B"),
+	}
+
+	_ = ioutil.WriteFile(hook, []byte(strings.Join(hookContent, "\n")), 0777)
+	job.RunWithOptions(RunOptions{
+		EnvVars:               []config.HostEnvVar{},
+		FileInjections:        []config.FileInjection{},
+		PreJobHookPath:        hook,
+		OnJobFinished:         nil,
+		CallbackRetryAttempts: 1,
+	})
+
+	assert.True(t, job.Finished)
+
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	testsupport.AssertSimplifiedJobLogs(t, simplifiedEvents, []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exporting A\n",
+		"Exporting B\n",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		"directive: Running the pre-job hook configured in the agent",
+		"*** IGNORE SINGLE LINE ***", // we are using a temp file, it's hard to assert its path, just ignore it
+		"Warning: The agent is configured to proceed with the job even if the pre-job hook fails.\n",
+		"VALUE_A - VALUE_B",
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", testsupport.Output("hello")),
+		"hello",
+		"Exit Code: 0",
+
+		"directive: Exporting environment variables",
+		"Exporting SEMAPHORE_JOB_RESULT\n",
+		"Exit Code: 0",
+
+		"job_finished: passed",
+	})
+
+	os.Remove(hook)
+}
+
+func Test__UsePreJobHookAndFailOnError(t *testing.T) {
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		EnvVars: []api.EnvVar{},
+		Commands: []api.Command{
+			{Directive: testsupport.Output("hello")},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+		},
+	}
+
+	job, err := NewJobWithOptions(&JobOptions{Request: request, Client: http.DefaultClient, Logger: testLogger})
+	assert.Nil(t, err)
+
+	hook, _ := testsupport.TempFileWithExtension()
+	_ = ioutil.WriteFile(hook, []byte("badcommand"), 0777)
+
+	job.RunWithOptions(RunOptions{
+		EnvVars:               []config.HostEnvVar{},
+		FileInjections:        []config.FileInjection{},
+		PreJobHookPath:        hook,
+		FailOnPreJobHookError: true,
+		OnJobFinished:         nil,
+		CallbackRetryAttempts: 1,
+	})
+
+	assert.True(t, job.Finished)
+
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	assert.Nil(t, err)
+
+	testsupport.AssertSimplifiedJobLogs(t, simplifiedEvents, []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		"directive: Running the pre-job hook configured in the agent",
+		"*** IGNORE SINGLE LINE ***", // we are using a temp file, it's hard to assert its path, just ignore it
+		"Warning: The agent is configured to fail the job if the pre-job hook fails.\n",
+		"*** IGNORE LINES UNTIL EXIT CODE ***", // also hard to assert the actual error message, just ignore it
+		fmt.Sprintf("Exit Code: %d", testsupport.UnknownCommandExitCode()),
+
+		"directive: Exporting environment variables",
+		"Exporting SEMAPHORE_JOB_RESULT\n",
+		"Exit Code: 0",
+
+		"job_finished: failed",
+	})
+
+	os.Remove(hook)
 }

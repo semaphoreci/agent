@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"runtime"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
@@ -117,14 +118,43 @@ func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOpti
 type RunOptions struct {
 	EnvVars               []config.HostEnvVar
 	FileInjections        []config.FileInjection
+	PreJobHookPath        string
+	FailOnPreJobHookError bool
 	OnJobFinished         func(selfhostedapi.JobResult)
 	CallbackRetryAttempts int
+}
+
+func (o *RunOptions) GetPreJobHookWarning() string {
+	if o.PreJobHookPath == "" {
+		return ""
+	}
+
+	if o.FailOnPreJobHookError {
+		return `The agent is configured to fail the job if the pre-job hook fails.`
+	}
+
+	return `The agent is configured to proceed with the job even if the pre-job hook fails.`
+}
+
+func (o *RunOptions) GetPreJobHookCommand() string {
+
+	/*
+	 * If we are dealing with PowerShell, we make sure to just call the script directly,
+	 * without creating a new powershell process. If we did, people would need to set
+	 * $ErrorActionPreference to "STOP" in order for errors to propagate properly.
+	 */
+	if runtime.GOOS == "windows" {
+		return o.PreJobHookPath
+	}
+
+	return fmt.Sprintf("bash %s", o.PreJobHookPath)
 }
 
 func (job *Job) Run() {
 	job.RunWithOptions(RunOptions{
 		EnvVars:               []config.HostEnvVar{},
 		FileInjections:        []config.FileInjection{},
+		PreJobHookPath:        "",
 		OnJobFinished:         nil,
 		CallbackRetryAttempts: 60,
 	})
@@ -145,7 +175,7 @@ func (job *Job) RunWithOptions(options RunOptions) {
 	}
 
 	if executorRunning {
-		result = job.RunRegularCommands(options.EnvVars)
+		result = job.RunRegularCommands(options)
 		log.Debug("Exporting job result")
 
 		if result != JobStopped {
@@ -186,8 +216,8 @@ func (job *Job) PrepareEnvironment() int {
 	return 0
 }
 
-func (job *Job) RunRegularCommands(hostEnvVars []config.HostEnvVar) string {
-	exitCode := job.Executor.ExportEnvVars(job.Request.EnvVars, hostEnvVars)
+func (job *Job) RunRegularCommands(options RunOptions) string {
+	exitCode := job.Executor.ExportEnvVars(job.Request.EnvVars, options.EnvVars)
 	if exitCode != 0 {
 		log.Error("Failed to export env vars")
 
@@ -198,6 +228,11 @@ func (job *Job) RunRegularCommands(hostEnvVars []config.HostEnvVar) string {
 	if exitCode != 0 {
 		log.Error("Failed to inject files")
 
+		return JobFailed
+	}
+
+	shouldProceed := job.runPreJobHook(options)
+	if !shouldProceed {
 		return JobFailed
 	}
 
@@ -217,6 +252,34 @@ func (job *Job) RunRegularCommands(hostEnvVars []config.HostEnvVar) string {
 		log.Info("Regular commands finished with failure")
 		return JobFailed
 	}
+}
+
+func (job *Job) runPreJobHook(options RunOptions) bool {
+	if options.PreJobHookPath == "" {
+		log.Info("No pre-job hook configured.")
+		return true
+	}
+
+	log.Infof("Executing pre-job hook at %s", options.PreJobHookPath)
+	exitCode := job.Executor.RunCommandWithOptions(executors.CommandOptions{
+		Command: options.GetPreJobHookCommand(),
+		Silent:  false,
+		Alias:   "Running the pre-job hook configured in the agent",
+		Warning: options.GetPreJobHookWarning(),
+	})
+
+	if exitCode == 0 {
+		log.Info("Pre-job hook executed successfully.")
+		return true
+	}
+
+	if options.FailOnPreJobHookError {
+		log.Error("Error executing pre-job hook - failing job")
+		return false
+	}
+
+	log.Error("Error executing pre-job hook - proceeding")
+	return true
 }
 
 func (job *Job) handleEpilogues(result string) {

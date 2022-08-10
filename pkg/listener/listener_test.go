@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -138,7 +137,7 @@ func Test__ShutdownHookIsExecuted(t *testing.T) {
 	hubMockServer.Init()
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
-	hook, err := tempFileWithExtension()
+	hook, err := testsupport.TempFileWithExtension()
 	assert.Nil(t, err)
 
 	/*
@@ -191,7 +190,7 @@ func Test__ShutdownHookCanSeeShutdownReason(t *testing.T) {
 	hubMockServer.Init()
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
-	hook, err := tempFileWithExtension()
+	hook, err := testsupport.TempFileWithExtension()
 	assert.Nil(t, err)
 
 	/*
@@ -755,22 +754,4 @@ func Test__ReportsFailedToConstructJob(t *testing.T) {
 	listener.Stop()
 	hubMockServer.Close()
 	loghubMockServer.Close()
-}
-
-func tempFileWithExtension() (string, error) {
-	tmpFile, err := ioutil.TempFile("", fmt.Sprintf("file*.%s", extension()))
-	if err != nil {
-		return "", err
-	}
-
-	tmpFile.Close()
-	return tmpFile.Name(), nil
-}
-
-func extension() string {
-	if runtime.GOOS == "windows" {
-		return "ps1"
-	}
-
-	return "sh"
 }
