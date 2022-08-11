@@ -52,7 +52,7 @@ func findAWSAccountID(envs []string) (string, error) {
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Errorf("Error finding AWS account ID: %v", err)
+		log.Errorf("Error finding AWS account ID: Output: %s - Error: %v", string(output), err)
 		return "", err
 	}
 
@@ -62,9 +62,8 @@ func findAWSAccountID(envs []string) (string, error) {
 func findAWSCLIVersion() (*versions.Version, error) {
 	cmd := exec.Command("bash", "-c", `aws --version 2>&1 | awk -F'[/ ]' '{print $2}'`)
 	output, err := cmd.CombinedOutput()
-
 	if err != nil {
-		log.Errorf("Error determing AWS CLI version: %v", err)
+		log.Errorf("Error determing AWS CLI version: Output '%s' - Error: %v", string(output), err)
 		return nil, err
 	}
 
