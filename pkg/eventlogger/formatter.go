@@ -13,27 +13,21 @@ type CustomFormatter struct {
 }
 
 func (f *CustomFormatter) Format(entry *log.Entry) ([]byte, error) {
-	extraFields := f.formatFields(entry.Data)
-	if extraFields == "" {
-		log := fmt.Sprintf(
-			"%s agent_name=%s : %s\n",
-			entry.Time.UTC().Format(time.StampMilli),
-			f.AgentName,
-			entry.Message,
-		)
+	parts := []string{}
+	parts = append(parts, entry.Time.UTC().Format(time.StampMilli))
 
-		return []byte(log), nil
+	if f.AgentName != "" {
+		parts = append(parts, fmt.Sprintf("agent_name=%s", f.AgentName))
 	}
 
-	log := fmt.Sprintf(
-		"%s agent_name=%s %s : %s\n",
-		entry.Time.UTC().Format(time.StampMilli),
-		f.AgentName,
-		extraFields,
-		entry.Message,
-	)
+	extraFields := f.formatFields(entry.Data)
+	if extraFields != "" {
+		parts = append(parts, extraFields)
+	}
 
-	return []byte(log), nil
+	parts = append(parts, ":")
+	parts = append(parts, fmt.Sprintf("%s\n", entry.Message))
+	return []byte(strings.Join(parts, " ")), nil
 }
 
 func (f *CustomFormatter) formatFields(fields log.Fields) string {
