@@ -17,7 +17,7 @@ func (f *CustomFormatter) Format(entry *log.Entry) ([]byte, error) {
 	parts = append(parts, entry.Time.UTC().Format(time.StampMilli))
 
 	if f.AgentName != "" {
-		parts = append(parts, fmt.Sprintf("agent_name=%s", f.AgentName))
+		parts = append(parts, f.AgentName)
 	}
 
 	extraFields := f.formatFields(entry.Data)
