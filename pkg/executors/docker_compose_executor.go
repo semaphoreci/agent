@@ -393,7 +393,7 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForECR(envVars []api.EnvVa
 		envs = append(envs, fmt.Sprintf("%s=%s", name, string(value)))
 	}
 
-	loginCmd, err := aws.GetECRLoginCmd()
+	loginCmd, err := aws.GetECRLoginCmd(envs)
 	if err != nil {
 		e.Logger.LogCommandOutput(fmt.Sprintf("Failed to determine docker login command: %v\n", err))
 		return 1

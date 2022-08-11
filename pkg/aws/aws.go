@@ -9,7 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func GetECRLoginCmd() (string, error) {
+func GetECRLoginCmd(envs []string) (string, error) {
 	version, _ := versions.NewVersion("1.17.10")
 	awsCLIVersion, err := findAWSCLIVersion()
 	if err != nil {
@@ -24,14 +24,14 @@ func GetECRLoginCmd() (string, error) {
 		 * See: https://docs.aws.amazon.com/cli/latest/reference/ecr/get-login-password.html.
 		 * The only difference here is that we need to determine the AWS account id for ourselves.
 		 */
-		accountId, err := findAWSAccountId()
+		accountID, err := findAWSAccountID(envs)
 		if err != nil {
 			return "", err
 		}
 
 		return fmt.Sprintf(
 			`aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin %s.dkr.ecr.$AWS_REGION.amazonaws.com`,
-			accountId,
+			accountID,
 		), nil
 	}
 
@@ -45,10 +45,12 @@ func GetECRLoginCmd() (string, error) {
 	return `$(aws ecr get-login --no-include-email --region $AWS_REGION)`, nil
 }
 
-func findAWSAccountId() (string, error) {
+// TODO: check envs for AWS_ACCOUNT_ID or AWS_DEFAULT_ACCOUNT_ID
+func findAWSAccountID(envs []string) (string, error) {
 	cmd := exec.Command("bash", "-c", "aws sts get-caller-identity --query Account --output text")
-	output, err := cmd.CombinedOutput()
+	cmd.Env = envs
 
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Errorf("Error finding AWS account ID: %v", err)
 		return "", err
