@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"math/rand"
@@ -157,7 +158,16 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		log.Fatalf("Error parsing --files: %v", err)
 	}
 
+	agentName, err := randomName()
+	if err != nil {
+		log.Fatalf("Error generating name for agent: %v", err)
+	}
+
+	formatter := eventlogger.CustomFormatter{AgentName: agentName}
+	log.SetFormatter(&formatter)
+
 	config := listener.Config{
+		AgentName:                  agentName,
 		Endpoint:                   viper.GetString(config.Endpoint),
 		Token:                      viper.GetString(config.Token),
 		RegisterRetryLimit:         30,
@@ -311,4 +321,18 @@ func RunSingleJob(httpClient *http.Client) {
 func panicHandler(output string) {
 	log.Printf("Child agent process panicked:\n\n%s\n", output)
 	os.Exit(1)
+}
+
+// base64 gives you 4 chars every 3 bytes, we want 20 chars, so 15 bytes
+const nameLength = 15
+
+func randomName() (string, error) {
+	buffer := make([]byte, nameLength)
+	_, err := rand.Read(buffer)
+
+	if err != nil {
+		return "", err
+	}
+
+	return base64.URLEncoding.EncodeToString(buffer), nil
 }
