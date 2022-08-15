@@ -10,13 +10,21 @@ import (
 )
 
 func GetECRLoginCmd(envs []string) (string, error) {
-	version, _ := versions.NewVersion("1.17.10")
+	awsV2, _ := versions.NewVersion("2.0.0")
 	awsCLIVersion, err := findAWSCLIVersion()
 	if err != nil {
 		return "", err
 	}
 
-	if awsCLIVersion.GreaterThanOrEqual(version) {
+	if awsCLIVersion.GreaterThanOrEqual(awsV2) {
+		accountID := getAWSAccountIDFromVars(envs)
+		if accountID == "" {
+			accountID, err = getAWSAccountIDFromSTS(envs)
+			if err != nil {
+				return "", err
+			}
+		}
+
 		/*
 		 * get-login-password was added in v1.17.10 and is the only command available in v2.
 		 * That command doesn't generate a docker login command by itself, only the password.
@@ -24,11 +32,6 @@ func GetECRLoginCmd(envs []string) (string, error) {
 		 * See: https://docs.aws.amazon.com/cli/latest/reference/ecr/get-login-password.html.
 		 * The only difference here is that we need to determine the AWS account id for ourselves.
 		 */
-		accountID, err := findAWSAccountID(envs)
-		if err != nil {
-			return "", err
-		}
-
 		return fmt.Sprintf(
 			`aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin %s.dkr.ecr.$AWS_REGION.amazonaws.com`,
 			accountID,
@@ -42,11 +45,30 @@ func GetECRLoginCmd(envs []string) (string, error) {
 	 * This is to make sure we execute the output of that command as well.
 	 * See: https://docs.aws.amazon.com/cli/latest/reference/ecr/get-login.html
 	 */
-	return `$(aws ecr get-login --no-include-email --region $AWS_REGION)`, nil
+	accountID := getAWSAccountIDFromVars(envs)
+	if accountID == "" {
+		return `$(aws ecr get-login --no-include-email --region $AWS_REGION)`, nil
+	}
+
+	/*
+	 * If AWS_ACCOUNT_ID is specified in the env vars, the registry is
+	 * possibly living in a separate AWS account, so we set --registry-ids.
+	 */
+	return fmt.Sprintf(`$(aws ecr get-login --no-include-email --region $AWS_REGION --registry-ids %s)`, accountID), nil
 }
 
-// TODO: check envs for AWS_ACCOUNT_ID or AWS_DEFAULT_ACCOUNT_ID
-func findAWSAccountID(envs []string) (string, error) {
+func getAWSAccountIDFromVars(envs []string) string {
+	for _, envVar := range envs {
+		parts := strings.Split(envVar, "=")
+		if parts[0] == "AWS_ACCOUNT_ID" {
+			return parts[1]
+		}
+	}
+
+	return ""
+}
+
+func getAWSAccountIDFromSTS(envs []string) (string, error) {
 	cmd := exec.Command("bash", "-c", "aws sts get-caller-identity --query Account --output text")
 	cmd.Env = envs
 
