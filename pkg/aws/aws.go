@@ -17,9 +17,9 @@ func GetECRLoginCmd(envs []string) (string, error) {
 	}
 
 	if awsCLIVersion.GreaterThanOrEqual(awsV2) {
-		accountID := getAWSAccountIDFromVars(envs)
+		accountID := getAccountIDFromVars(envs)
 		if accountID == "" {
-			accountID, err = getAWSAccountIDFromSTS(envs)
+			accountID, err = getAccountIDFromSTS(envs)
 			if err != nil {
 				return "", err
 			}
@@ -45,7 +45,7 @@ func GetECRLoginCmd(envs []string) (string, error) {
 	 * This is to make sure we execute the output of that command as well.
 	 * See: https://docs.aws.amazon.com/cli/latest/reference/ecr/get-login.html
 	 */
-	accountID := getAWSAccountIDFromVars(envs)
+	accountID := getAccountIDFromVars(envs)
 	if accountID == "" {
 		return `$(aws ecr get-login --no-include-email --region $AWS_REGION)`, nil
 	}
@@ -57,7 +57,7 @@ func GetECRLoginCmd(envs []string) (string, error) {
 	return fmt.Sprintf(`$(aws ecr get-login --no-include-email --region $AWS_REGION --registry-ids %s)`, accountID), nil
 }
 
-func getAWSAccountIDFromVars(envs []string) string {
+func getAccountIDFromVars(envs []string) string {
 	for _, envVar := range envs {
 		parts := strings.Split(envVar, "=")
 		if parts[0] == "AWS_ACCOUNT_ID" {
@@ -68,7 +68,7 @@ func getAWSAccountIDFromVars(envs []string) string {
 	return ""
 }
 
-func getAWSAccountIDFromSTS(envs []string) (string, error) {
+func getAccountIDFromSTS(envs []string) (string, error) {
 	cmd := exec.Command("bash", "-c", "aws sts get-caller-identity --query Account --output text")
 	cmd.Env = envs
 
