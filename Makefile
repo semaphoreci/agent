@@ -62,6 +62,14 @@ empty.ubuntu.machine:
 empty.ubuntu.machine.build:
 	docker build -f Dockerfile.empty_ubuntu -t empty-ubuntu-self-hosted-agent .
 
+ecr.test.build:
+	docker build -f Dockerfile.ecr -t agent-testing .
+
+ecr.test.push:
+	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(AWS_ECR_REGISTRY)
+	docker tag agent-testing:latest $(AWS_ECR_REGISTRY)/agent-testing:latest
+	docker push $(AWS_ECR_REGISTRY)/agent-testing:latest
+
 #
 # Docker Release
 #

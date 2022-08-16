@@ -5,6 +5,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.4.2
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
+	github.com/hashicorp/go-version v1.6.0
 	github.com/mitchellh/panicwrap v1.0.0
 	github.com/renderedtext/go-watchman v0.0.0-20220524201126-042727917d44
 	github.com/sirupsen/logrus v1.9.0

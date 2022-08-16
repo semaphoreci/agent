@@ -79,7 +79,7 @@ blocks:
     dependencies: []
     task:
       secrets:
-        - name: aws-ecr-payground
+        - name: aws-ecr-agent-e2e-secret
         - name: gcr-test-secret
         - name: docker-registry-test-secret
       env_vars:
@@ -129,7 +129,10 @@ blocks:
                 - container_options
                 - dockerhub_private_image
                 - docker_registry_private_image
-                # - docker_private_image_ecr
+                - docker_private_image_ecr
+                - docker_private_image_ecr_v2
+                - docker_private_image_ecr_account_id
+                - docker_private_image_ecr_account_id_v2
                 - docker_private_image_gcr
                 - dockerhub_private_image_bad_creds
                 - docker_registry_private_image_bad_creds
