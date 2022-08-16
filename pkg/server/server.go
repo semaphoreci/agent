@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -129,7 +130,7 @@ func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{"message": "%s"}`, "Failed to open logfile")
 	}
 
-	_, err = logFile.Stream(startFromLine, w)
+	_, err = logFile.Stream(startFromLine, math.MaxInt32, w)
 	if err != nil {
 		log.Errorf("Error while streaming logs: %v", err)
 
@@ -211,6 +212,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 		ExposeKvmDevice: true,
 		FileInjections:  []config.FileInjection{},
 		SelfHosted:      false,
+		RefreshTokenFn:  nil,
 	})
 
 	if err != nil {

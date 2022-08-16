@@ -14,6 +14,7 @@ import (
 
 	watchman "github.com/renderedtext/go-watchman"
 	api "github.com/semaphoreci/agent/pkg/api"
+	aws "github.com/semaphoreci/agent/pkg/aws"
 	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	shell "github.com/semaphoreci/agent/pkg/shell"
@@ -392,7 +393,11 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForECR(envVars []api.EnvVa
 		envs = append(envs, fmt.Sprintf("%s=%s", name, string(value)))
 	}
 
-	loginCmd := `$(aws ecr get-login --no-include-email --region $AWS_REGION)`
+	loginCmd, err := aws.GetECRLoginCmd(envs)
+	if err != nil {
+		e.Logger.LogCommandOutput(fmt.Sprintf("Failed to determine docker login command: %v\n", err))
+		return 1
+	}
 
 	e.Logger.LogCommandOutput(loginCmd + "\n")
 
@@ -695,30 +700,43 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 }
 
 func (e *DockerComposeExecutor) RunCommand(command string, silent bool, alias string) int {
-	directive := command
-	if alias != "" {
-		directive = alias
+	return e.RunCommandWithOptions(CommandOptions{
+		Command: command,
+		Silent:  silent,
+		Alias:   alias,
+		Warning: "",
+	})
+}
+
+func (e *DockerComposeExecutor) RunCommandWithOptions(options CommandOptions) int {
+	directive := options.Command
+	if options.Alias != "" {
+		directive = options.Alias
 	}
 
-	p := e.Shell.NewProcess(command)
+	p := e.Shell.NewProcess(options.Command)
 
-	if !silent {
+	if !options.Silent {
 		e.Logger.LogCommandStarted(directive)
 
-		if alias != "" {
-			e.Logger.LogCommandOutput(fmt.Sprintf("Running: %s\n", command))
+		if options.Alias != "" {
+			e.Logger.LogCommandOutput(fmt.Sprintf("Running: %s\n", options.Command))
+		}
+
+		if options.Warning != "" {
+			e.Logger.LogCommandOutput(fmt.Sprintf("Warning: %s\n", options.Warning))
 		}
 	}
 
 	p.OnStdout(func(output string) {
-		if !silent {
+		if !options.Silent {
 			e.Logger.LogCommandOutput(output)
 		}
 	})
 
 	p.Run()
 
-	if !silent {
+	if !options.Silent {
 		e.Logger.LogCommandFinished(directive, p.ExitCode, p.StartedAt, p.FinishedAt)
 	}
 

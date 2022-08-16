@@ -3,9 +3,9 @@ package listener
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"os"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +29,7 @@ func Test__Register(t *testing.T) {
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -69,6 +70,7 @@ func Test__RegisterRequestIsRetried(t *testing.T) {
 	hubMockServer.RejectRegisterAttempts(3)
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -110,6 +112,7 @@ func Test__RegistrationFails(t *testing.T) {
 	hubMockServer.RejectRegisterAttempts(10)
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -138,7 +141,7 @@ func Test__ShutdownHookIsExecuted(t *testing.T) {
 	hubMockServer.Init()
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
-	hook, err := tempFileWithExtension()
+	hook, err := testsupport.TempFileWithExtension()
 	assert.Nil(t, err)
 
 	/*
@@ -152,6 +155,7 @@ func Test__ShutdownHookIsExecuted(t *testing.T) {
 	assert.Nil(t, err)
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -191,7 +195,7 @@ func Test__ShutdownHookCanSeeShutdownReason(t *testing.T) {
 	hubMockServer.Init()
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
-	hook, err := tempFileWithExtension()
+	hook, err := testsupport.TempFileWithExtension()
 	assert.Nil(t, err)
 
 	/*
@@ -203,6 +207,7 @@ func Test__ShutdownHookCanSeeShutdownReason(t *testing.T) {
 	assert.Nil(t, err)
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -247,6 +252,7 @@ func Test__ShutdownAfterJobFinished(t *testing.T) {
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		DisconnectAfterJob: true,
 		Endpoint:           hubMockServer.Host(),
@@ -295,8 +301,9 @@ func Test__ShutdownAfterIdleTimeout(t *testing.T) {
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
 	config := Config{
+		AgentName:                  fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:             false,
-		DisconnectAfterIdleTimeout: 15 * time.Second,
+		DisconnectAfterIdleSeconds: 15,
 		Endpoint:                   hubMockServer.Host(),
 		Token:                      "token",
 		RegisterRetryLimit:         5,
@@ -326,6 +333,7 @@ func Test__ShutdownFromUpstreamWhileWaiting(t *testing.T) {
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -360,6 +368,7 @@ func Test__ShutdownFromUpstreamWhileRunningJob(t *testing.T) {
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -410,6 +419,7 @@ func Test__HostEnvVarsAreExposedToJob(t *testing.T) {
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -533,6 +543,82 @@ func Test__HostEnvVarsAreExposedToJob(t *testing.T) {
 	loghubMockServer.Close()
 }
 
+func Test__LogTokenIsRefreshed(t *testing.T) {
+	testsupport.SetupTestLogs()
+
+	loghubMockServer := testsupport.NewLoghubMockServer()
+	loghubMockServer.Init()
+
+	hubMockServer := testsupport.NewHubMockServer()
+	hubMockServer.Init()
+	hubMockServer.UseLogsURL(loghubMockServer.URL())
+
+	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
+		ExitOnShutdown:     false,
+		Endpoint:           hubMockServer.Host(),
+		Token:              "token",
+		RegisterRetryLimit: 5,
+		Scheme:             "http",
+		EnvVars:            []config.HostEnvVar{},
+		FileInjections:     []config.FileInjection{},
+		AgentVersion:       "0.0.7",
+	}
+
+	listener, err := Start(http.DefaultClient, config)
+	assert.Nil(t, err)
+	assert.False(t, hubMockServer.TokenIsRefreshed)
+
+	hubMockServer.AssignJob(&api.JobRequest{
+		ID: "Test__LogTokenIsRefreshed",
+		Commands: []api.Command{
+			{Directive: testsupport.Output("hello")},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+			URL:    loghubMockServer.URL(),
+			Token:  testsupport.ExpiredLogToken,
+		},
+	})
+
+	assert.Nil(t, hubMockServer.WaitUntilFinishedJob(12, 5*time.Second))
+	assert.True(t, hubMockServer.TokenIsRefreshed)
+
+	eventObjects, err := eventlogger.TransformToObjects(loghubMockServer.GetLogs())
+	assert.Nil(t, err)
+
+	simplifiedEvents, err := eventlogger.SimplifyLogEvents(eventObjects, true)
+	assert.Nil(t, err)
+
+	assert.Equal(t, []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", testsupport.Output("hello")),
+		"hello",
+		"Exit Code: 0",
+
+		"directive: Exporting environment variables",
+		"Exporting SEMAPHORE_JOB_RESULT\n",
+		"Exit Code: 0",
+
+		"job_finished: passed",
+	}, simplifiedEvents)
+
+	listener.Stop()
+	hubMockServer.Close()
+	loghubMockServer.Close()
+}
+
 func Test__GetJobIsRetried(t *testing.T) {
 	testsupport.SetupTestLogs()
 
@@ -545,6 +631,7 @@ func Test__GetJobIsRetried(t *testing.T) {
 	hubMockServer.RejectGetJobAttempts(5)
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		DisconnectAfterJob: true,
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
@@ -576,7 +663,7 @@ func Test__GetJobIsRetried(t *testing.T) {
 		},
 	})
 
-	assert.Nil(t, hubMockServer.WaitUntilDisconnected(10, 2*time.Second))
+	assert.Nil(t, hubMockServer.WaitUntilDisconnected(20, 2*time.Second))
 	assert.Equal(t, listener.JobProcessor.ShutdownReason, ShutdownReasonJobFinished)
 	assert.Equal(t, hubMockServer.GetJobAttempts, 5)
 
@@ -596,7 +683,8 @@ func Test__ReportsFailedToFetchJob(t *testing.T) {
 	hubMockServer.RejectGetJobAttempts(100)
 
 	config := Config{
-		DisconnectAfterJob: true,
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
+		DisconnectAfterJob: false,
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -625,7 +713,8 @@ func Test__ReportsFailedToFetchJob(t *testing.T) {
 		},
 	})
 
-	assert.Nil(t, hubMockServer.WaitUntilFailure(string(selfhostedapi.AgentStateFailedToFetchJob), 12, 5*time.Second))
+	assert.Nil(t, hubMockServer.WaitUntilFinishedJob(12, 5*time.Second))
+	assert.Equal(t, selfhostedapi.JobResult(selfhostedapi.JobResultFailed), hubMockServer.GetLastJobResult())
 
 	listener.Stop()
 	hubMockServer.Close()
@@ -643,7 +732,8 @@ func Test__ReportsFailedToConstructJob(t *testing.T) {
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
 	config := Config{
-		DisconnectAfterJob: true,
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
+		DisconnectAfterJob: false,
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -673,121 +763,10 @@ func Test__ReportsFailedToConstructJob(t *testing.T) {
 		},
 	})
 
-	assert.Nil(t, hubMockServer.WaitUntilFailure(string(selfhostedapi.AgentStateFailedToConstructJob), 10, 2*time.Second))
+	assert.Nil(t, hubMockServer.WaitUntilFinishedJob(10, 2*time.Second))
+	assert.Equal(t, selfhostedapi.JobResult(selfhostedapi.JobResultFailed), hubMockServer.GetLastJobResult())
 
 	listener.Stop()
 	hubMockServer.Close()
 	loghubMockServer.Close()
-}
-
-func Test__ReportsFailedToSendFinishedCallback(t *testing.T) {
-	testsupport.SetupTestLogs()
-
-	loghubMockServer := testsupport.NewLoghubMockServer()
-	loghubMockServer.Init()
-
-	hubMockServer := testsupport.NewHubMockServer()
-	hubMockServer.Init()
-	hubMockServer.UseLogsURL(loghubMockServer.URL())
-
-	config := Config{
-		ExitOnShutdown:     false,
-		Endpoint:           hubMockServer.Host(),
-		Token:              "token",
-		RegisterRetryLimit: 5,
-		GetJobRetryLimit:   2,
-		CallbackRetryLimit: 5,
-		Scheme:             "http",
-		EnvVars:            []config.HostEnvVar{},
-		FileInjections:     []config.FileInjection{},
-		AgentVersion:       "0.0.7",
-	}
-
-	listener, err := Start(http.DefaultClient, config)
-	assert.Nil(t, err)
-
-	hubMockServer.AssignJob(&api.JobRequest{
-		ID:       "Test__ReportsFailedToSendFinishedCallback",
-		Commands: []api.Command{},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/500",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
-		Logger: api.Logger{
-			Method: eventlogger.LoggerMethodPush,
-			URL:    loghubMockServer.URL(),
-			Token:  "doesnotmatter",
-		},
-	})
-
-	assert.Nil(t, hubMockServer.WaitUntilFailure(string(selfhostedapi.AgentStateFailedToSendCallback), 10, 2*time.Second))
-
-	listener.Stop()
-	hubMockServer.Close()
-	loghubMockServer.Close()
-}
-
-func Test__ReportsFailedToSendTeardownFinishedCallback(t *testing.T) {
-	testsupport.SetupTestLogs()
-
-	loghubMockServer := testsupport.NewLoghubMockServer()
-	loghubMockServer.Init()
-
-	hubMockServer := testsupport.NewHubMockServer()
-	hubMockServer.Init()
-	hubMockServer.UseLogsURL(loghubMockServer.URL())
-
-	config := Config{
-		ExitOnShutdown:     false,
-		Endpoint:           hubMockServer.Host(),
-		Token:              "token",
-		RegisterRetryLimit: 5,
-		GetJobRetryLimit:   2,
-		CallbackRetryLimit: 5,
-		Scheme:             "http",
-		EnvVars:            []config.HostEnvVar{},
-		FileInjections:     []config.FileInjection{},
-		AgentVersion:       "0.0.7",
-	}
-
-	listener, err := Start(http.DefaultClient, config)
-	assert.Nil(t, err)
-
-	hubMockServer.AssignJob(&api.JobRequest{
-		ID:       "Test__ReportsFailedToSendTeardownFinishedCallback",
-		Commands: []api.Command{},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/500",
-		},
-		Logger: api.Logger{
-			Method: eventlogger.LoggerMethodPush,
-			URL:    loghubMockServer.URL(),
-			Token:  "doesnotmatter",
-		},
-	})
-
-	assert.Nil(t, hubMockServer.WaitUntilFailure(string(selfhostedapi.AgentStateFailedToSendCallback), 10, 2*time.Second))
-
-	listener.Stop()
-	hubMockServer.Close()
-	loghubMockServer.Close()
-}
-
-func tempFileWithExtension() (string, error) {
-	tmpFile, err := ioutil.TempFile("", fmt.Sprintf("file*.%s", extension()))
-	if err != nil {
-		return "", err
-	}
-
-	tmpFile.Close()
-	return tmpFile.Name(), nil
-}
-
-func extension() string {
-	if runtime.GOOS == "windows" {
-		return "ps1"
-	}
-
-	return "sh"
 }

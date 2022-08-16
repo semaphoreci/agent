@@ -3,6 +3,8 @@
 
 require_relative '../../e2e'
 
+aws_account_id = ENV['AWS_ACCOUNT_ID']
+
 start_job <<-JSON
   {
     "id": "#{$JOB_ID}",
@@ -26,6 +28,11 @@ start_job <<-JSON
             { "name": "AWS_SECRET_ACCESS_KEY", "value": "#{Base64.strict_encode64(ENV['AWS_SECRET_ACCESS_KEY'])}" }
           ]
         }
+      ],
+      "host_setup_commands": [
+        { "directive": "curl 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o 'awscliv2.zip'" },
+        { "directive": "unzip awscliv2.zip" },
+        { "directive": "./aws/install" }
       ]
     },
 
@@ -54,8 +61,7 @@ assert_job_log <<-LOG
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"Setting up image pull credentials"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Setting up credentials for ECR\\n"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"$(aws ecr get-login --no-include-email --region $AWS_REGION)\\n"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"WARNING! Using --password via the CLI is insecure. Use --password-stdin.\\n"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin #{aws_account_id}.dkr.ecr.$AWS_REGION.amazonaws.com\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"WARNING! Your password will be stored unencrypted in /root/.docker/config.json.\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Configure a credential helper to remove this warning. See\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"https://docs.docker.com/engine/reference/commandline/login/#credentials-store\\n"}

@@ -28,12 +28,17 @@ type HubMockServer struct {
 	Disconnected              bool
 	RunningJob                bool
 	FinishedJob               bool
-	FailureStatus             string
+	TokenIsRefreshed          bool
+	JobResult                 selfhostedapi.JobResult
+	LastState                 selfhostedapi.AgentState
+	LastStateChange           *time.Time
 }
 
 func NewHubMockServer() *HubMockServer {
+	now := time.Now()
 	return &HubMockServer{
 		RegisterAttempts: -1,
+		LastStateChange:  &now,
 	}
 }
 
@@ -50,10 +55,29 @@ func (m *HubMockServer) Init() {
 			w.WriteHeader(200)
 		case strings.Contains(path, "/jobs/"):
 			m.handleGetJobRequest(w, r)
+		case strings.Contains(path, "/refresh"):
+			m.handleRefreshRequest(w, r)
 		}
 	}))
 
 	m.Server = mockServer
+}
+
+func (m *HubMockServer) handleRefreshRequest(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("[HUB MOCK] Received refresh request.\n")
+	refreshTokenResponse := &selfhostedapi.RefreshTokenResponse{
+		Token: "new-token",
+	}
+
+	response, err := json.Marshal(refreshTokenResponse)
+	if err != nil {
+		fmt.Printf("[HUB MOCK] Error marshaling refresh response: %v\n", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	m.TokenIsRefreshed = true
+	_, _ = w.Write(response)
 }
 
 func (m *HubMockServer) handleRegisterRequest(w http.ResponseWriter, r *http.Request) {
@@ -93,6 +117,7 @@ func (m *HubMockServer) handleRegisterRequest(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	m.LastState = selfhostedapi.AgentActionWaitForJobs
 	_, _ = w.Write(response)
 }
 
@@ -122,6 +147,15 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 	case selfhostedapi.AgentStateWaitingForJobs:
 		if m.ShouldShutdown {
 			syncResponse.Action = selfhostedapi.AgentActionShutdown
+			syncResponse.ShutdownReason = selfhostedapi.ShutdownReasonRequested
+		}
+
+		if m.RegisterRequest.IdleTimeout > 0 {
+			lastStateChange := int(time.Since(*m.LastStateChange) / time.Second)
+			if lastStateChange > m.RegisterRequest.IdleTimeout {
+				syncResponse.Action = selfhostedapi.AgentActionShutdown
+				syncResponse.ShutdownReason = selfhostedapi.ShutdownReasonIdle
+			}
 		}
 
 		if m.JobRequest != nil {
@@ -140,18 +174,17 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 	case selfhostedapi.AgentStateFinishedJob:
 		m.JobRequest = nil
 		m.FinishedJob = true
+		m.JobResult = request.JobResult
 
 		if m.ShouldShutdown {
 			syncResponse.Action = selfhostedapi.AgentActionShutdown
+			syncResponse.ShutdownReason = selfhostedapi.ShutdownReasonRequested
+		} else if m.RegisterRequest.SingleJob {
+			syncResponse.Action = selfhostedapi.AgentActionShutdown
+			syncResponse.ShutdownReason = selfhostedapi.ShutdownReasonJobFinished
 		} else {
 			syncResponse.Action = selfhostedapi.AgentActionWaitForJobs
 		}
-
-	case selfhostedapi.AgentStateFailedToFetchJob,
-		selfhostedapi.AgentStateFailedToConstructJob,
-		selfhostedapi.AgentStateFailedToSendCallback:
-		m.FailureStatus = string(request.State)
-		syncResponse.Action = selfhostedapi.AgentActionWaitForJobs
 	}
 
 	response, err := json.Marshal(syncResponse)
@@ -161,6 +194,12 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	if request.State != m.LastState {
+		now := time.Now()
+		m.LastStateChange = &now
+	}
+
+	m.LastState = request.State
 	_, _ = w.Write(response)
 }
 
@@ -211,54 +250,68 @@ func (m *HubMockServer) Host() string {
 	return m.Server.Listener.Addr().String()
 }
 
-func (m *HubMockServer) WaitUntilFailure(status string, attempts int, wait time.Duration) error {
-	return retry.RetryWithConstantWait("WaitUntilRunningJob", attempts, wait, func() error {
-		if m.FailureStatus != status {
-			return fmt.Errorf("still haven't failed with %s", status)
-		}
-
-		return nil
-	})
-}
-
 func (m *HubMockServer) WaitUntilRunningJob(attempts int, wait time.Duration) error {
-	return retry.RetryWithConstantWait("WaitUntilRunningJob", attempts, wait, func() error {
-		if !m.RunningJob {
-			return fmt.Errorf("still not running job")
-		}
+	return retry.RetryWithConstantWait(retry.RetryOptions{
+		Task:                 "WaitUntilRunningJob",
+		MaxAttempts:          attempts,
+		DelayBetweenAttempts: wait,
+		Fn: func() error {
+			if !m.RunningJob {
+				return fmt.Errorf("still not running job")
+			}
 
-		return nil
+			return nil
+		},
 	})
 }
 
 func (m *HubMockServer) WaitUntilFinishedJob(attempts int, wait time.Duration) error {
-	return retry.RetryWithConstantWait("WaitUntilFinishedJob", attempts, wait, func() error {
-		if !m.FinishedJob {
-			return fmt.Errorf("still not finished job")
-		}
+	return retry.RetryWithConstantWait(retry.RetryOptions{
+		Task:                 "WaitUntilFinishedJob",
+		MaxAttempts:          attempts,
+		DelayBetweenAttempts: wait,
+		Fn: func() error {
+			if !m.FinishedJob {
+				return fmt.Errorf("still not finished job")
+			}
 
-		return nil
+			return nil
+		},
 	})
 }
 
 func (m *HubMockServer) WaitUntilDisconnected(attempts int, wait time.Duration) error {
-	return retry.RetryWithConstantWait("WaitUntilDisconnected", attempts, wait, func() error {
-		if !m.Disconnected {
-			return fmt.Errorf("still not disconnected")
-		}
+	return retry.RetryWithConstantWait(retry.RetryOptions{
+		Task:                 "WaitUntilDisconnected",
+		MaxAttempts:          attempts,
+		DelayBetweenAttempts: wait,
+		Fn: func() error {
+			if !m.Disconnected {
+				return fmt.Errorf("still not disconnected")
+			}
 
-		return nil
+			return nil
+		},
 	})
 }
 
 func (m *HubMockServer) WaitUntilRegistered() error {
-	return retry.RetryWithConstantWait("WaitUntilRegistered", 10, time.Second, func() error {
-		if m.RegisterRequest == nil {
-			return fmt.Errorf("still not registered")
-		}
+	return retry.RetryWithConstantWait(retry.RetryOptions{
+		Task:                 "WaitUntilRegistered",
+		MaxAttempts:          10,
+		DelayBetweenAttempts: time.Second,
+		Fn: func() error {
+			if m.RegisterRequest == nil {
+				return fmt.Errorf("still not registered")
+			}
 
-		return nil
+			return nil
+		},
 	})
+}
+
+func (m *HubMockServer) GetLastJobResult() selfhostedapi.JobResult {
+	return m.JobResult
 }
 
 func (m *HubMockServer) GetRegisterRequest() *selfhostedapi.RegisterRequest {

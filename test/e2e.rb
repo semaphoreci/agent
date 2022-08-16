@@ -77,10 +77,6 @@ def teardown_callback_url
   $strategy.teardown_callback_url
 end
 
-def wait_for_job_to_get_stuck
-  $strategy.wait_for_job_to_get_stuck
-end
-
 def shutdown_agent
   $strategy.shutdown_agent
 end

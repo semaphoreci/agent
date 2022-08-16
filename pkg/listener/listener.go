@@ -1,8 +1,6 @@
 package listener
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"net/http"
 	"os"
@@ -29,13 +27,16 @@ type Config struct {
 	Token                      string
 	Scheme                     string
 	ShutdownHookPath           string
+	PreJobHookPath             string
 	DisconnectAfterJob         bool
-	DisconnectAfterIdleTimeout time.Duration
+	DisconnectAfterIdleSeconds int
 	EnvVars                    []config.HostEnvVar
 	FileInjections             []config.FileInjection
 	FailOnMissingFiles         bool
+	FailOnPreJobHookError      bool
 	ExitOnShutdown             bool
 	AgentVersion               string
+	AgentName                  string
 }
 
 func Start(httpClient *http.Client, config Config) (*Listener, error) {
@@ -48,7 +49,7 @@ func Start(httpClient *http.Client, config Config) (*Listener, error) {
 
 	log.Info("Starting Agent")
 	log.Info("Registering Agent")
-	err := listener.Register()
+	err := listener.Register(config.AgentName)
 	if err != nil {
 		return listener, err
 	}
@@ -85,44 +86,31 @@ func (l *Listener) DisplayHelloMessage() {
 	fmt.Println("                                      ")
 }
 
-// base64 gives you 4 chars every 3 bytes, we want 20 chars, so 15 bytes
-const nameLength = 15
-
-func (l *Listener) Name() (string, error) {
-	buffer := make([]byte, nameLength)
-	_, err := rand.Read(buffer)
-
-	if err != nil {
-		return "", err
-	}
-
-	return base64.URLEncoding.EncodeToString(buffer), nil
-}
-
-func (l *Listener) Register() error {
-	name, err := l.Name()
-	if err != nil {
-		log.Errorf("Error generating name for agent: %v", err)
-		return err
-	}
-
+func (l *Listener) Register(name string) error {
 	req := &selfhostedapi.RegisterRequest{
-		Version:  l.Config.AgentVersion,
-		Name:     name,
-		PID:      os.Getpid(),
-		OS:       osinfo.Name(),
-		Arch:     osinfo.Arch(),
-		Hostname: osinfo.Hostname(),
+		Version:     l.Config.AgentVersion,
+		Name:        name,
+		PID:         os.Getpid(),
+		OS:          osinfo.Name(),
+		Arch:        osinfo.Arch(),
+		Hostname:    osinfo.Hostname(),
+		SingleJob:   l.Config.DisconnectAfterJob,
+		IdleTimeout: l.Config.DisconnectAfterIdleSeconds,
 	}
 
-	err = retry.RetryWithConstantWait("Register", l.Config.RegisterRetryLimit, time.Second, func() error {
-		resp, err := l.Client.Register(req)
-		if err != nil {
-			return err
-		}
+	err := retry.RetryWithConstantWait(retry.RetryOptions{
+		Task:                 "Register",
+		MaxAttempts:          l.Config.RegisterRetryLimit,
+		DelayBetweenAttempts: time.Second,
+		Fn: func() error {
+			resp, err := l.Client.Register(req)
+			if err != nil {
+				return err
+			}
 
-		l.Client.SetAccessToken(resp.Token)
-		return nil
+			l.Client.SetAccessToken(resp.Token)
+			return nil
+		},
 	})
 
 	if err != nil {

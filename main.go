@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"math/rand"
@@ -109,11 +110,13 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	_ = pflag.String(config.Token, "", "Registration token")
 	_ = pflag.Bool(config.NoHTTPS, false, "Use http for communication")
 	_ = pflag.String(config.ShutdownHookPath, "", "Shutdown hook path")
+	_ = pflag.String(config.PreJobHookPath, "", "Pre-job hook path")
 	_ = pflag.Bool(config.DisconnectAfterJob, false, "Disconnect after job")
 	_ = pflag.Int(config.DisconnectAfterIdleTimeout, 0, "Disconnect after idle timeout, in seconds")
 	_ = pflag.StringSlice(config.EnvVars, []string{}, "Export environment variables in jobs")
 	_ = pflag.StringSlice(config.Files, []string{}, "Inject files into container, when using docker compose executor")
 	_ = pflag.Bool(config.FailOnMissingFiles, false, "Fail job if files specified using --files are missing")
+	_ = pflag.Bool(config.FailOnPreJobHookError, false, "Fail job if pre-job hook fails")
 
 	pflag.Parse()
 
@@ -155,8 +158,16 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		log.Fatalf("Error parsing --files: %v", err)
 	}
 
-	idleTimeout := viper.GetInt(config.DisconnectAfterIdleTimeout)
+	agentName, err := randomName()
+	if err != nil {
+		log.Fatalf("Error generating name for agent: %v", err)
+	}
+
+	formatter := eventlogger.CustomFormatter{AgentName: agentName}
+	log.SetFormatter(&formatter)
+
 	config := listener.Config{
+		AgentName:                  agentName,
 		Endpoint:                   viper.GetString(config.Endpoint),
 		Token:                      viper.GetString(config.Token),
 		RegisterRetryLimit:         30,
@@ -164,11 +175,13 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		CallbackRetryLimit:         60,
 		Scheme:                     scheme,
 		ShutdownHookPath:           viper.GetString(config.ShutdownHookPath),
+		PreJobHookPath:             viper.GetString(config.PreJobHookPath),
 		DisconnectAfterJob:         viper.GetBool(config.DisconnectAfterJob),
-		DisconnectAfterIdleTimeout: time.Duration(int64(idleTimeout) * int64(time.Second)),
+		DisconnectAfterIdleSeconds: viper.GetInt(config.DisconnectAfterIdleTimeout),
 		EnvVars:                    hostEnvVars,
 		FileInjections:             fileInjections,
 		FailOnMissingFiles:         viper.GetBool(config.FailOnMissingFiles),
+		FailOnPreJobHookError:      viper.GetBool(config.FailOnPreJobHookError),
 		AgentVersion:               VERSION,
 		ExitOnShutdown:             true,
 	}
@@ -308,4 +321,18 @@ func RunSingleJob(httpClient *http.Client) {
 func panicHandler(output string) {
 	log.Printf("Child agent process panicked:\n\n%s\n", output)
 	os.Exit(1)
+}
+
+// base64 gives you 4 chars every 3 bytes, we want 20 chars, so 15 bytes
+const nameLength = 15
+
+func randomName() (string, error) {
+	buffer := make([]byte, nameLength)
+	_, err := rand.Read(buffer)
+
+	if err != nil {
+		return "", err
+	}
+
+	return base64.URLEncoding.EncodeToString(buffer), nil
 }

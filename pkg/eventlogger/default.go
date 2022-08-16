@@ -13,12 +13,12 @@ import (
 const LoggerMethodPull = "pull"
 const LoggerMethodPush = "push"
 
-func CreateLogger(request *api.JobRequest) (*Logger, error) {
+func CreateLogger(request *api.JobRequest, refreshTokenFn func() (string, error)) (*Logger, error) {
 	switch request.Logger.Method {
 	case LoggerMethodPull:
 		return Default()
 	case LoggerMethodPush:
-		return DefaultHTTP(request)
+		return DefaultHTTP(request, refreshTokenFn)
 	default:
 		return nil, fmt.Errorf("unknown logger type")
 	}
@@ -44,12 +44,23 @@ func Default() (*Logger, error) {
 	return logger, nil
 }
 
-func DefaultHTTP(request *api.JobRequest) (*Logger, error) {
+func DefaultHTTP(request *api.JobRequest, refreshTokenFn func() (string, error)) (*Logger, error) {
 	if request.Logger.URL == "" {
 		return nil, errors.New("HTTP logger needs a URL")
 	}
 
-	backend, err := NewHTTPBackend(request.Logger.URL, request.Logger.Token)
+	if refreshTokenFn == nil {
+		return nil, errors.New("HTTP logger needs a refresh token function")
+	}
+
+	backend, err := NewHTTPBackend(HTTPBackendConfig{
+		URL:                   request.Logger.URL,
+		Token:                 request.Logger.Token,
+		RefreshTokenFn:        refreshTokenFn,
+		LinesPerRequest:       MaxLinesPerRequest,
+		FlushTimeoutInSeconds: DefaultFlushTimeoutInSeconds,
+	})
+
 	if err != nil {
 		return nil, err
 	}

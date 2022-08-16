@@ -31,22 +31,18 @@ func (l *FileBackend) Open() error {
 }
 
 func (l *FileBackend) Write(event interface{}) error {
-	jsonString, err := json.Marshal(event)
+	jsonBytes, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	jsonBytes = append(jsonBytes, '\n')
+
+	_, err = l.file.Write(jsonBytes)
 	if err != nil {
 		return err
 	}
 
-	_, err = l.file.Write([]byte(jsonString))
-	if err != nil {
-		return err
-	}
-
-	_, err = l.file.Write([]byte("\n"))
-	if err != nil {
-		return err
-	}
-
-	log.Debugf("%s", jsonString)
+	log.Debugf("%s", jsonBytes)
 
 	return nil
 }
@@ -67,34 +63,43 @@ func (l *FileBackend) Close() error {
 	return nil
 }
 
-func (l *FileBackend) Stream(startLine int, writer io.Writer) (int, error) {
+func (l *FileBackend) Stream(startingLineNumber, maxLines int, writer io.Writer) (int, error) {
 	fd, err := os.OpenFile(l.path, os.O_RDONLY, os.ModePerm)
 	if err != nil {
-		return startLine, err
+		return startingLineNumber, err
 	}
 
 	reader := bufio.NewReader(fd)
-	lineIndex := 0
+	lineNumber := 0
+	linesStreamed := 0
 
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err != io.EOF {
 				_ = fd.Close()
-				return lineIndex, err
+				return lineNumber, err
 			}
 
 			break
 		}
 
-		if lineIndex < startLine {
-			lineIndex++
+		// If current line is before the starting line we are after, we just skip it.
+		if lineNumber < startingLineNumber {
+			lineNumber++
 			continue
-		} else {
-			lineIndex++
-			fmt.Fprintln(writer, line)
+		}
+
+		// Otherwise, we advance to the next line and stream the current line.
+		lineNumber++
+		fmt.Fprintln(writer, line)
+		linesStreamed++
+
+		// if we have streamed the number of lines we want, we stop.
+		if linesStreamed == maxLines {
+			break
 		}
 	}
 
-	return lineIndex, fd.Close()
+	return lineNumber, fd.Close()
 }

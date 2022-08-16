@@ -12,12 +12,14 @@ import (
 )
 
 type RegisterRequest struct {
-	Name     string `json:"name"`
-	Version  string `json:"version"`
-	PID      int    `json:"pid"`
-	OS       string `json:"os"`
-	Arch     string `json:"arch"`
-	Hostname string `json:"hostname"`
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	PID         int    `json:"pid"`
+	OS          string `json:"os"`
+	Arch        string `json:"arch"`
+	Hostname    string `json:"hostname"`
+	SingleJob   bool   `json:"single_job"`
+	IdleTimeout int    `json:"idle_timeout"`
 }
 
 type RegisterResponse struct {
