@@ -40,7 +40,7 @@ func Test__ShellExecutor__SSHJumpPointIsNotCreatedForWindows(t *testing.T) {
 	sshJumpPointPath := "/tmp/ssh_jump_point"
 	os.Remove(sshJumpPointPath)
 	_, _ = setupShellExecutor(t, false)
-	assert.FileExists(t, sshJumpPointPath)
+	assert.NoFileExists(t, sshJumpPointPath)
 	os.Remove(sshJumpPointPath)
 }
 
