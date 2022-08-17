@@ -21,15 +21,31 @@ var UnicodeOutput1 = `特定の伝説に拠る物語の由来については諸�
 var UnicodeOutput2 = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
 
 func Test__ShellExecutor__SSHJumpPointIsCreatedForHosted(t *testing.T) {
-	sshJumpPointPath := filepath.Join(os.TempDir(), "ssh_jump_point")
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
+	sshJumpPointPath := "/tmp/ssh_jump_point"
 	os.Remove(sshJumpPointPath)
 	_, _ = setupShellExecutor(t, false)
 	assert.FileExists(t, sshJumpPointPath)
 	os.Remove(sshJumpPointPath)
 }
 
+func Test__ShellExecutor__SSHJumpPointIsNotCreatedForWindows(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip()
+	}
+
+	sshJumpPointPath := "/tmp/ssh_jump_point"
+	os.Remove(sshJumpPointPath)
+	_, _ = setupShellExecutor(t, false)
+	assert.NoFileExists(t, sshJumpPointPath)
+	os.Remove(sshJumpPointPath)
+}
+
 func Test__ShellExecutor__SSHJumpPointIsNotCreatedForSelfHosted(t *testing.T) {
-	sshJumpPointPath := filepath.Join(os.TempDir(), "ssh_jump_point")
+	sshJumpPointPath := "/tmp/ssh_jump_point"
 	os.Remove(sshJumpPointPath)
 	_, _ = setupShellExecutor(t, true)
 	assert.NoFileExists(t, sshJumpPointPath)
