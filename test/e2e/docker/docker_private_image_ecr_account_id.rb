@@ -3,6 +3,8 @@
 
 require_relative '../../e2e'
 
+aws_account_id = ENV['AWS_ACCOUNT_ID']
+
 start_job <<-JSON
   {
     "id": "#{$JOB_ID}",
@@ -23,7 +25,8 @@ start_job <<-JSON
             { "name": "DOCKER_CREDENTIAL_TYPE", "value": "#{Base64.strict_encode64("AWS_ECR")}" },
             { "name": "AWS_REGION", "value": "#{Base64.strict_encode64(ENV['AWS_REGION'])}" },
             { "name": "AWS_ACCESS_KEY_ID", "value": "#{Base64.strict_encode64(ENV['AWS_ACCESS_KEY_ID'])}" },
-            { "name": "AWS_SECRET_ACCESS_KEY", "value": "#{Base64.strict_encode64(ENV['AWS_SECRET_ACCESS_KEY'])}" }
+            { "name": "AWS_SECRET_ACCESS_KEY", "value": "#{Base64.strict_encode64(ENV['AWS_SECRET_ACCESS_KEY'])}" },
+            { "name": "AWS_ACCOUNT_ID", "value": "#{Base64.strict_encode64(aws_account_id)}" }
           ]
         }
       ]
@@ -54,7 +57,7 @@ assert_job_log <<-LOG
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"Setting up image pull credentials"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Setting up credentials for ECR\\n"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"$(aws ecr get-login --no-include-email --region $AWS_REGION)\\n"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"$(aws ecr get-login --no-include-email --region $AWS_REGION --registry-ids #{aws_account_id})\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"WARNING! Using --password via the CLI is insecure. Use --password-stdin.\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"WARNING! Your password will be stored unencrypted in /root/.docker/config.json.\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Configure a credential helper to remove this warning. See\\n"}

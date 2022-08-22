@@ -14,6 +14,7 @@ import (
 
 	watchman "github.com/renderedtext/go-watchman"
 	api "github.com/semaphoreci/agent/pkg/api"
+	aws "github.com/semaphoreci/agent/pkg/aws"
 	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	shell "github.com/semaphoreci/agent/pkg/shell"
@@ -392,7 +393,11 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForECR(envVars []api.EnvVa
 		envs = append(envs, fmt.Sprintf("%s=%s", name, string(value)))
 	}
 
-	loginCmd := `$(aws ecr get-login --no-include-email --region $AWS_REGION)`
+	loginCmd, err := aws.GetECRLoginCmd(envs)
+	if err != nil {
+		e.Logger.LogCommandOutput(fmt.Sprintf("Failed to determine docker login command: %v\n", err))
+		return 1
+	}
 
 	e.Logger.LogCommandOutput(loginCmd + "\n")
 

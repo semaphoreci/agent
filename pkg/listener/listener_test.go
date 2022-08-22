@@ -3,6 +3,7 @@ package listener
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -28,6 +29,7 @@ func Test__Register(t *testing.T) {
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -68,6 +70,7 @@ func Test__RegisterRequestIsRetried(t *testing.T) {
 	hubMockServer.RejectRegisterAttempts(3)
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -109,6 +112,7 @@ func Test__RegistrationFails(t *testing.T) {
 	hubMockServer.RejectRegisterAttempts(10)
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -151,6 +155,7 @@ func Test__ShutdownHookIsExecuted(t *testing.T) {
 	assert.Nil(t, err)
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -202,6 +207,7 @@ func Test__ShutdownHookCanSeeShutdownReason(t *testing.T) {
 	assert.Nil(t, err)
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -246,6 +252,7 @@ func Test__ShutdownAfterJobFinished(t *testing.T) {
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		DisconnectAfterJob: true,
 		Endpoint:           hubMockServer.Host(),
@@ -294,6 +301,7 @@ func Test__ShutdownAfterIdleTimeout(t *testing.T) {
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
 	config := Config{
+		AgentName:                  fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:             false,
 		DisconnectAfterIdleSeconds: 15,
 		Endpoint:                   hubMockServer.Host(),
@@ -325,6 +333,7 @@ func Test__ShutdownFromUpstreamWhileWaiting(t *testing.T) {
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -359,6 +368,7 @@ func Test__ShutdownFromUpstreamWhileRunningJob(t *testing.T) {
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -409,6 +419,7 @@ func Test__HostEnvVarsAreExposedToJob(t *testing.T) {
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -543,6 +554,7 @@ func Test__LogTokenIsRefreshed(t *testing.T) {
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
 		Token:              "token",
@@ -619,6 +631,7 @@ func Test__GetJobIsRetried(t *testing.T) {
 	hubMockServer.RejectGetJobAttempts(5)
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		DisconnectAfterJob: true,
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
@@ -670,6 +683,7 @@ func Test__ReportsFailedToFetchJob(t *testing.T) {
 	hubMockServer.RejectGetJobAttempts(100)
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		DisconnectAfterJob: false,
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),
@@ -718,6 +732,7 @@ func Test__ReportsFailedToConstructJob(t *testing.T) {
 	hubMockServer.UseLogsURL(loghubMockServer.URL())
 
 	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
 		DisconnectAfterJob: false,
 		ExitOnShutdown:     false,
 		Endpoint:           hubMockServer.Host(),

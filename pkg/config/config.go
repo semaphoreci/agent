@@ -4,6 +4,7 @@ import "os"
 
 const (
 	ConfigFile                 = "config-file"
+	Name                       = "name"
 	Endpoint                   = "endpoint"
 	Token                      = "token"
 	NoHTTPS                    = "no-https"
@@ -34,6 +35,7 @@ var ValidUploadJobLogsCondition = []string{
 
 var ValidConfigKeys = []string{
 	ConfigFile,
+	Name,
 	Endpoint,
 	Token,
 	NoHTTPS,

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"math/rand"
@@ -105,6 +106,7 @@ func getLogFilePath() string {
 
 func RunListener(httpClient *http.Client, logfile io.Writer) {
 	configFile := pflag.String(config.ConfigFile, "", "Config file")
+	_ = pflag.String(config.Name, "", "Name to use for the agent. If not set, a default random one is used.")
 	_ = pflag.String(config.Endpoint, "", "Endpoint where agents are registered")
 	_ = pflag.String(config.Token, "", "Registration token")
 	_ = pflag.Bool(config.NoHTTPS, false, "Use http for communication")
@@ -158,7 +160,12 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		log.Fatalf("Error parsing --files: %v", err)
 	}
 
+	agentName := getAgentName()
+	formatter := eventlogger.CustomFormatter{AgentName: agentName}
+	log.SetFormatter(&formatter)
+
 	config := listener.Config{
+		AgentName:                  agentName,
 		Endpoint:                   viper.GetString(config.Endpoint),
 		Token:                      viper.GetString(config.Token),
 		RegisterRetryLimit:         30,
@@ -225,6 +232,25 @@ func validateConfiguration() {
 			config.ValidUploadJobLogsCondition,
 		)
 	}
+}
+
+func getAgentName() string {
+	agentName := viper.GetString(config.Name)
+	if agentName != "" {
+		if len(agentName) < 8 || len(agentName) > 64 {
+			log.Fatalf("The agent name should have between 8 and 64 characters. '%s' has %d.", agentName, len(agentName))
+		}
+
+		return agentName
+	}
+
+	log.Infof("Agent name was not assigned - using a random one.")
+	randomName, err := randomName()
+	if err != nil {
+		log.Fatalf("Error generating name for agent: %v", err)
+	}
+
+	return randomName
 }
 
 func ParseEnvVars() ([]config.HostEnvVar, error) {
@@ -323,4 +349,18 @@ func RunSingleJob(httpClient *http.Client) {
 func panicHandler(output string) {
 	log.Printf("Child agent process panicked:\n\n%s\n", output)
 	os.Exit(1)
+}
+
+// base64 gives you 4 chars every 3 bytes, we want 20 chars, so 15 bytes
+const nameLength = 15
+
+func randomName() (string, error) {
+	buffer := make([]byte, nameLength)
+	_, err := rand.Read(buffer)
+
+	if err != nil {
+		return "", err
+	}
+
+	return base64.URLEncoding.EncodeToString(buffer), nil
 }
