@@ -225,8 +225,8 @@ func validateConfiguration() {
 func getAgentName() string {
 	agentName := viper.GetString(config.Name)
 	if agentName != "" {
-		if len(agentName) > 64 {
-			log.Fatalf("The agent name can have up to 64 characters. '%s' has %d.", agentName, len(agentName))
+		if len(agentName) < 8 || len(agentName) > 64 {
+			log.Fatalf("The agent name should have between 8 and 64 characters. '%s' has %d.", agentName, len(agentName))
 		}
 
 		return agentName
