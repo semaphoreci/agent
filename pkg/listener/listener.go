@@ -35,7 +35,7 @@ type Config struct {
 	EnvVars                    []config.HostEnvVar
 	FileInjections             []config.FileInjection
 	FailOnMissingFiles         bool
-	UploadTrimmedLogs          bool
+	UploadJobLogs              string
 	FailOnPreJobHookError      bool
 	ExitOnShutdown             bool
 	AgentVersion               string

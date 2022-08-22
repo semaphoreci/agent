@@ -233,11 +233,8 @@ func (l *HTTPBackend) CloseWithOptions(options CloseOptions) error {
 		},
 	})
 
-	/*
-	* If logs exceeded the current limit, upload them as a job artifact.
-	 */
-	if l.useArtifact && options.OnTrimmedLogs != nil {
-		options.OnTrimmedLogs()
+	if options.OnClose != nil {
+		options.OnClose(l.useArtifact)
 	}
 
 	if err != nil {

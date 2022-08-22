@@ -11,7 +11,7 @@ type Backend interface {
 }
 
 type CloseOptions struct {
-	OnTrimmedLogs func()
+	OnClose func(bool)
 }
 
 var _ Backend = (*FileBackend)(nil)

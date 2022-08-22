@@ -34,7 +34,7 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		EnvVars:                 config.EnvVars,
 		FileInjections:          config.FileInjections,
 		FailOnMissingFiles:      config.FailOnMissingFiles,
-		UploadTrimmedLogs:       config.UploadTrimmedLogs,
+		UploadJobLogs:           config.UploadJobLogs,
 		FailOnPreJobHookError:   config.FailOnPreJobHookError,
 		ExitOnShutdown:          config.ExitOnShutdown,
 	}
@@ -64,7 +64,7 @@ type JobProcessor struct {
 	EnvVars                 []config.HostEnvVar
 	FileInjections          []config.FileInjection
 	FailOnMissingFiles      bool
-	UploadTrimmedLogs       bool
+	UploadJobLogs           string
 	FailOnPreJobHookError   bool
 	ExitOnShutdown          bool
 	ShutdownReason          ShutdownReason
@@ -159,7 +159,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 		FileInjections:     p.FileInjections,
 		FailOnMissingFiles: p.FailOnMissingFiles,
 		SelfHosted:         true,
-		UploadTrimmedLogs:  p.UploadTrimmedLogs,
+		UploadJobLogs:      p.UploadJobLogs,
 		RefreshTokenFn: func() (string, error) {
 			return p.APIClient.RefreshToken()
 		},

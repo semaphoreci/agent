@@ -31,10 +31,10 @@ type Job struct {
 
 	Executor executors.Executor
 
-	JobLogArchived    bool
-	Stopped           bool
-	Finished          bool
-	UploadTrimmedLogs bool
+	JobLogArchived bool
+	Stopped        bool
+	Finished       bool
+	UploadJobLogs  string
 }
 
 type JobOptions struct {
@@ -45,7 +45,7 @@ type JobOptions struct {
 	FileInjections     []config.FileInjection
 	FailOnMissingFiles bool
 	SelfHosted         bool
-	UploadTrimmedLogs  bool
+	UploadJobLogs      string
 	RefreshTokenFn     func() (string, error)
 }
 
@@ -75,11 +75,11 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 	}
 
 	job := &Job{
-		Client:            options.Client,
-		Request:           options.Request,
-		JobLogArchived:    false,
-		Stopped:           false,
-		UploadTrimmedLogs: options.UploadTrimmedLogs,
+		Client:         options.Client,
+		Request:        options.Request,
+		JobLogArchived: false,
+		Stopped:        false,
+		UploadJobLogs:  options.UploadJobLogs,
 	}
 
 	if options.Logger != nil {
@@ -402,7 +402,7 @@ func (job *Job) teardownWithNoCallbacks(result string) error {
 	// We use the open executor to upload the job logs as an artifact,
 	// in case it has been trimmed during streaming.
 	err := job.Logger.CloseWithOptions(eventlogger.CloseOptions{
-		OnTrimmedLogs: job.uploadLogsAsArtifact,
+		OnClose: job.uploadLogsAsArtifact,
 	})
 
 	if err != nil {
@@ -413,13 +413,18 @@ func (job *Job) teardownWithNoCallbacks(result string) error {
 	return nil
 }
 
-func (job *Job) uploadLogsAsArtifact() {
-	if !job.UploadTrimmedLogs {
-		log.Infof("Logs were trimmed, but agent is not configured to upload them as artifact - skipping.")
+func (job *Job) uploadLogsAsArtifact(trimmed bool) {
+	if job.UploadJobLogs == config.UploadJobLogsConditionNever {
+		log.Infof("upload-job-logs=never - not uploading job logs as job artifact.")
 		return
 	}
 
-	log.Infof("Uploading job logs as artifact...")
+	if job.UploadJobLogs == config.UploadJobLogsConditionWhenTrimmed && !trimmed {
+		log.Infof("upload-job-logs=when-trimmed - logs were not trimmed, not uploading job logs as job artifact.")
+		return
+	}
+
+	log.Infof("Uploading job logs as job artifact...")
 	file, err := job.Logger.GeneratePlainTextFile()
 	if err != nil {
 		log.Errorf("Error converting '%s' to plain text: %v", file, err)

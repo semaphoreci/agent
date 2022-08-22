@@ -206,7 +206,7 @@ func Test__FlushingGivesUpAfterTimeout(t *testing.T) {
 	mockServer.Close()
 }
 
-func Test__ExecutesCallbackOnTrimmedLogs(t *testing.T) {
+func Test__ExecutesOnCloseCallback(t *testing.T) {
 	mockServer := testsupport.NewLoghubMockServer()
 	mockServer.Init()
 	mockServer.SetMaxSizeForLogs(30)
@@ -227,7 +227,7 @@ func Test__ExecutesCallbackOnTrimmedLogs(t *testing.T) {
 	generateLogEvents(t, 1000, httpBackend)
 
 	callbackExecuted := false
-	_ = httpBackend.CloseWithOptions(CloseOptions{OnTrimmedLogs: func() {
+	_ = httpBackend.CloseWithOptions(CloseOptions{OnClose: func(trimmed bool) {
 		callbackExecuted = true
 	}})
 
