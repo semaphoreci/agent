@@ -106,6 +106,7 @@ func getLogFilePath() string {
 
 func RunListener(httpClient *http.Client, logfile io.Writer) {
 	configFile := pflag.String(config.ConfigFile, "", "Config file")
+	_ = pflag.String(config.Name, "", "Name to use for the agent. If not set, a default random one is used.")
 	_ = pflag.String(config.Endpoint, "", "Endpoint where agents are registered")
 	_ = pflag.String(config.Token, "", "Registration token")
 	_ = pflag.Bool(config.NoHTTPS, false, "Use http for communication")
@@ -158,11 +159,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		log.Fatalf("Error parsing --files: %v", err)
 	}
 
-	agentName, err := randomName()
-	if err != nil {
-		log.Fatalf("Error generating name for agent: %v", err)
-	}
-
+	agentName := getAgentName()
 	formatter := eventlogger.CustomFormatter{AgentName: agentName}
 	log.SetFormatter(&formatter)
 
@@ -223,6 +220,25 @@ func validateConfiguration() {
 			log.Fatalf("Unrecognized option '%s'. Exiting...", key)
 		}
 	}
+}
+
+func getAgentName() string {
+	agentName := viper.GetString(config.Name)
+	if agentName != "" {
+		if len(agentName) < 8 || len(agentName) > 64 {
+			log.Fatalf("The agent name should have between 8 and 64 characters. '%s' has %d.", agentName, len(agentName))
+		}
+
+		return agentName
+	}
+
+	log.Infof("Agent name was not assigned - using a random one.")
+	randomName, err := randomName()
+	if err != nil {
+		log.Fatalf("Error generating name for agent: %v", err)
+	}
+
+	return randomName
 }
 
 func ParseEnvVars() ([]config.HostEnvVar, error) {
