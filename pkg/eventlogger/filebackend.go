@@ -48,6 +48,10 @@ func (l *FileBackend) Write(event interface{}) error {
 }
 
 func (l *FileBackend) Close() error {
+	return l.CloseWithOptions(CloseOptions{})
+}
+
+func (l *FileBackend) CloseWithOptions(options CloseOptions) error {
 	err := l.file.Close()
 	if err != nil {
 		log.Errorf("Error closing file %s: %v\n", l.file.Name(), err)
@@ -63,7 +67,7 @@ func (l *FileBackend) Close() error {
 	return nil
 }
 
-func (l *FileBackend) Stream(startingLineNumber, maxLines int, writer io.Writer) (int, error) {
+func (l *FileBackend) Read(startingLineNumber, maxLines int, writer io.Writer) (int, error) {
 	fd, err := os.OpenFile(l.path, os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		return startingLineNumber, err

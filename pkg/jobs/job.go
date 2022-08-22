@@ -5,7 +5,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
@@ -32,6 +34,7 @@ type Job struct {
 	JobLogArchived bool
 	Stopped        bool
 	Finished       bool
+	UploadJobLogs  string
 }
 
 type JobOptions struct {
@@ -42,6 +45,7 @@ type JobOptions struct {
 	FileInjections     []config.FileInjection
 	FailOnMissingFiles bool
 	SelfHosted         bool
+	UploadJobLogs      string
 	RefreshTokenFn     func() (string, error)
 }
 
@@ -75,6 +79,7 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 		Request:        options.Request,
 		JobLogArchived: false,
 		Stopped:        false,
+		UploadJobLogs:  options.UploadJobLogs,
 	}
 
 	if options.Logger != nil {
@@ -393,13 +398,49 @@ func (job *Job) teardownWithCallbacks(result string, callbackRetryAttempts int) 
 func (job *Job) teardownWithNoCallbacks(result string) error {
 	job.Logger.LogJobFinished(result)
 
-	err := job.Logger.Close()
+	// The job already finished, but executor is still open.
+	// We use the open executor to upload the job logs as an artifact,
+	// in case it has been trimmed during streaming.
+	err := job.Logger.CloseWithOptions(eventlogger.CloseOptions{
+		OnClose: job.uploadLogsAsArtifact,
+	})
+
 	if err != nil {
 		log.Errorf("Error closing logger: %+v", err)
 	}
 
 	log.Info("Job teardown finished")
 	return nil
+}
+
+func (job *Job) uploadLogsAsArtifact(trimmed bool) {
+	if job.UploadJobLogs == config.UploadJobLogsConditionNever {
+		log.Infof("upload-job-logs=never - not uploading job logs as job artifact.")
+		return
+	}
+
+	if job.UploadJobLogs == config.UploadJobLogsConditionWhenTrimmed && !trimmed {
+		log.Infof("upload-job-logs=when-trimmed - logs were not trimmed, not uploading job logs as job artifact.")
+		return
+	}
+
+	log.Infof("Uploading job logs as job artifact...")
+	file, err := job.Logger.GeneratePlainTextFile()
+	if err != nil {
+		log.Errorf("Error converting '%s' to plain text: %v", file, err)
+		return
+	}
+
+	defer os.Remove(file)
+
+	cmd := []string{"artifact", "push", "job", file, "-d", "agent/job_logs.txt"}
+	exitCode := job.Executor.RunCommand(strings.Join(cmd, " "), true, "")
+	if exitCode != 0 {
+		log.Errorf("Error uploading job logs as artifact")
+		return
+	}
+
+	log.Info("Successfully uploaded job logs as artifact.")
 }
 
 func (job *Job) Stop() {

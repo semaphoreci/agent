@@ -15,8 +15,23 @@ const (
 	EnvVars                    = "env-vars"
 	Files                      = "files"
 	FailOnMissingFiles         = "fail-on-missing-files"
+	UploadJobLogs              = "upload-job-logs"
 	FailOnPreJobHookError      = "fail-on-pre-job-hook-error"
 )
+
+type UploadJobLogsCondition string
+
+const (
+	UploadJobLogsConditionNever       = "never"
+	UploadJobLogsConditionAlways      = "always"
+	UploadJobLogsConditionWhenTrimmed = "when-trimmed"
+)
+
+var ValidUploadJobLogsCondition = []string{
+	UploadJobLogsConditionNever,
+	UploadJobLogsConditionAlways,
+	UploadJobLogsConditionWhenTrimmed,
+}
 
 var ValidConfigKeys = []string{
 	ConfigFile,
@@ -31,6 +46,7 @@ var ValidConfigKeys = []string{
 	EnvVars,
 	Files,
 	FailOnMissingFiles,
+	UploadJobLogs,
 	FailOnPreJobHookError,
 }
 

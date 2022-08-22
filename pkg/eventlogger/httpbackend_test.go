@@ -206,6 +206,35 @@ func Test__FlushingGivesUpAfterTimeout(t *testing.T) {
 	mockServer.Close()
 }
 
+func Test__ExecutesOnCloseCallback(t *testing.T) {
+	mockServer := testsupport.NewLoghubMockServer()
+	mockServer.Init()
+	mockServer.SetMaxSizeForLogs(30)
+
+	httpBackend, err := NewHTTPBackend(HTTPBackendConfig{
+		URL:                   mockServer.URL(),
+		Token:                 "token",
+		RefreshTokenFn:        func() (string, error) { return "", nil },
+		LinesPerRequest:       10,
+		FlushTimeoutInSeconds: 10,
+	})
+
+	assert.Nil(t, err)
+	assert.Nil(t, httpBackend.Open())
+
+	// 1000+ log events at 10 per request would take 4 requests
+	// to go over the max size of 30 events.
+	generateLogEvents(t, 1000, httpBackend)
+
+	callbackExecuted := false
+	_ = httpBackend.CloseWithOptions(CloseOptions{OnClose: func(trimmed bool) {
+		callbackExecuted = true
+	}})
+
+	assert.True(t, callbackExecuted)
+	mockServer.Close()
+}
+
 func Test__TokenIsRefreshed(t *testing.T) {
 	mockServer := testsupport.NewLoghubMockServer()
 	mockServer.Init()
@@ -249,7 +278,7 @@ func Test__TokenIsRefreshed(t *testing.T) {
 	mockServer.Close()
 }
 
-func generateLogEvents(t *testing.T, outputEventsCount int, backend *HTTPBackend) {
+func generateLogEvents(t *testing.T, outputEventsCount int, backend Backend) {
 	timestamp := int(time.Now().Unix())
 
 	assert.Nil(t, backend.Write(&JobStartedEvent{Timestamp: timestamp, Event: "job_started"}))

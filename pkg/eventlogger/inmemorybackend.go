@@ -1,6 +1,7 @@
 package eventlogger
 
 import (
+	"io"
 	"strings"
 )
 
@@ -16,6 +17,10 @@ func (l *InMemoryBackend) Open() error {
 	return nil
 }
 
+func (l *InMemoryBackend) Read(startFrom, maxLines int, writer io.Writer) (int, error) {
+	return 0, nil
+}
+
 func (l *InMemoryBackend) Write(event interface{}) error {
 	l.Events = append(l.Events, event)
 
@@ -23,6 +28,10 @@ func (l *InMemoryBackend) Write(event interface{}) error {
 }
 
 func (l *InMemoryBackend) Close() error {
+	return nil
+}
+
+func (l *InMemoryBackend) CloseWithOptions(options CloseOptions) error {
 	return nil
 }
 

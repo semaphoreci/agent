@@ -16,7 +16,6 @@ import (
 
 	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
-	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	log "github.com/sirupsen/logrus"
 )
@@ -122,15 +121,7 @@ func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 		startFromLine = 0
 	}
 
-	logFile, ok := s.ActiveJob.Logger.Backend.(*eventlogger.FileBackend)
-	if !ok {
-		log.Error("Failed to stream job logs")
-
-		http.Error(w, err.Error(), 500)
-		fmt.Fprintf(w, `{"message": "%s"}`, "Failed to open logfile")
-	}
-
-	_, err = logFile.Stream(startFromLine, math.MaxInt32, w)
+	_, err = s.ActiveJob.Logger.Backend.Read(startFromLine, math.MaxInt32, w)
 	if err != nil {
 		log.Errorf("Error while streaming logs: %v", err)
 

@@ -117,6 +117,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	_ = pflag.StringSlice(config.EnvVars, []string{}, "Export environment variables in jobs")
 	_ = pflag.StringSlice(config.Files, []string{}, "Inject files into container, when using docker compose executor")
 	_ = pflag.Bool(config.FailOnMissingFiles, false, "Fail job if files specified using --files are missing")
+	_ = pflag.String(config.UploadJobLogs, config.UploadJobLogsConditionNever, "When should the agent upload the job logs as a job artifact. Default is never.")
 	_ = pflag.Bool(config.FailOnPreJobHookError, false, "Fail job if pre-job hook fails")
 
 	pflag.Parse()
@@ -178,6 +179,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		EnvVars:                    hostEnvVars,
 		FileInjections:             fileInjections,
 		FailOnMissingFiles:         viper.GetBool(config.FailOnMissingFiles),
+		UploadJobLogs:              viper.GetString(config.UploadJobLogs),
 		FailOnPreJobHookError:      viper.GetBool(config.FailOnPreJobHookError),
 		AgentVersion:               VERSION,
 		ExitOnShutdown:             true,
@@ -219,6 +221,16 @@ func validateConfiguration() {
 		if !contains(config.ValidConfigKeys, key) {
 			log.Fatalf("Unrecognized option '%s'. Exiting...", key)
 		}
+	}
+
+	uploadJobLogs := viper.GetString(config.UploadJobLogs)
+	if !contains(config.ValidUploadJobLogsCondition, uploadJobLogs) {
+		log.Fatalf(
+			"Unsupported value '%s' for '%s'. Allowed values are: %v. Exiting...",
+			uploadJobLogs,
+			config.UploadJobLogs,
+			config.ValidUploadJobLogsCondition,
+		)
 	}
 }
 
