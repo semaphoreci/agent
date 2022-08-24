@@ -127,9 +127,7 @@ END
 find_toolbox_url() {
   local os=$(echo $DIST | tr '[:upper:]' '[:lower:]')
   local tarball_name="self-hosted-${os}.tar"
-  local arch=$(uname -m)
-
-  if [[ ${arch} =~ "arm" || ${arch} == "aarch64" ]]; then
+  if [[ ${ARCH} =~ "arm" || ${ARCH} == "aarch64" ]]; then
     tarball_name="self-hosted-${os}-arm.tar"
   fi
 
