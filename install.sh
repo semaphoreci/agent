@@ -122,11 +122,30 @@ END
   fi
 }
 
+# Find the toolbox URL based on operating system (linux/darwin) and architecture.
+# It also considers SEMAPHORE_TOOLBOX_VERSION. If not set, it uses the latest version.
+find_toolbox_url() {
+  local os=$(echo $DIST | tr '[:upper:]' '[:lower:]')
+  local tarball_name="self-hosted-${os}.tar"
+  local arch=$(uname -m)
+
+  if [[ ${arch} =~ "arm" || ${arch} == "aarch64" ]]; then
+    tarball_name="self-hosted-${os}-arm.tar"
+  fi
+
+  if [[ -z "${SEMAPHORE_TOOLBOX_VERSION}" ]]; then
+    echo "https://github.com/semaphoreci/toolbox/releases/latest/download/${tarball_name}"
+  else
+    echo "https://github.com/semaphoreci/toolbox/releases/download/${SEMAPHORE_TOOLBOX_VERSION}/${tarball_name}"
+  fi
+}
+
 #
 # Main script
 #
 
 DIST=$(uname)
+ARCH=$(uname -m)
 AGENT_INSTALLATION_DIRECTORY="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 if [[ "$EUID" -ne 0 ]]; then
@@ -175,13 +194,9 @@ if [[ -d "$TOOLBOX_DIRECTORY" ]]; then
   rm -rf "$TOOLBOX_DIRECTORY"
 fi
 
-if [[ -z "${SEMAPHORE_TOOLBOX_VERSION}" ]]; then
-  echo "SEMAPHORE_TOOLBOX_VERSION is not set. Installing latest toolbox..."
-  curl -sL "https://github.com/semaphoreci/toolbox/releases/latest/download/self-hosted-linux.tar" -o toolbox.tar
-else
-  echo "Installing ${SEMAPHORE_TOOLBOX_VERSION} toolbox..."
-  curl -sL "https://github.com/semaphoreci/toolbox/releases/download/${SEMAPHORE_TOOLBOX_VERSION}/self-hosted-linux.tar" -o toolbox.tar
-fi
+toolbox_url=$(find_toolbox_url)
+echo "Downloading toolbox from ${toolbox_url}..."
+curl -sL ${toolbox_url} -o toolbox.tar
 
 tar -xf toolbox.tar
 mv toolbox $TOOLBOX_DIRECTORY
