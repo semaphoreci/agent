@@ -56,7 +56,7 @@ func (a *API) Register(req *RegisterRequest) (*RegisterResponse, error) {
 	}
 
 	if !httputils.IsSuccessfulCode(resp.StatusCode) {
-		return nil, fmt.Errorf("register request to %s got HTTP %d", a.RegisterPath(), resp.StatusCode)
+		return nil, fmt.Errorf("register request to %s got HTTP %d: %s", a.RegisterPath(), resp.StatusCode, body)
 	}
 
 	response := &RegisterResponse{}
