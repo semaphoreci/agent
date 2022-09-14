@@ -22,10 +22,7 @@ import (
 // - If there is more than 100 characters in the buffer
 //
 // - If there is less than 100 characters in the buffer, but they were in
-//   the buffer for more than 100 milisecond. The reasoning here is that
-//   it should take no more than 100 milliseconds for the TTY to flush its
-//   output.
-//         if the TTY has no output, but the command is still running, it takes more than 100ms for that to happen.
+//   the buffer for more than 100 milliseconds.
 //
 // - If the UTF-8 sequence is complete. Cutting the UTF-8 sequence in half
 //   leads to undefined (?) characters in the UI.
@@ -35,20 +32,25 @@ const OutputBufferMaxTimeSinceLastAppend = 100 * time.Millisecond
 const OutputBufferDefaultCutLength = 100
 
 type OutputBuffer struct {
-	OnFlush    func(string)
+	Consumer   func(string)
 	bytes      []byte
 	mu         sync.Mutex
 	done       bool
 	lastAppend *time.Time
 }
 
-func NewOutputBuffer(onFlushFn func(string)) (*OutputBuffer, error) {
-	if onFlushFn == nil {
-		return nil, fmt.Errorf("output buffer requires an onFlushFn")
+func NewOutputBuffer(consumer func(string)) (*OutputBuffer, error) {
+	if consumer == nil {
+		return nil, fmt.Errorf("output buffer requires a consumer")
 	}
 
-	b := &OutputBuffer{OnFlush: onFlushFn, bytes: []byte{}}
+	b := &OutputBuffer{
+		Consumer: consumer,
+		bytes:    []byte{},
+	}
+
 	go b.Flush()
+
 	return b, nil
 }
 
@@ -68,7 +70,7 @@ func (b *OutputBuffer) IsEmpty() bool {
 func (b *OutputBuffer) Flush() {
 	for {
 		if b.done {
-			log.Debugf("The output buffer was closed - stopping.")
+			log.Debugf("The output buffer was closed - stopping")
 			break
 		}
 
@@ -154,7 +156,7 @@ func (b *OutputBuffer) flush() {
 	 */
 	output := strings.Replace(string(bytes), "\r\n", "\n", -1)
 	log.Debugf("%d bytes flushed", len(bytes))
-	b.OnFlush(output)
+	b.Consumer(output)
 }
 
 func (b *OutputBuffer) timeSinceLastAppend() time.Duration {
@@ -166,10 +168,9 @@ func (b *OutputBuffer) timeSinceLastAppend() time.Duration {
 }
 
 func (b *OutputBuffer) Close() {
-	// stop concurrent flushing goroutine
 	b.done = true
 
-	// wait until buffer is empty, for 1s.
+	// wait until buffer is empty, for at most 1s.
 	log.Debugf("Waiting for buffer to be completely flushed...")
 	retry.RetryWithConstantWait(retry.RetryOptions{
 		Task:                 "wait for all output to be flushed",

@@ -8,6 +8,12 @@ import (
 	assert "github.com/stretchr/testify/assert"
 )
 
+func Test__OutputBuffer__RequiresConsumer(t *testing.T) {
+	buffer, err := NewOutputBuffer(nil)
+	assert.Error(t, err)
+	assert.Nil(t, buffer)
+}
+
 func Test__OutputBuffer__SimpleAscii(t *testing.T) {
 	output := []string{}
 	buffer, _ := NewOutputBuffer(func(s string) { output = append(output, s) })

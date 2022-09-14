@@ -224,13 +224,13 @@ func (s *Shell) NewProcess(command string) *Process {
 		})
 }
 
-func (s *Shell) NewProcessWithOutput(command string, onOutput func(string)) *Process {
+func (s *Shell) NewProcessWithOutput(command string, outputConsumer func(string)) *Process {
 	return NewProcess(
 		Config{
 			Command:     command,
 			Shell:       s,
 			StoragePath: s.StoragePath,
-			OnOutput:    onOutput,
+			OnOutput:    outputConsumer,
 		})
 }
 
