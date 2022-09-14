@@ -49,12 +49,11 @@ func Test__Shell__SimpleHelloWorld(t *testing.T) {
 	shell, _ := NewShell(os.TempDir())
 	shell.Start()
 
-	p1 := shell.NewProcess("echo Hello")
-	p1.OnStdout(func(line string) {
+	p1 := shell.NewProcessWithOutput("echo Hello", func(line string) {
 		output.WriteString(line)
 	})
-	p1.Run()
 
+	p1.Run()
 	assert.Equal(t, output.String(), "Hello\n")
 }
 
@@ -76,12 +75,11 @@ func Test__Shell__HandlingBashProcessKill(t *testing.T) {
 		cmd = "echo Hello && exit 1"
 	}
 
-	p1 := shell.NewProcess(cmd)
-	p1.OnStdout(func(line string) {
+	p1 := shell.NewProcessWithOutput(cmd, func(line string) {
 		output.WriteString(line)
 	})
-	p1.Run()
 
+	p1.Run()
 	assert.Equal(t, output.String(), "Hello\n")
 }
 
@@ -106,16 +104,10 @@ func Test__Shell__HandlingBashProcessKillThatHasBackgroundJobs(t *testing.T) {
 	shell, _ := NewShell(os.TempDir())
 	shell.Start()
 
-	p1 := shell.NewProcess("sleep infinity &")
-	p1.OnStdout(func(line string) {
-		output.WriteString(line)
-	})
+	p1 := shell.NewProcessWithOutput("sleep infinity &", func(line string) { output.WriteString(line) })
 	p1.Run()
 
-	p2 := shell.NewProcess("echo 'Hello' && sleep 1 && exit 1")
-	p2.OnStdout(func(line string) {
-		output.WriteString(line)
-	})
+	p2 := shell.NewProcessWithOutput("echo 'Hello' && sleep 1 && exit 1", func(line string) { output.WriteString(line) })
 	p2.Run()
 
 	assert.Equal(t, output.String(), "Hello\n")

@@ -42,20 +42,19 @@ type Config struct {
 }
 
 type Process struct {
-	Command          string
-	Shell            *Shell
-	StoragePath      string
-	StartedAt        int
-	FinishedAt       int
-	ExitCode         int
-	OnStdoutCallback func(string)
-	Pid              int
-	startMark        string
-	endMark          string
-	commandEndRegex  *regexp.Regexp
-	inputBuffer      []byte
-	outputBuffer     *OutputBuffer
-	SysProcAttr      *syscall.SysProcAttr
+	Command         string
+	Shell           *Shell
+	StoragePath     string
+	StartedAt       int
+	FinishedAt      int
+	ExitCode        int
+	Pid             int
+	startMark       string
+	endMark         string
+	commandEndRegex *regexp.Regexp
+	inputBuffer     []byte
+	outputBuffer    *OutputBuffer
+	SysProcAttr     *syscall.SysProcAttr
 }
 
 func randomMagicMark() string {
@@ -86,10 +85,6 @@ func (p *Process) CmdFilePath() string {
 
 func (p *Process) EnvironmentFilePath() string {
 	return fmt.Sprintf("%s.env.after", p.CmdFilePath())
-}
-
-func (p *Process) OnStdout(callback func(string)) {
-	p.OnStdoutCallback = callback
 }
 
 func (p *Process) flushInputAll() {
