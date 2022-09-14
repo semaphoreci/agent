@@ -153,6 +153,10 @@ func (b *OutputBuffer) flush() {
 		}
 	}
 
+	if cutLength == 0 {
+		return
+	}
+
 	bytes := make([]byte, cutLength)
 	copy(bytes, b.bytes[0:cutLength])
 	b.bytes = b.bytes[cutLength:]
