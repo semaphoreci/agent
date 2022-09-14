@@ -67,39 +67,16 @@ func (b *OutputBuffer) IsEmpty() bool {
 
 func (b *OutputBuffer) Flush() {
 	for {
-
-		/*
-		 * If the buffer was closed (command finished),
-		 * we end the flushing goroutine.
-		 */
 		if b.done {
 			log.Debugf("The output buffer was closed - stopping.")
 			break
 		}
 
-		/*
-		 * If there's nothing to flush, we wait a little bit.
-		 */
 		if b.IsEmpty() {
 			time.Sleep(10 * time.Millisecond)
 			continue
 		}
 
-		timeSinceLastAppend := b.timeSinceLastAppend()
-
-		/*
-		 * If there's recent, but not enough data in the buffer, we wait a little more time.
-		 */
-		if len(b.bytes) < OutputBufferDefaultCutLength && timeSinceLastAppend < OutputBufferMaxTimeSinceLastAppend {
-			log.Debugf("The output buffer has only %d bytes and the flush was %v ago - waiting...", len(b.bytes), timeSinceLastAppend)
-			time.Sleep(10 * time.Millisecond)
-			continue
-		}
-
-		/*
-		 * Here, we know that the data in the buffer is either above the chunk size we want, or is old enough.
-		 * Flush, everything we can.
-		 */
 		b.flush()
 	}
 }
@@ -107,6 +84,17 @@ func (b *OutputBuffer) Flush() {
 func (b *OutputBuffer) flush() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
+	timeSinceLastAppend := b.timeSinceLastAppend()
+
+	/*
+	 * If there's recent, but not enough data in the buffer, we don't yet flush.
+	 */
+	if len(b.bytes) < OutputBufferDefaultCutLength && timeSinceLastAppend < OutputBufferMaxTimeSinceLastAppend {
+		log.Debugf("The output buffer has only %d bytes and the flush was %v ago - waiting...", len(b.bytes), timeSinceLastAppend)
+		time.Sleep(10 * time.Millisecond)
+		return
+	}
 
 	log.Debugf("%d bytes in the buffer - flushing...", len(b.bytes))
 
@@ -143,7 +131,7 @@ func (b *OutputBuffer) flush() {
 	// indefinetily. We only run this check if the last insert was recent enough.
 	//
 
-	if b.timeSinceLastAppend() < OutputBufferMaxTimeSinceLastAppend && !b.done {
+	if timeSinceLastAppend < OutputBufferMaxTimeSinceLastAppend {
 		for i := 0; i < 4; i++ {
 			if utf8.Valid(b.bytes[0:cutLength]) {
 				break
@@ -162,7 +150,7 @@ func (b *OutputBuffer) flush() {
 	b.bytes = b.bytes[cutLength:]
 
 	/*
-	 * Make sure we normalize newline sequences, and send the chunk back to its consumer.
+	 * Make sure we normalize newline sequences, and flush the output to the consumer.
 	 */
 	output := strings.Replace(string(bytes), "\r\n", "\n", -1)
 	log.Debugf("%d bytes flushed", len(bytes))

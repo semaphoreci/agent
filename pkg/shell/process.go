@@ -159,7 +159,6 @@ func (p *Process) Run() {
 	p.Shell.UpdateEnvironment(after)
 }
 
-// TODO: start output buffer flushing here
 func (p *Process) runWithoutPTY(instruction string) {
 	cmd, reader, writer := p.buildNonPTYCommand(instruction)
 	err := cmd.Start()
@@ -320,7 +319,6 @@ func (p *Process) writeCommandToFile(cmdFilePath, command string) error {
 	return file.Close()
 }
 
-// TODO: if we concurrently read what's in the output buffer, we probably don't need to worry about this.
 func (p *Process) readBufferSize() int {
 	if flag.Lookup("test.v") == nil {
 		return 100
