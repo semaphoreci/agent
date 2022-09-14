@@ -143,7 +143,7 @@ func (b *OutputBuffer) flush() {
 	// indefinetily. We only run this check if the last insert was recent enough.
 	//
 
-	if b.timeSinceLastAppend() < OutputBufferMaxTimeSinceLastAppend {
+	if b.timeSinceLastAppend() < OutputBufferMaxTimeSinceLastAppend && !b.done {
 		for i := 0; i < 4; i++ {
 			if utf8.Valid(b.bytes[0:cutLength]) {
 				break
