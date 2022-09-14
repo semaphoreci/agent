@@ -1,205 +1,156 @@
 package shell
 
-// import (
-// 	"testing"
-// 	"time"
+import (
+	"strings"
+	"testing"
+	"time"
 
-// 	assert "github.com/stretchr/testify/assert"
-// )
+	assert "github.com/stretchr/testify/assert"
+)
 
-// func Test__OutputBuffer__SimpleAscii(t *testing.T) {
-// 	buffer := NewOutputBuffer()
+func Test__OutputBuffer__SimpleAscii(t *testing.T) {
+	output := []string{}
+	buffer, _ := NewOutputBuffer(func(s string) { output = append(output, s) })
 
-// 	//
-// 	// Making sure that the input is long enough to the flushed immediately
-// 	//
-// 	input := []byte{}
-// 	for i := 0; i < OutputBufferDefaultCutLength; i++ {
-// 		input = append(input, 'a')
-// 	}
+	//
+	// Making sure that the input is long enough to the flushed immediately
+	//
+	input := []byte{}
+	for i := 0; i < OutputBufferDefaultCutLength; i++ {
+		input = append(input, 'a')
+	}
 
-// 	buffer.Append(input)
-// 	flushed, ok := buffer.Flush()
+	buffer.Append(input)
+	buffer.Close()
+	assert.Equal(t, strings.Join(output, ""), string(input))
+}
 
-// 	assert.Equal(t, ok, true)
-// 	assert.Equal(t, flushed, string(input))
-// }
+func Test__OutputBuffer__SimpleAscii__ShorterThanMinimalCutLength(t *testing.T) {
+	output := []string{}
+	buffer, _ := NewOutputBuffer(func(s string) { output = append(output, s) })
 
-// func Test__OutputBuffer__SimpleAscii__ShorterThanMinimalCutLength(t *testing.T) {
-// 	buffer := NewOutputBuffer()
+	input := []byte("aaa")
+	buffer.Append(input)
 
-// 	input := []byte("aaa")
+	// output is too short, so it will only be flushed
+	// when the max delay is reached.
+	time.Sleep(10 * time.Millisecond)
+	assert.Len(t, output, 0)
 
-// 	buffer.Append(input)
-// 	_, ok := buffer.Flush()
+	// We need to wait a bit before flushing, the buffer is still too short
+	time.Sleep(OutputBufferMaxTimeSinceLastAppend)
+	assert.Equal(t, strings.Join(output, ""), string(input))
+	buffer.Close()
+}
 
-// 	// We need to wait a bit before flushing, the buffer is still too short
-// 	assert.Equal(t, ok, false)
+func Test__OutputBuffer__SimpleAscii__LongerThanMinimalCutLength(t *testing.T) {
+	output := []string{}
+	buffer, _ := NewOutputBuffer(func(s string) { output = append(output, s) })
 
-// 	time.Sleep(OutputBufferMaxTimeSinceLastAppend)
+	//
+	// Making sure that the input is long enough to have to be flushed two times.
+	//
+	input := []byte{}
+	for i := 0; i < OutputBufferDefaultCutLength+50; i++ {
+		input = append(input, 'a')
+	}
 
-// 	flushed, ok := buffer.Flush()
-// 	assert.Equal(t, ok, true)
-// 	assert.Equal(t, flushed, string(input))
-// }
+	buffer.Append(input)
 
-// func Test__OutputBuffer__SimpleAscii__LongerThanMinimalCutLength(t *testing.T) {
-// 	buffer := NewOutputBuffer()
+	buffer.Close()
+	if assert.Len(t, output, 2) {
+		assert.Equal(t, output[0], string(input[:OutputBufferDefaultCutLength]))
+		assert.Equal(t, output[1], string(input[OutputBufferDefaultCutLength:]))
+	}
+}
 
-// 	//
-// 	// Making sure that the input is long enough to have to be flushed two times.
-// 	//
-// 	input := []byte{}
-// 	for i := 0; i < OutputBufferDefaultCutLength+50; i++ {
-// 		input = append(input, 'a')
-// 	}
+func Test__OutputBuffer__UTF8_Sequence__Simple(t *testing.T) {
+	output := []string{}
+	buffer, _ := NewOutputBuffer(func(s string) { output = append(output, s) })
 
-// 	buffer.Append(input)
+	//
+	// Making sure that the input is long enough to the flushed immidiately
+	//
+	input := []byte{}
+	for len(input) <= OutputBufferDefaultCutLength {
+		input = append(input, []byte("特")...)
+	}
 
-// 	flushed1, ok := buffer.Flush()
-// 	assert.Equal(t, ok, true)
-// 	assert.Equal(t, flushed1, string(input[:OutputBufferDefaultCutLength]))
+	buffer.Append(input)
+	buffer.Close()
+	assert.Equal(t, strings.Join(output, ""), string(input))
+}
 
-// 	// We need to wait a bit before flushing, the buffer is still too short
-// 	time.Sleep(OutputBufferMaxTimeSinceLastAppend)
+func Test__OutputBuffer__UTF8_Sequence__Short(t *testing.T) {
+	output := []string{}
+	buffer, _ := NewOutputBuffer(func(s string) { output = append(output, s) })
 
-// 	flushed2, ok := buffer.Flush()
-// 	assert.Equal(t, ok, true)
-// 	assert.Equal(t, flushed2, string(input[OutputBufferDefaultCutLength:]))
-// }
+	input := []byte("特特特")
+	buffer.Append(input)
+	buffer.Close()
+	assert.Equal(t, strings.Join(output, ""), string(input))
+}
 
-// func Test__OutputBuffer__UTF8_Sequence__Simple(t *testing.T) {
-// 	buffer := NewOutputBuffer()
+func Test__OutputBuffer__InvalidUTF8_Sequence(t *testing.T) {
+	output := []string{}
+	buffer, _ := NewOutputBuffer(func(s string) { output = append(output, s) })
 
-// 	//
-// 	// Making sure that the input is long enough to the flushed immidiately
-// 	//
-// 	input := []byte{}
-// 	for len(input) <= OutputBufferDefaultCutLength {
-// 		input = append(input, []byte("特")...)
-// 	}
+	//
+	// Making sure that the input is long enough to the flushed immediately
+	//
+	input := []byte{}
+	for len(input) <= OutputBufferDefaultCutLength {
+		input = append(input, []byte("\xF4\xBF\xBF\xBF")...)
+	}
 
-// 	buffer.Append(input)
+	buffer.Append(input)
+	buffer.Close()
+	assert.Equal(t, strings.Join(output, ""), string(input))
+}
 
-// 	out := ""
+func Test__OutputBuffer__FlushIgnoresCharactersThatAreNotUtf8Valid(t *testing.T) {
+	//
+	// We construct a 100 byte long string to enable a full flush.
+	//
+	// The first 99 bytes will come from the 3-byte long kanji character, while
+	// the last byte will be a broken character
+	output := []string{}
+	buffer, _ := NewOutputBuffer(func(s string) { output = append(output, s) })
 
-// 	for !buffer.IsEmpty() {
-// 		flushed, ok := buffer.Flush()
+	input := ""
+	for i := 0; i < 33; i++ {
+		input += "特"
+	}
 
-// 		if ok {
-// 			out += flushed
-// 		} else {
-// 			time.Sleep(OutputBufferMaxTimeSinceLastAppend)
-// 		}
-// 	}
+	nonUtf8Chars := []byte{[]byte("特")[0]}
 
-// 	assert.Equal(t, out, string(input))
-// }
+	// In total, we are inserting 100 bytes
+	buffer.Append([]byte(input))
+	buffer.Append(nonUtf8Chars)
 
-// func Test__OutputBuffer__UTF8_Sequence__Short(t *testing.T) {
-// 	buffer := NewOutputBuffer()
+	// In the output, we expect that the last broken byte is not returned initially.
+	time.Sleep(10 * time.Millisecond)
+	assert.Equal(t, strings.Join(output, ""), input)
+	buffer.Close()
+}
 
-// 	//
-// 	// Making sure that the input is long enough to the flushed immidiately
-// 	//
-// 	input := []byte("特特特")
+func Test__OutputBuffer__FlushReturnsBytesThatAreBrokenAndSitInTheBufferForTooLong(t *testing.T) {
+	//
+	// We construct a 100 byte long string to enable a full flush.
+	//
+	// The first 99 bytes will come from the 3-byte long kanji character, while
+	// the last byte will be a broken character
+	//
+	output := []string{}
+	buffer, _ := NewOutputBuffer(func(s string) { output = append(output, s) })
 
-// 	buffer.Append(input)
+	input := []byte{}
+	for i := 0; i < 33; i++ {
+		input = append(input, []byte("特")...)
+	}
+	input = append(input, []byte("特")[0])
 
-// 	out := ""
-
-// 	for !buffer.IsEmpty() {
-// 		flushed, ok := buffer.Flush()
-
-// 		if ok {
-// 			out += flushed
-// 		} else {
-// 			time.Sleep(OutputBufferMaxTimeSinceLastAppend)
-// 		}
-// 	}
-
-// 	assert.Equal(t, out, string(input))
-// }
-
-// func Test__OutputBuffer__InvalidUTF8_Sequence(t *testing.T) {
-// 	buffer := NewOutputBuffer()
-
-// 	//
-// 	// Making sure that the input is long enough to the flushed immidiately
-// 	//
-// 	input := []byte{}
-// 	for len(input) <= OutputBufferDefaultCutLength {
-// 		input = append(input, []byte("\xF4\xBF\xBF\xBF")...)
-// 	}
-
-// 	buffer.Append(input)
-
-// 	out := ""
-
-// 	for !buffer.IsEmpty() {
-// 		flushed, ok := buffer.Flush()
-
-// 		if ok {
-// 			out += flushed
-// 		} else {
-// 			time.Sleep(OutputBufferMaxTimeSinceLastAppend)
-// 		}
-// 	}
-
-// 	assert.Equal(t, out, string(input))
-// }
-
-// func Test__OutputBuffer__FlushIgnoresCharactersThatAreNotUtf8Valid(t *testing.T) {
-// 	//
-// 	// We construct a 100 byte long string to enable a full flush.
-// 	//
-// 	// The first 99 bytes will come from the 3-byte long kanji character, while
-// 	// the last byte will be a broken character
-
-// 	buffer := NewOutputBuffer()
-
-// 	input := ""
-// 	for i := 0; i < 33; i++ {
-// 		input += "特"
-// 	}
-
-// 	nonUtf8Chars := []byte{[]byte("特")[0]}
-
-// 	// In total, we are inserting 100 bytes
-// 	buffer.Append([]byte(input))
-// 	buffer.Append(nonUtf8Chars)
-
-// 	// In the output, we expect that the last broken byte is not returned.
-
-// 	out, ok := buffer.Flush()
-
-// 	assert.Equal(t, ok, true)
-// 	assert.Equal(t, out, input)
-// }
-
-// func Test__OutputBuffer__FlushReturnsBytesThatAreBrokenAndSitInTheBufferForTooLong(t *testing.T) {
-// 	//
-// 	// We construct a 100 byte long string to enable a full flush.
-// 	//
-// 	// The first 99 bytes will come from the 3-byte long kanji character, while
-// 	// the last byte will be a broken character
-// 	//
-
-// 	buffer := NewOutputBuffer()
-
-// 	input := []byte{}
-// 	for i := 0; i < 33; i++ {
-// 		input = append(input, []byte("特")...)
-// 	}
-// 	input = append(input, []byte("特")[0])
-
-// 	buffer.Append(input)
-
-// 	// We wait for a while, and let the broken become bocome stale.
-// 	// Stale characters are forced out of the buffer, even if they are not valid.
-// 	time.Sleep(200 * time.Millisecond)
-
-// 	out, ok := buffer.Flush()
-// 	assert.Equal(t, ok, true)
-// 	assert.Equal(t, out, string(input))
-// }
+	buffer.Append(input)
+	buffer.Close()
+	assert.Equal(t, strings.Join(output, ""), string(input))
+}
