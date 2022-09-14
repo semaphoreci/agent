@@ -241,7 +241,11 @@ func (e *ShellExecutor) RunCommandWithOptions(options CommandOptions) int {
 		directive = options.Alias
 	}
 
-	p := e.Shell.NewProcess(options.Command)
+	p := e.Shell.NewProcessWithOutput(options.Command, func(output string) {
+		if !options.Silent {
+			e.Logger.LogCommandOutput(output)
+		}
+	})
 
 	if !options.Silent {
 		e.Logger.LogCommandStarted(directive)
@@ -254,12 +258,6 @@ func (e *ShellExecutor) RunCommandWithOptions(options CommandOptions) int {
 			e.Logger.LogCommandOutput(fmt.Sprintf("Warning: %s\n", options.Warning))
 		}
 	}
-
-	p.OnStdout(func(output string) {
-		if !options.Silent {
-			e.Logger.LogCommandOutput(output)
-		}
-	})
 
 	p.Run()
 
