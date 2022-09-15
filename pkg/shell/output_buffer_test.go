@@ -40,12 +40,10 @@ func Test__OutputBuffer__SimpleAscii__ShorterThanMinimalCutLength(t *testing.T) 
 
 	// output is too short, so it will only be flushed
 	// when the max delay is reached.
-	time.Sleep(10 * time.Millisecond)
 	assert.Len(t, output, 0)
 
 	// We need to wait a bit before flushing, the buffer is still too short
-	time.Sleep(OutputBufferMaxTimeSinceLastAppend)
-	assert.Equal(t, strings.Join(output, ""), string(input))
+	assert.Eventually(t, func() bool { return strings.Join(output, "") == string(input) }, time.Second, 100*time.Millisecond)
 	buffer.Close()
 }
 
