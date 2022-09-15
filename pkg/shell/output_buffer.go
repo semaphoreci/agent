@@ -138,10 +138,17 @@ func (b *OutputBuffer) flush() {
 	 * they are marked as the unicode continuation characters,
 	 * since an unicode sequence can't be longer than 4 bytes.
 	 *
-	 * However, we only do that if the number of bytes in the buffer is above our chunk size.
+	 * We do this unicode-based adjustment in two scenarios:
+	 *   1 - The output buffer was not yet closed.
+	 *       In this case, we always check for incomplete UTF-8 sequences,
+	 *       because the buffer might not yet received them from the TTY.
+	 *   2 - The output buffer was closed, but the data in there doesn't fit
+	 *       in one chunk. Since in this case we know that no more bytes are coming
+	 *       from the TTY, the only reason we'd have an incomplete UTF-8 sequence
+	 *       is because we are cutting it here to fit it into the chunk.
 	 */
 
-	if cutLength == OutputBufferDefaultCutLength {
+	if !b.done || (b.done && cutLength == OutputBufferDefaultCutLength) {
 		for i := 0; i < 4; i++ {
 			if utf8.Valid(b.bytes[0:cutLength]) {
 				break
@@ -149,6 +156,10 @@ func (b *OutputBuffer) flush() {
 				cutLength--
 			}
 		}
+	}
+
+	if cutLength <= 0 {
+		return
 	}
 
 	bytes := make([]byte, cutLength)
