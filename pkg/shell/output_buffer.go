@@ -7,6 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	backoff "github.com/cenkalti/backoff/v4"
 	"github.com/semaphoreci/agent/pkg/retry"
 	log "github.com/sirupsen/logrus"
 )
@@ -68,18 +69,28 @@ func (b *OutputBuffer) IsEmpty() bool {
 }
 
 func (b *OutputBuffer) Flush() {
+	backoffStrategy := b.exponentialBackoff()
+
 	for {
 		if b.done {
 			log.Debugf("The output buffer was closed - stopping")
 			break
 		}
 
+		/*
+		 * The exponential backoff strategy for ticks is only used
+		 * when the buffer is empty, to make sure we don't continuously
+		 * check the buffer if it has been empty for a while.
+		 */
 		if b.IsEmpty() {
-			time.Sleep(10 * time.Millisecond)
+			delay := backoffStrategy.NextBackOff()
+			log.Debugf("Empty buffer - waiting %v until next tick", delay)
+			time.Sleep(delay)
 			continue
 		}
 
 		b.flush()
+		backoffStrategy.Reset()
 	}
 }
 
@@ -91,6 +102,8 @@ func (b *OutputBuffer) flush() {
 
 	/*
 	 * If there's recent, but not enough data in the buffer, we don't yet flush.
+	 * Here, we don't want to use the exponential backoff strategy while waiting,
+	 * because we should respect the maximum of 100ms for data in the buffer.
 	 */
 	if len(b.bytes) < OutputBufferDefaultCutLength && timeSinceLastAppend < OutputBufferMaxTimeSinceLastAppend {
 		log.Debugf("The output buffer has only %d bytes and the flush was %v ago - waiting...", len(b.bytes), timeSinceLastAppend)
@@ -151,12 +164,36 @@ func (b *OutputBuffer) flush() {
 	copy(bytes, b.bytes[0:cutLength])
 	b.bytes = b.bytes[cutLength:]
 
-	/*
-	 * Make sure we normalize newline sequences, and flush the output to the consumer.
-	 */
+	// Make sure we normalize newline sequences, and flush the output to the consumer.
 	output := strings.Replace(string(bytes), "\r\n", "\n", -1)
 	log.Debugf("%d bytes flushed", len(bytes))
 	b.Consumer(output)
+}
+
+func (b *OutputBuffer) exponentialBackoff() *backoff.ExponentialBackOff {
+	e := backoff.NewExponentialBackOff()
+
+	/*
+	 * We start with a 10ms interval between ticks,
+	 * but if there’s nothing in the buffer for a while,
+	 * 10ms is too little an interval.
+	 */
+	e.InitialInterval = 10 * time.Millisecond
+
+	/*
+	 * If there's no data in the buffer, we increase the delay.
+	 * But, we also cap that delay to 1s, to make sure we don’t go too
+	 * long without checking if a command goes too long without producing any output.
+	 */
+	e.MaxInterval = time.Second
+
+	// We don't ever want the strategy to return backoff.Stop, so we don't set this.
+	e.MaxElapsedTime = 0
+
+	// We need to call Reset() before using it.
+	e.Reset()
+
+	return e
 }
 
 func (b *OutputBuffer) timeSinceLastAppend() time.Duration {
