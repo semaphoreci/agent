@@ -113,40 +113,35 @@ func (b *OutputBuffer) flush() {
 
 	log.Debugf("%d bytes in the buffer - flushing...", len(b.bytes))
 
-	//
-	// First we determine how much to cut.
-	//
-	// We don't want to flush too much in any iteration, but neither we want to
-	// flush too little.
-	//
-	// Starting from the default cut lenght, and decreasing the lenght until we
-	// are ready to flush.
-	//
+	/*
+	 * First we determine how much to cut.
+	 *
+	 * We don't want to flush too much in any iteration, but neither we want to
+	 * flush too little.
+	 *
+	 * Starting from the default cut lenght, and decreasing the lenght until we
+	 * are ready to flush.
+	 */
 	cutLength := OutputBufferDefaultCutLength
 
-	//
 	// We can't cut more than we have in the buffer.
-	//
 	if len(b.bytes) < cutLength {
 		cutLength = len(b.bytes)
 	}
 
-	//
-	// Now comes the tricky part.
-	//
-	// We don't want to cut in the middle of an UTF-8 sequence.
-	//
-	// In the below loop, we are cutting of the last 3 charactes in case
-	// they are marked as the unicode continuation characters.
-	//
-	// An unicode sequence can't be longer than 4 bytes
-	//
-	//
-	// If there is only broken bytes in the buffer, we don't want to wait
-	// indefinetily. We only run this check if the last insert was recent enough.
-	//
+	/*
+	 * Now comes the tricky part.
+	 *
+	 * We don't want to cut in the middle of an UTF-8 sequence.
+	 *
+	 * In the loop below, we are cutting off the last 3 charactes in case
+	 * they are marked as the unicode continuation characters,
+	 * since an unicode sequence can't be longer than 4 bytes.
+	 *
+	 * However, we only do that if the number of bytes in the buffer is above our chunk size.
+	 */
 
-	if timeSinceLastAppend < OutputBufferMaxTimeSinceLastAppend {
+	if cutLength == OutputBufferDefaultCutLength {
 		for i := 0; i < 4; i++ {
 			if utf8.Valid(b.bytes[0:cutLength]) {
 				break
@@ -156,17 +151,13 @@ func (b *OutputBuffer) flush() {
 		}
 	}
 
-	if cutLength == 0 {
-		return
-	}
-
 	bytes := make([]byte, cutLength)
 	copy(bytes, b.bytes[0:cutLength])
 	b.bytes = b.bytes[cutLength:]
 
 	// Make sure we normalize newline sequences, and flush the output to the consumer.
 	output := strings.Replace(string(bytes), "\r\n", "\n", -1)
-	log.Debugf("%d bytes flushed", len(bytes))
+	log.Debugf("%d bytes flushed: %s", len(bytes), output)
 	b.Consumer(output)
 }
 
@@ -209,7 +200,7 @@ func (b *OutputBuffer) Close() {
 
 	// wait until buffer is empty, for at most 1s.
 	log.Debugf("Waiting for buffer to be completely flushed...")
-	retry.RetryWithConstantWait(retry.RetryOptions{
+	err := retry.RetryWithConstantWait(retry.RetryOptions{
 		Task:                 "wait for all output to be flushed",
 		MaxAttempts:          100,
 		DelayBetweenAttempts: 10 * time.Millisecond,
@@ -223,4 +214,8 @@ func (b *OutputBuffer) Close() {
 			return fmt.Errorf("not fully flushed")
 		},
 	})
+
+	if err != nil {
+		log.Error("Could not flush all the output in the buffer")
+	}
 }
