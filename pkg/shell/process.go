@@ -38,23 +38,23 @@ type Config struct {
 	Shell       *Shell
 	StoragePath string
 	Command     string
+	OnOutput    func(string)
 }
 
 type Process struct {
-	Command          string
-	Shell            *Shell
-	StoragePath      string
-	StartedAt        int
-	FinishedAt       int
-	ExitCode         int
-	OnStdoutCallback func(string)
-	Pid              int
-	startMark        string
-	endMark          string
-	commandEndRegex  *regexp.Regexp
-	inputBuffer      []byte
-	outputBuffer     *OutputBuffer
-	SysProcAttr      *syscall.SysProcAttr
+	Command         string
+	Shell           *Shell
+	StoragePath     string
+	StartedAt       int
+	FinishedAt      int
+	ExitCode        int
+	Pid             int
+	startMark       string
+	endMark         string
+	commandEndRegex *regexp.Regexp
+	inputBuffer     []byte
+	outputBuffer    *OutputBuffer
+	SysProcAttr     *syscall.SysProcAttr
 }
 
 func randomMagicMark() string {
@@ -64,8 +64,8 @@ func randomMagicMark() string {
 func NewProcess(config Config) *Process {
 	startMark := randomMagicMark() + "-start"
 	endMark := randomMagicMark() + "-end"
-
 	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d+)` + "[\r\n]+")
+	outputBuffer, _ := NewOutputBuffer(config.OnOutput)
 
 	return &Process{
 		Shell:           config.Shell,
@@ -75,7 +75,7 @@ func NewProcess(config Config) *Process {
 		startMark:       startMark,
 		endMark:         endMark,
 		commandEndRegex: commandEndRegex,
-		outputBuffer:    NewOutputBuffer(),
+		outputBuffer:    outputBuffer,
 	}
 }
 
@@ -85,33 +85,6 @@ func (p *Process) CmdFilePath() string {
 
 func (p *Process) EnvironmentFilePath() string {
 	return fmt.Sprintf("%s.env.after", p.CmdFilePath())
-}
-
-func (p *Process) OnStdout(callback func(string)) {
-	p.OnStdoutCallback = callback
-}
-
-func (p *Process) StreamToStdout() {
-	for {
-		data, ok := p.outputBuffer.Flush()
-		if !ok {
-			break
-		}
-
-		log.Debugf("Stream to stdout: %#v", data)
-
-		p.OnStdoutCallback(data)
-	}
-}
-
-func (p *Process) flushOutputBuffer() {
-	for !p.outputBuffer.IsEmpty() {
-		p.StreamToStdout()
-
-		if !p.outputBuffer.IsEmpty() {
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
 }
 
 func (p *Process) flushInputAll() {
@@ -376,11 +349,10 @@ func (p *Process) readNonPTY(reader *io.PipeReader, done chan bool) {
 		p.inputBuffer = append(p.inputBuffer, buffer[0:n]...)
 		log.Debugf("reading data from command. Input buffer: %#v", string(p.inputBuffer))
 		p.flushInputAll()
-		p.StreamToStdout()
 
 		if err == io.EOF {
 			log.Debug("Finished reading")
-			p.flushOutputBuffer()
+			p.outputBuffer.Close()
 			break
 		}
 	}
@@ -487,21 +459,18 @@ func (p *Process) scan() error {
 			p.flushInputAll()
 		}
 
-		p.StreamToStdout()
-
 		err := p.read()
 		if err != nil {
 			// Reading failed. The most likely cause is that the bash process
 			// died. For example, running an `exit 1` command has killed it.
-
 			// Flushing all remaining data in the buffer and exiting.
-			p.flushOutputBuffer()
+			p.outputBuffer.Close()
 
 			return err
 		}
 	}
 
-	p.flushOutputBuffer()
+	p.outputBuffer.Close()
 
 	log.Debug("Command output finished")
 	log.Debugf("Parsing exit code %s", exitCode)
