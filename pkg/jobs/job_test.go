@@ -58,8 +58,10 @@ func Test__EnvVarsAreAvailableToCommands(t *testing.T) {
 		"job_started",
 
 		"directive: Exporting environment variables",
-		"Exporting A\n",
-		"Exporting B\n",
+		strings.Join([]string{
+			"Exporting A",
+			"Exporting B",
+		}, "\n") + "\n",
 		"Exit Code: 0",
 
 		"directive: Injecting Files",
@@ -133,8 +135,10 @@ func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnPass(t *testing.T) {
 		"job_started",
 
 		"directive: Exporting environment variables",
-		"Exporting A\n",
-		"Exporting B\n",
+		strings.Join([]string{
+			"Exporting A",
+			"Exporting B",
+		}, "\n") + "\n",
 		"Exit Code: 0",
 
 		"directive: Injecting Files",

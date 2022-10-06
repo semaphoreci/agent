@@ -83,12 +83,14 @@ func Test__ShellExecutor__EnvVars(t *testing.T) {
 
 	assert.Equal(t, simplifiedEvents, []string{
 		"directive: Exporting environment variables",
-		"Exporting A\n",
-		"Exporting B\n",
-		"Exporting C\n",
-		"Exporting D\n",
-		"Exporting VAR_WITH_ENV_VAR\n",
-		"Exporting VAR_WITH_QUOTES\n",
+		strings.Join([]string{
+			"Exporting A",
+			"Exporting B",
+			"Exporting C",
+			"Exporting D",
+			"Exporting VAR_WITH_ENV_VAR",
+			"Exporting VAR_WITH_QUOTES",
+		}, "\n") + "\n",
 		"Exit Code: 0",
 
 		fmt.Sprintf("directive: %s", testsupport.EchoEnvVar("A")),
@@ -175,11 +177,13 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 
 	assert.Equal(t, simplifiedEvents, []string{
 		"directive: Injecting Files",
-		fmt.Sprintf("Injecting %s with file mode 0400\n", absoluteFile.NormalizePath(homeDir)),
-		fmt.Sprintf("Injecting %s with file mode 0440\n", absoluteFileInMissingDir.NormalizePath(homeDir)),
-		fmt.Sprintf("Injecting %s with file mode 0600\n", relativeFile.NormalizePath(homeDir)),
-		fmt.Sprintf("Injecting %s with file mode 0644\n", relativeFileInMissingDir.NormalizePath(homeDir)),
-		fmt.Sprintf("Injecting %s with file mode 0777\n", homeFile.NormalizePath(homeDir)),
+		strings.Join([]string{
+			fmt.Sprintf("Injecting %s with file mode 0400", absoluteFile.NormalizePath(homeDir)),
+			fmt.Sprintf("Injecting %s with file mode 0440", absoluteFileInMissingDir.NormalizePath(homeDir)),
+			fmt.Sprintf("Injecting %s with file mode 0600", relativeFile.NormalizePath(homeDir)),
+			fmt.Sprintf("Injecting %s with file mode 0644", relativeFileInMissingDir.NormalizePath(homeDir)),
+			fmt.Sprintf("Injecting %s with file mode 0777", homeFile.NormalizePath(homeDir)),
+		}, "\n") + "\n",
 		"Exit Code: 0",
 
 		fmt.Sprintf("directive: %s", testsupport.Cat(absoluteFile.NormalizePath(homeDir))),
@@ -349,12 +353,7 @@ func Test__ShellExecutor__StoppingRunningJob(t *testing.T) {
 func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 	e, testLoggerBackend := setupShellExecutor(t, true)
 
-	go func() {
-		assert.Zero(t, e.RunCommand(testsupport.LargeOutputCommand(), false, ""))
-	}()
-
-	time.Sleep(5 * time.Second)
-
+	assert.Zero(t, e.RunCommand(testsupport.LargeOutputCommand(), false, ""))
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 

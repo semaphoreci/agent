@@ -34,6 +34,8 @@ func TransformToObjects(events []string) ([]interface{}, error) {
 func SimplifyLogEvents(events []interface{}, includeOutput bool) ([]string, error) {
 	simplified := []string{}
 
+	output := ""
+
 	for _, event := range events {
 		switch e := event.(type) {
 		case *JobStartedEvent:
@@ -43,10 +45,16 @@ func SimplifyLogEvents(events []interface{}, includeOutput bool) ([]string, erro
 		case *CommandStartedEvent:
 			simplified = append(simplified, "directive: "+e.Directive)
 		case *CommandOutputEvent:
-			if includeOutput {
-				simplified = append(simplified, e.Output)
-			}
+			output = output + e.Output
 		case *CommandFinishedEvent:
+			if includeOutput {
+				if output != "" {
+					simplified = append(simplified, output)
+				}
+
+				output = ""
+			}
+
 			simplified = append(simplified, fmt.Sprintf("Exit Code: %d", e.ExitCode))
 		default:
 			return []string{}, fmt.Errorf("unknown shell event")
