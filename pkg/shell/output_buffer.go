@@ -209,11 +209,11 @@ func (b *OutputBuffer) timeSinceLastAppend() time.Duration {
 func (b *OutputBuffer) Close() {
 	b.done = true
 
-	// wait until buffer is empty, for at most 1s.
+	// wait until buffer is empty, for at most 5s.
 	log.Debugf("Waiting for buffer to be completely flushed...")
 	err := retry.RetryWithConstantWait(retry.RetryOptions{
 		Task:                 "wait for all output to be flushed",
-		MaxAttempts:          100,
+		MaxAttempts:          500,
 		DelayBetweenAttempts: 10 * time.Millisecond,
 		HideError:            true,
 		Fn: func() error {
