@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -364,11 +365,7 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 
 	assert.Equal(t, simplifiedEvents, []string{
 		fmt.Sprintf("directive: %s", testsupport.LargeOutputCommand()),
-		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
-		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
-		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
-		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
-		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
+		strings.Repeat("hello", 100),
 		"Exit Code: 0",
 	})
 }
@@ -386,17 +383,11 @@ func Test__ShellExecutor__Unicode(t *testing.T) {
 
 	assert.Equal(t, simplifiedEvents, []string{
 		fmt.Sprintf("directive: %s", testsupport.Output(UnicodeOutput1)),
-		"特定の伝説に拠る物語の由来については諸説存在し。特定の伝説に拠る物",
-		"語の由来については諸説存在し。特定の伝説に拠る物語の由来については",
-		"諸説存在し。",
+		"特定の伝説に拠る物語の由来については諸説存在し。特定の伝説に拠る物語の由来については諸説存在し。特定の伝説に拠る物語の由来については諸説存在し。",
 		"Exit Code: 0",
 
 		fmt.Sprintf("directive: %s", testsupport.Output(UnicodeOutput2)),
-		"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-		"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-		"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-		"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-		"━━━━━━━━━━━━━━━━━━━━━━",
+		"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
 		"Exit Code: 0",
 	})
 }
