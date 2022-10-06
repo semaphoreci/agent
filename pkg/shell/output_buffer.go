@@ -220,7 +220,7 @@ func (b *OutputBuffer) chunkSize() int {
 func (b *OutputBuffer) Close() {
 	b.done = true
 
-	// wait until buffer is empty, for at most 5s.
+	// wait until buffer is empty, for at most 10s.
 	log.Debugf("Waiting for buffer to be completely flushed...")
 	err := retry.RetryWithConstantWait(retry.RetryOptions{
 		Task:                 "wait for all output to be flushed",
