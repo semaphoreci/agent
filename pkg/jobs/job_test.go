@@ -51,17 +51,15 @@ func Test__EnvVarsAreAvailableToCommands(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
 		"job_started",
 
 		"directive: Exporting environment variables",
-		strings.Join([]string{
-			"Exporting A",
-			"Exporting B",
-		}, "\n") + "\n",
+		"Exporting A\n",
+		"Exporting B\n",
 		"Exit Code: 0",
 
 		"directive: Injecting Files",
@@ -128,17 +126,15 @@ func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnPass(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
 		"job_started",
 
 		"directive: Exporting environment variables",
-		strings.Join([]string{
-			"Exporting A",
-			"Exporting B",
-		}, "\n") + "\n",
+		"Exporting A",
+		"Exporting B",
 		"Exit Code: 0",
 
 		"directive: Injecting Files",
@@ -234,7 +230,7 @@ func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnFail(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	testsupport.AssertSimplifiedJobLogs(t, simplifiedEvents, []string{
@@ -334,7 +330,7 @@ func Test__EpilogueOnPassOnlyExecutesOnSuccessfulJob(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -402,7 +398,7 @@ func Test__EpilogueOnFailOnlyExecutesOnFailedJob(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	testsupport.AssertSimplifiedJobLogs(t, simplifiedEvents, []string{
@@ -461,7 +457,7 @@ func Test__UsingCommandAliases(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -519,7 +515,7 @@ func Test__StopJob(t *testing.T) {
 	assert.True(t, job.Stopped)
 	assert.Eventually(t, func() bool { return job.Finished }, 5*time.Second, 1*time.Second)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -573,7 +569,7 @@ func Test__StopJobOnEpilogue(t *testing.T) {
 	assert.True(t, job.Stopped)
 	assert.Eventually(t, func() bool { return job.Finished }, 5*time.Second, 1*time.Second)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -627,7 +623,7 @@ func Test__STTYRestoration(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -682,7 +678,7 @@ func Test__BackgroundJobIsKilledAfterJobIsDoneInWindows(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -753,7 +749,7 @@ func Test__BackgroundJobIsKilledAfterJobIsDoneInNonWindows(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -819,7 +815,7 @@ func Test__KillingRootBash(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -873,7 +869,7 @@ func Test__BashSetE(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -930,7 +926,7 @@ func Test__BashSetPipefail(t *testing.T) {
 	job.Run()
 	assert.True(t, job.Finished)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -992,7 +988,7 @@ func Test__UsePreJobHook(t *testing.T) {
 
 	assert.True(t, job.Finished)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	testsupport.AssertSimplifiedJobLogs(t, simplifiedEvents, []string{
@@ -1064,7 +1060,7 @@ func Test__PreJobHookHasAccessToEnvVars(t *testing.T) {
 
 	assert.True(t, job.Finished)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	testsupport.AssertSimplifiedJobLogs(t, simplifiedEvents, []string{
@@ -1131,7 +1127,7 @@ func Test__UsePreJobHookAndFailOnError(t *testing.T) {
 
 	assert.True(t, job.Finished)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	testsupport.AssertSimplifiedJobLogs(t, simplifiedEvents, []string{

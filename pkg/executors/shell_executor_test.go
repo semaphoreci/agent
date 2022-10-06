@@ -78,19 +78,17 @@ func Test__ShellExecutor__EnvVars(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
 		"directive: Exporting environment variables",
-		strings.Join([]string{
-			"Exporting A",
-			"Exporting B",
-			"Exporting C",
-			"Exporting D",
-			"Exporting VAR_WITH_ENV_VAR",
-			"Exporting VAR_WITH_QUOTES",
-		}, "\n") + "\n",
+		"Exporting A\n",
+		"Exporting B\n",
+		"Exporting C\n",
+		"Exporting D\n",
+		"Exporting VAR_WITH_ENV_VAR\n",
+		"Exporting VAR_WITH_QUOTES\n",
 		"Exit Code: 0",
 
 		fmt.Sprintf("directive: %s", testsupport.EchoEnvVar("A")),
@@ -172,18 +170,16 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
 		"directive: Injecting Files",
-		strings.Join([]string{
-			fmt.Sprintf("Injecting %s with file mode 0400", absoluteFile.NormalizePath(homeDir)),
-			fmt.Sprintf("Injecting %s with file mode 0440", absoluteFileInMissingDir.NormalizePath(homeDir)),
-			fmt.Sprintf("Injecting %s with file mode 0600", relativeFile.NormalizePath(homeDir)),
-			fmt.Sprintf("Injecting %s with file mode 0644", relativeFileInMissingDir.NormalizePath(homeDir)),
-			fmt.Sprintf("Injecting %s with file mode 0777", homeFile.NormalizePath(homeDir)),
-		}, "\n") + "\n",
+		fmt.Sprintf("Injecting %s with file mode 0400\n", absoluteFile.NormalizePath(homeDir)),
+		fmt.Sprintf("Injecting %s with file mode 0440\n", absoluteFileInMissingDir.NormalizePath(homeDir)),
+		fmt.Sprintf("Injecting %s with file mode 0600\n", relativeFile.NormalizePath(homeDir)),
+		fmt.Sprintf("Injecting %s with file mode 0644\n", relativeFileInMissingDir.NormalizePath(homeDir)),
+		fmt.Sprintf("Injecting %s with file mode 0777\n", homeFile.NormalizePath(homeDir)),
 		"Exit Code: 0",
 
 		fmt.Sprintf("directive: %s", testsupport.Cat(absoluteFile.NormalizePath(homeDir))),
@@ -239,7 +235,7 @@ func Test__ShellExecutor__MultilineCommand(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -274,7 +270,7 @@ func Test__ShellExecutor__ChangesCurrentDirectory(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(false)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(false, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -304,7 +300,7 @@ func Test__ShellExecutor__ChangesEnvVars(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -338,7 +334,7 @@ func Test__ShellExecutor__StoppingRunningJob(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents[0:4], []string{
@@ -359,7 +355,7 @@ func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, true)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -377,7 +373,7 @@ func Test__ShellExecutor__Unicode(t *testing.T) {
 	assert.Zero(t, e.Cleanup())
 
 	time.Sleep(1 * time.Second)
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, true)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -409,7 +405,7 @@ func Test__ShellExecutor__BrokenUnicode(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
