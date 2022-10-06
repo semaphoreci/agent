@@ -133,8 +133,8 @@ func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnPass(t *testing.T) {
 		"job_started",
 
 		"directive: Exporting environment variables",
-		"Exporting A",
-		"Exporting B",
+		"Exporting A\n",
+		"Exporting B\n",
 		"Exit Code: 0",
 
 		"directive: Injecting Files",
