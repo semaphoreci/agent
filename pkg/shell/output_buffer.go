@@ -213,7 +213,7 @@ func (b *OutputBuffer) Close() {
 	log.Debugf("Waiting for buffer to be completely flushed...")
 	err := retry.RetryWithConstantWait(retry.RetryOptions{
 		Task:                 "wait for all output to be flushed",
-		MaxAttempts:          500,
+		MaxAttempts:          1000,
 		DelayBetweenAttempts: 10 * time.Millisecond,
 		HideError:            true,
 		Fn: func() error {
