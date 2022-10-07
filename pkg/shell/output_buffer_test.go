@@ -61,10 +61,30 @@ func Test__OutputBuffer__SimpleAscii__LongerThanMinimalCutLength(t *testing.T) {
 
 	buffer.Append(input)
 
+	// wait for the output to be flushed
+	time.Sleep(time.Second)
+
 	buffer.Close()
 	if assert.Len(t, output, 2) {
 		assert.Equal(t, output[0], string(input[:OutputBufferDefaultCutLength]))
 		assert.Equal(t, output[1], string(input[OutputBufferDefaultCutLength:]))
+	}
+}
+
+func Test__OutputBuffer__SimpleAscii__ChunkIncreasesWhenClosed(t *testing.T) {
+	output := []string{}
+	buffer, _ := NewOutputBuffer(func(s string) { output = append(output, s) })
+	input := []byte{}
+	for i := 0; i < OutputBufferDefaultCutLength+50; i++ {
+		input = append(input, 'a')
+	}
+
+	buffer.Append(input)
+	buffer.Close()
+
+	// everything is flushed in one chunk
+	if assert.Len(t, output, 1) {
+		assert.Equal(t, output[0], string(input))
 	}
 }
 

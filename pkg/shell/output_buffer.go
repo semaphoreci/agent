@@ -99,13 +99,14 @@ func (b *OutputBuffer) flush() {
 	defer b.mu.Unlock()
 
 	timeSinceLastAppend := b.timeSinceLastAppend()
+	chunkSize := b.chunkSize()
 
 	/*
 	 * If there's recent, but not enough data in the buffer, we don't yet flush.
 	 * Here, we don't want to use the exponential backoff strategy while waiting,
 	 * because we should respect the maximum of 100ms for data in the buffer.
 	 */
-	if len(b.bytes) < OutputBufferDefaultCutLength && timeSinceLastAppend < OutputBufferMaxTimeSinceLastAppend {
+	if len(b.bytes) < chunkSize && timeSinceLastAppend < OutputBufferMaxTimeSinceLastAppend {
 		log.Debugf("The output buffer has only %d bytes and the flush was %v ago - waiting...", len(b.bytes), timeSinceLastAppend)
 		time.Sleep(10 * time.Millisecond)
 		return
@@ -122,7 +123,7 @@ func (b *OutputBuffer) flush() {
 	 * Starting from the default cut lenght, and decreasing the lenght until we
 	 * are ready to flush.
 	 */
-	cutLength := OutputBufferDefaultCutLength
+	cutLength := chunkSize
 
 	// We can't cut more than we have in the buffer.
 	if len(b.bytes) < cutLength {
@@ -148,7 +149,7 @@ func (b *OutputBuffer) flush() {
 	 *       is because we are cutting it here to fit it into the chunk.
 	 */
 
-	if !b.done || (b.done && cutLength == OutputBufferDefaultCutLength) {
+	if !b.done || (b.done && cutLength == chunkSize) {
 		for i := 0; i < 4; i++ {
 			if utf8.Valid(b.bytes[0:cutLength]) {
 				break
@@ -206,14 +207,24 @@ func (b *OutputBuffer) timeSinceLastAppend() time.Duration {
 	return time.Millisecond
 }
 
+func (b *OutputBuffer) chunkSize() int {
+	// If the output buffer was already closed, we should
+	// use bigger chunks to make sure we can flush everything left in time.
+	if b.done {
+		return OutputBufferDefaultCutLength * 10
+	}
+
+	return OutputBufferDefaultCutLength
+}
+
 func (b *OutputBuffer) Close() {
 	b.done = true
 
-	// wait until buffer is empty, for at most 1s.
+	// wait until buffer is empty, for at most 10s.
 	log.Debugf("Waiting for buffer to be completely flushed...")
 	err := retry.RetryWithConstantWait(retry.RetryOptions{
 		Task:                 "wait for all output to be flushed",
-		MaxAttempts:          100,
+		MaxAttempts:          1000,
 		DelayBetweenAttempts: 10 * time.Millisecond,
 		HideError:            true,
 		Fn: func() error {

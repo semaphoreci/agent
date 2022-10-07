@@ -35,12 +35,15 @@ func (l *InMemoryBackend) CloseWithOptions(options CloseOptions) error {
 	return nil
 }
 
-func (l *InMemoryBackend) SimplifiedEvents(includeOutput bool) ([]string, error) {
-	return SimplifyLogEvents(l.Events, includeOutput)
+func (l *InMemoryBackend) SimplifiedEvents(includeOutput, useSingleOutputEvent bool) ([]string, error) {
+	return SimplifyLogEvents(l.Events, SimplifyOptions{
+		IncludeOutput:          includeOutput,
+		UseSingleItemForOutput: useSingleOutputEvent,
+	})
 }
 
 func (l *InMemoryBackend) SimplifiedEventsWithoutDockerPull() ([]string, error) {
-	logs, err := l.SimplifiedEvents(true)
+	logs, err := l.SimplifiedEvents(true, false)
 	if err != nil {
 		return []string{}, err
 	}

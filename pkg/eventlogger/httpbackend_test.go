@@ -106,7 +106,7 @@ func Test__LogsArePushedToHTTPEndpoint(t *testing.T) {
 	eventObjects, err := TransformToObjects(mockServer.GetLogs())
 	assert.Nil(t, err)
 
-	simplifiedEvents, err := SimplifyLogEvents(eventObjects, true)
+	simplifiedEvents, err := SimplifyLogEvents(eventObjects, SimplifyOptions{IncludeOutput: true})
 	assert.Nil(t, err)
 
 	assert.Equal(t, []string{
@@ -148,7 +148,7 @@ func Test__RequestsAreCappedAtLinesPerRequest(t *testing.T) {
 	eventObjects, err := TransformToObjects(mockServer.GetLogs())
 	assert.Nil(t, err)
 
-	simplifiedEvents, err := SimplifyLogEvents(eventObjects, true)
+	simplifiedEvents, err := SimplifyLogEvents(eventObjects, SimplifyOptions{IncludeOutput: true})
 	assert.Nil(t, err)
 
 	assert.Equal(t, []string{
@@ -197,7 +197,7 @@ func Test__FlushingGivesUpAfterTimeout(t *testing.T) {
 	eventObjects, err := TransformToObjects(mockServer.GetLogs())
 	assert.Nil(t, err)
 
-	simplifiedEvents, err := SimplifyLogEvents(eventObjects, true)
+	simplifiedEvents, err := SimplifyLogEvents(eventObjects, SimplifyOptions{IncludeOutput: true})
 	assert.Nil(t, err)
 
 	// logs are incomplete
@@ -262,7 +262,7 @@ func Test__TokenIsRefreshed(t *testing.T) {
 	eventObjects, err := TransformToObjects(mockServer.GetLogs())
 	assert.Nil(t, err)
 
-	simplifiedEvents, err := SimplifyLogEvents(eventObjects, true)
+	simplifiedEvents, err := SimplifyLogEvents(eventObjects, SimplifyOptions{IncludeOutput: true})
 	assert.Nil(t, err)
 
 	assert.Equal(t, []string{

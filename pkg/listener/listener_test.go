@@ -472,7 +472,7 @@ func Test__HostEnvVarsAreExposedToJob(t *testing.T) {
 	eventObjects, err := eventlogger.TransformToObjects(loghubMockServer.GetLogs())
 	assert.Nil(t, err)
 
-	simplifiedEvents, err := eventlogger.SimplifyLogEvents(eventObjects, true)
+	simplifiedEvents, err := eventlogger.SimplifyLogEvents(eventObjects, eventlogger.SimplifyOptions{IncludeOutput: true})
 	assert.Nil(t, err)
 
 	assert.Equal(t, []string{
@@ -591,7 +591,7 @@ func Test__LogTokenIsRefreshed(t *testing.T) {
 	eventObjects, err := eventlogger.TransformToObjects(loghubMockServer.GetLogs())
 	assert.Nil(t, err)
 
-	simplifiedEvents, err := eventlogger.SimplifyLogEvents(eventObjects, true)
+	simplifiedEvents, err := eventlogger.SimplifyLogEvents(eventObjects, eventlogger.SimplifyOptions{IncludeOutput: true})
 	assert.Nil(t, err)
 
 	assert.Equal(t, []string{

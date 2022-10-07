@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -77,7 +78,7 @@ func Test__ShellExecutor__EnvVars(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -169,7 +170,7 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -234,7 +235,7 @@ func Test__ShellExecutor__MultilineCommand(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -269,7 +270,7 @@ func Test__ShellExecutor__ChangesCurrentDirectory(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(false)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(false, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -299,7 +300,7 @@ func Test__ShellExecutor__ChangesEnvVars(t *testing.T) {
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
@@ -333,7 +334,7 @@ func Test__ShellExecutor__StoppingRunningJob(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents[0:4], []string{
@@ -348,27 +349,18 @@ func Test__ShellExecutor__StoppingRunningJob(t *testing.T) {
 func Test__ShellExecutor__LargeCommandOutput(t *testing.T) {
 	e, testLoggerBackend := setupShellExecutor(t, true)
 
-	go func() {
-		assert.Zero(t, e.RunCommand(testsupport.LargeOutputCommand(), false, ""))
-	}()
-
-	time.Sleep(5 * time.Second)
-
+	assert.Zero(t, e.RunCommand(testsupport.LargeOutputCommand(), false, ""))
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
 	time.Sleep(1 * time.Second)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, true)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
 		fmt.Sprintf("directive: %s", testsupport.LargeOutputCommand()),
-		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
-		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
-		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
-		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
-		"hellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohellohello",
+		strings.Repeat("hello", 100),
 		"Exit Code: 0",
 	})
 }
@@ -381,22 +373,16 @@ func Test__ShellExecutor__Unicode(t *testing.T) {
 	assert.Zero(t, e.Cleanup())
 
 	time.Sleep(1 * time.Second)
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, true)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
 		fmt.Sprintf("directive: %s", testsupport.Output(UnicodeOutput1)),
-		"特定の伝説に拠る物語の由来については諸説存在し。特定の伝説に拠る物",
-		"語の由来については諸説存在し。特定の伝説に拠る物語の由来については",
-		"諸説存在し。",
+		"特定の伝説に拠る物語の由来については諸説存在し。特定の伝説に拠る物語の由来については諸説存在し。特定の伝説に拠る物語の由来については諸説存在し。",
 		"Exit Code: 0",
 
 		fmt.Sprintf("directive: %s", testsupport.Output(UnicodeOutput2)),
-		"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-		"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-		"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-		"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-		"━━━━━━━━━━━━━━━━━━━━━━",
+		"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
 		"Exit Code: 0",
 	})
 }
@@ -419,7 +405,7 @@ func Test__ShellExecutor__BrokenUnicode(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true)
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
 	assert.Nil(t, err)
 
 	assert.Equal(t, simplifiedEvents, []string{
