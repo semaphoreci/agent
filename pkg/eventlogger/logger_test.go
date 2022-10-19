@@ -14,7 +14,7 @@ import (
 
 func Test__GeneratePlainLogs(t *testing.T) {
 	tmpFileName := filepath.Join(os.TempDir(), fmt.Sprintf("logs_%d.json", time.Now().UnixNano()))
-	backend, _ := NewFileBackend(tmpFileName)
+	backend, _ := NewFileBackend(tmpFileName, DefaultMaxSizeInBytes)
 	assert.Nil(t, backend.Open())
 	logger, _ := NewLogger(backend)
 	generateLogEvents(t, 10, backend)

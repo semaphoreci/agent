@@ -376,7 +376,14 @@ func (job *Job) teardownWithCallbacks(result string, callbackRetryAttempts int) 
 	}
 
 	log.Debug("Archivator finished")
-	err = job.Logger.Close()
+
+	// The job already finished, but executor is still open.
+	// We use the open executor to upload the job logs as
+	// an artifact, in case it is above the acceptable limit.
+	err = job.Logger.CloseWithOptions(eventlogger.CloseOptions{
+		OnClose: job.uploadLogsAsArtifact,
+	})
+
 	if err != nil {
 		log.Errorf("Error closing logger: %+v", err)
 	}

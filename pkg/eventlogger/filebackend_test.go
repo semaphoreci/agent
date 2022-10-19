@@ -15,7 +15,7 @@ import (
 
 func Test__LogsArePushedToFile(t *testing.T) {
 	tmpFileName := filepath.Join(os.TempDir(), fmt.Sprintf("logs_%d.json", time.Now().UnixNano()))
-	fileBackend, err := NewFileBackend(tmpFileName)
+	fileBackend, err := NewFileBackend(tmpFileName, DefaultMaxSizeInBytes)
 	assert.Nil(t, err)
 	assert.Nil(t, fileBackend.Open())
 

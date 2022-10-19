@@ -16,7 +16,7 @@ const LoggerMethodPush = "push"
 func CreateLogger(request *api.JobRequest, refreshTokenFn func() (string, error)) (*Logger, error) {
 	switch request.Logger.Method {
 	case LoggerMethodPull:
-		return Default()
+		return Default(request)
 	case LoggerMethodPush:
 		return DefaultHTTP(request, refreshTokenFn)
 	default:
@@ -24,9 +24,15 @@ func CreateLogger(request *api.JobRequest, refreshTokenFn func() (string, error)
 	}
 }
 
-func Default() (*Logger, error) {
+func Default(request *api.JobRequest) (*Logger, error) {
 	path := filepath.Join(os.TempDir(), fmt.Sprintf("job_log_%d.json", time.Now().UnixNano()))
-	backend, err := NewFileBackend(path)
+
+	maxSize := DefaultMaxSizeInBytes
+	if request.Logger.MaxSizeInBytes > 0 {
+		maxSize = request.Logger.MaxSizeInBytes
+	}
+
+	backend, err := NewFileBackend(path, maxSize)
 	if err != nil {
 		return nil, err
 	}

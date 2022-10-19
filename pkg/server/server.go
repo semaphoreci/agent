@@ -204,6 +204,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 		FileInjections:  []config.FileInjection{},
 		SelfHosted:      false,
 		RefreshTokenFn:  nil,
+		UploadJobLogs:   config.UploadJobLogsConditionWhenTrimmed,
 	})
 
 	if err != nil {

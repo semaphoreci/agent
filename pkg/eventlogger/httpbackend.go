@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -49,7 +50,11 @@ func NewHTTPBackend(config HTTPBackendConfig) (*HTTPBackend, error) {
 	}
 
 	path := filepath.Join(os.TempDir(), fmt.Sprintf("job_log_%d.json", time.Now().UnixNano()))
-	fileBackend, err := NewFileBackend(path)
+
+	// The API will instruct the HTTP backend when to stop
+	// streaming logs due to their size hitting the limits.
+	// We don't need to impose any limits on the underlying file backend.
+	fileBackend, err := NewFileBackend(path, math.MaxInt32)
 	if err != nil {
 		return nil, err
 	}
