@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 
@@ -68,6 +69,7 @@ type JobProcessor struct {
 	FailOnPreJobHookError   bool
 	ExitOnShutdown          bool
 	ShutdownReason          ShutdownReason
+	mutex                   sync.Mutex
 }
 
 func (p *JobProcessor) Start() {
@@ -205,6 +207,16 @@ func (p *JobProcessor) getJobWithRetries(jobID string) (*api.JobRequest, error) 
 }
 
 func (p *JobProcessor) StopJob(jobID string) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	// The job finished before the sync request returned a stop-job command.
+	// Here, we don't do anything since the job is already finished and
+	// a finished-job state will be reported in the next sync.
+	if p.State == selfhostedapi.AgentStateFinishedJob {
+		return
+	}
+
 	p.CurrentJobID = jobID
 	p.State = selfhostedapi.AgentStateStoppingJob
 
@@ -212,8 +224,10 @@ func (p *JobProcessor) StopJob(jobID string) {
 }
 
 func (p *JobProcessor) JobFinished(result selfhostedapi.JobResult) {
+	p.mutex.Lock()
 	p.State = selfhostedapi.AgentStateFinishedJob
 	p.CurrentJobResult = result
+	p.mutex.Unlock()
 }
 
 func (p *JobProcessor) WaitForJobs() {
