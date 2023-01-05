@@ -22,6 +22,7 @@ RestartSec=$SEMAPHORE_AGENT_SYSTEMD_RESTART_SEC
 User=$SEMAPHORE_AGENT_INSTALLATION_USER
 WorkingDirectory=$AGENT_INSTALLATION_DIRECTORY
 ExecStart=$AGENT_INSTALLATION_DIRECTORY/agent start --config-file $AGENT_CONFIG_PATH
+Environment=SEMAPHORE_AGENT_LOG_FILE_PATH=$AGENT_INSTALLATION_DIRECTORY/agent.log
 
 [Install]
 WantedBy=multi-user.target
@@ -76,6 +77,11 @@ create_launchd_daemon() {
     <string>--config-file</string>
     <string>$AGENT_CONFIG_PATH</string>
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>SEMAPHORE_AGENT_LOG_FILE_PATH</key>
+    <string>$AGENT_INSTALLATION_DIRECTORY/agent.log</string>
+  </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
