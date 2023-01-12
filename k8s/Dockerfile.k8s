@@ -1,0 +1,13 @@
+FROM ubuntu:20.04
+
+RUN apt-get update -y
+RUN apt-get install -y ca-certificates curl
+RUN update-ca-certificates
+
+# kubectl is required to be present in the container running the agent
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+RUN install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+COPY build/agent /app/agent
+
+CMD /app/agent start --config-file /app/config/semaphore-agent.yml

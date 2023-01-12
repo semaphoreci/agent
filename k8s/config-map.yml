@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: semaphore-agent-config
+data:
+  semaphore-agent.yml: |
+    endpoint: semaphore.semaphoreci.com
+    token: asdsdsd

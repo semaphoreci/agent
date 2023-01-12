@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: semaphore-agent
+spec:
+  selector:
+    matchLabels:
+      app: semaphore-agent
+  replicas: 1
+  template:
+    metadata:
+      name: semaphore-agent
+      labels:
+        app: semaphore-agent
+    spec:
+      serviceAccountName: agent-service-account
+      volumes:
+        - name: agent-config-volume
+          configMap:
+            defaultMode: 0644
+            name: semaphore-agent-config
+            items:
+            - key: semaphore-agent.yml
+              path: semaphore-agent.yml
+      containers:
+        - name: agent
+          image: semaphore-agent-k8s
+          imagePullPolicy: Never
+          env:
+            - name: SEMAPHORE_DEFAULT_CONTAINER_IMAGE
+              value: semaphore-agent-k8s
+            - name: KUBERNETES_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          resources:
+            limits:
+              cpu: '0.1'
+              memory: 100Mi
+            requests:
+              cpu: '0.1'
+              memory: 100Mi
+          volumeMounts:
+            - name: agent-config-volume
+              mountPath: "/app/config/semaphore-agent.yml"
+              readOnly: true
+              subPath: semaphore-agent.yml

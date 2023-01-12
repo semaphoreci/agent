@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: create-jobs
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: agent-service-account
+roleRef:
+  kind: Role
+  name: job-writer
+  apiGroup: rbac.authorization.k8s.io
