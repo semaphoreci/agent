@@ -83,7 +83,7 @@ create_launchd_daemon() {
     <string>$AGENT_INSTALLATION_DIRECTORY/agent.log</string>
   </dict>
   <key>RunAtLoad</key>
-  <true/>
+  <false/>
   <key>KeepAlive</key>
   <dict>
     <key>Crashed</key>
@@ -104,26 +104,32 @@ END
   echo "Creating $LAUNCHD_DAEMON_PATH..."
 
   if [[ -f "$LAUNCHD_DAEMON_PATH" ]]; then
-    echo "launchd daemon already exists at $LAUNCHD_DAEMON_PATH. Overriding and reloading it..."
-    launchctl unload $LAUNCHD_DAEMON_PATH
+    echo "launchd daemon already exists at $LAUNCHD_DAEMON_PATH. Overriding it..."
     echo "$LAUNCHD_DAEMON" > $LAUNCHD_DAEMON_PATH
-    launchctl load $LAUNCHD_DAEMON_PATH
 
     if [[ "$SEMAPHORE_AGENT_START" == "false" ]]; then
-      echo "Not restarting $LAUNCHD_DAEMON_LABEL."
+      echo "Not starting/restarting $LAUNCHD_DAEMON_LABEL."
     else
-      echo "Restarting $LAUNCHD_DAEMON_LABEL service..."
-      launchctl start $LAUNCHD_DAEMON_LABEL
+      echo "Bootout $LAUNCHD_DAEMON_LABEL..."
+      launchctl bootout system $LAUNCHD_DAEMON_PATH || true
+
+      echo "Bootstrap $LAUNCHD_DAEMON_LABEL..."
+      launchctl bootstrap system $LAUNCHD_DAEMON_PATH
+
+      echo "Kickstart $LAUNCHD_DAEMON_LABEL..."
+      launchctl kickstart -k system/com.semaphoreci.agent
     fi
   else
     echo "$LAUNCHD_DAEMON" > $LAUNCHD_DAEMON_PATH
-    launchctl load $LAUNCHD_DAEMON_PATH
 
     if [[ "$SEMAPHORE_AGENT_START" == "false" ]]; then
       echo "Not starting $LAUNCHD_DAEMON_LABEL."
     else
-      echo "Starting $LAUNCHD_DAEMON_LABEL service..."
-      launchctl start $LAUNCHD_DAEMON_LABEL
+      echo "Bootstrap $LAUNCHD_DAEMON_LABEL service..."
+      launchctl bootstrap system $LAUNCHD_DAEMON_PATH
+
+      echo "Kickstart $LAUNCHD_DAEMON_LABEL service..."
+      launchctl kickstart -k system/com.semaphoreci.agent
     fi
   fi
 }
