@@ -104,6 +104,13 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 }
 
 func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOptions JobOptions) (executors.Executor, error) {
+	// Check if we are running on a kubernetes container.
+	// If so, both jobs (shell and dockercompose) will be created
+	// in a k8s job, so a kubernetes executor needs to be created instead.
+	if os.Getenv("KUBERNETES_SERVICE_HOST") != "" {
+		return executors.NewKubernetesExecutor(request, logger)
+	}
+
 	switch request.Executor {
 	case executors.ExecutorTypeShell:
 		return executors.NewShellExecutor(request, logger, jobOptions.SelfHosted), nil
