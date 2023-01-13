@@ -32,6 +32,7 @@ type KubernetesExecutor struct {
 	k8sNamespace     string
 	jobRequest       *api.JobRequest
 	job              *apibatchv1.Job
+	jobName          string
 	logger           *eventlogger.Logger
 	Shell            *shell.Shell
 }
@@ -97,7 +98,7 @@ func (e *KubernetesExecutor) newJob() *apibatchv1.Job {
 	// We don't new pods to be created if the initial one fails.
 	backoffLimit := int32(0)
 
-	jobName := e.randomJobName()
+	e.jobName = e.randomJobName()
 
 	return &apibatchv1.Job{
 		ObjectMeta: v1.ObjectMeta{
@@ -105,7 +106,7 @@ func (e *KubernetesExecutor) newJob() *apibatchv1.Job {
 
 			// TODO: use agent name + job ID here.
 			// Note: e.jobRequest.ID is not being sent by API.
-			Name: jobName,
+			Name: e.jobName,
 
 			// TODO: put agent name here too
 			Labels: map[string]string{
@@ -212,8 +213,15 @@ func (e *KubernetesExecutor) Start() int {
 		e.logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
-	// TODO: find pod for the job
-	// TODO: check if container is ready before trying to create a session there.
+	pod, err := e.findPod()
+	if err != nil {
+		log.Errorf("Failed to find pod: %v", err)
+		e.logger.LogCommandOutput("Failed to find pod\n")
+		e.logger.LogCommandOutput(err.Error())
+
+		exitCode = 1
+		return exitCode
+	}
 
 	e.logger.LogCommandOutput("Starting a new bash session in the container\n")
 
@@ -222,7 +230,7 @@ func (e *KubernetesExecutor) Start() int {
 	args := []string{
 		"exec",
 		"-it",
-		"<POD_NAME????????>",
+		pod.Name,
 		"-c",
 		"main",
 		"--",
@@ -253,6 +261,40 @@ func (e *KubernetesExecutor) Start() int {
 	return exitCode
 }
 
+func (e *KubernetesExecutor) findPod() (*corev1.Pod, error) {
+	for {
+		podList, err := e.k8sClientset.CoreV1().
+			Pods(e.k8sNamespace).
+			List(context.Background(), v1.ListOptions{LabelSelector: "job-name=" + e.jobName})
+
+		if err != nil {
+			return nil, err
+		}
+
+		// Pod wasn't yet created
+		if len(podList.Items) == 0 {
+			log.Infof("Pod for job %s was not yet created - waiting...", e.jobName)
+			time.Sleep(time.Second)
+			continue
+		}
+
+		pod := podList.Items[0]
+
+		// If the pod already finished, something went wrong.
+		if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded {
+			return nil, fmt.Errorf("pod %s, for job %s, already finished with status %s", pod.Name, e.jobName, pod.Status.Phase)
+		}
+
+		if pod.Status.Phase == corev1.PodPending {
+			log.Infof("Pod %s, for job %s, is still pending - waiting...", pod.Name, e.jobName)
+			time.Sleep(time.Second)
+			continue
+		}
+
+		return &pod, nil
+	}
+}
+
 func (e *KubernetesExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config.HostEnvVar) int {
 	commandStartedAt := int(time.Now().Unix())
 	directive := "Exporting environment variables"
@@ -279,6 +321,7 @@ func (e *KubernetesExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []c
 	})
 
 	if err != nil {
+		log.Errorf("Error writing environment file: %v", err)
 		exitCode = 255
 		return exitCode
 	}
@@ -286,12 +329,7 @@ func (e *KubernetesExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []c
 	cmd := fmt.Sprintf("source %s", envFileName)
 	exitCode = e.RunCommand(cmd, true, "")
 	if exitCode != 0 {
-		return exitCode
-	}
-
-	cmd = fmt.Sprintf("echo 'source %s' >> ~/.bash_profile", envFileName)
-	exitCode = e.RunCommand(cmd, true, "")
-	if exitCode != 0 {
+		log.Errorf("Error sourcing environment file: %v", err)
 		return exitCode
 	}
 
@@ -422,7 +460,11 @@ func (e *KubernetesExecutor) Stop() int {
 	}
 
 	if e.job != nil {
-		err := e.k8sJobsInterface.Delete(context.Background(), e.job.Name, v1.DeleteOptions{})
+		policy := v1.DeletePropagationForeground
+		err := e.k8sJobsInterface.Delete(context.Background(), e.job.Name, v1.DeleteOptions{
+			PropagationPolicy: &policy,
+		})
+
 		if err != nil {
 			log.Errorf("Error deleting k8s job '%s': %v\n", e.job.Name, err)
 		}
