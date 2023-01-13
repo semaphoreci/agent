@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"os"
-	"path"
 	"path/filepath"
 	"time"
 
@@ -33,6 +32,8 @@ type KubernetesExecutor struct {
 	jobRequest       *api.JobRequest
 	job              *apibatchv1.Job
 	jobName          string
+	secret           *corev1.Secret
+	secretName       string
 	logger           *eventlogger.Logger
 	Shell            *shell.Shell
 }
@@ -63,7 +64,76 @@ func NewKubernetesExecutor(jobRequest *api.JobRequest, logger *eventlogger.Logge
 	}, nil
 }
 
+func (e *KubernetesExecutor) createAuxiliarySecret() error {
+	environment, err := shell.CreateEnvironment(e.jobRequest.EnvVars, []config.HostEnvVar{})
+	if err != nil {
+		return fmt.Errorf("error creating environment: %v", err)
+	}
+
+	envFileName := filepath.Join(os.TempDir(), ".env")
+	err = environment.ToFile(envFileName, func(name string) {
+		// e.logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))
+	})
+
+	if err != nil {
+		return fmt.Errorf("error creating temporary environment file: %v", err)
+	}
+
+	envFile, err := os.Open(envFileName)
+	if err != nil {
+		return fmt.Errorf("error opening environment file for reading: %v", err)
+	}
+
+	defer envFile.Close()
+
+	env, err := ioutil.ReadAll(envFile)
+	if err != nil {
+		return fmt.Errorf("error reading environment file: %v", err)
+	}
+
+	// We don't allow the secret to be changed after its creation.
+	immutable := true
+
+	// We use one key for the environment variables.
+	data := map[string][]byte{".env": env}
+
+	// and one key for each file injected in the job definition.
+	// TODO: what about file modes?
+	// TODO: what about files with ~ or absolute files
+	// TODO: not doing this for now, let's make sure the environment stuff is working first.
+	// for _, file := range e.jobRequest.Files {
+	// 	data[file.Path] = []byte(file.Content)
+	// }
+
+	e.secretName = fmt.Sprintf("%s-secret", e.jobName)
+	secret := corev1.Secret{
+		ObjectMeta: v1.ObjectMeta{Name: e.secretName},
+		Type:       corev1.SecretTypeOpaque,
+		Immutable:  &immutable,
+		Data:       data,
+	}
+
+	newSecret, err := e.k8sClientset.CoreV1().
+		Secrets(e.k8sNamespace).
+		Create(context.Background(), &secret, v1.CreateOptions{})
+
+	if err != nil {
+		return fmt.Errorf("error creating secret '%s': %v", e.secretName, err)
+	}
+
+	e.secret = newSecret
+	return nil
+}
+
 func (e *KubernetesExecutor) Prepare() int {
+	e.jobName = e.randomJobName()
+
+	err := e.createAuxiliarySecret()
+	if err != nil {
+		log.Errorf("Error creating auxiliary secret for k8s job: %v", err)
+		return 1
+	}
+
 	job, err := e.k8sJobsInterface.Create(context.TODO(), e.newJob(), v1.CreateOptions{})
 	if err != nil {
 		log.Errorf("Error creating k8s job: %v", err)
@@ -98,8 +168,6 @@ func (e *KubernetesExecutor) newJob() *apibatchv1.Job {
 	// We don't new pods to be created if the initial one fails.
 	backoffLimit := int32(0)
 
-	e.jobName = e.randomJobName()
-
 	return &apibatchv1.Job{
 		ObjectMeta: v1.ObjectMeta{
 			Namespace: e.k8sNamespace,
@@ -123,6 +191,16 @@ func (e *KubernetesExecutor) newJob() *apibatchv1.Job {
 					Containers:       e.containers(),
 					ImagePullSecrets: e.imagePullSecrets(),
 					RestartPolicy:    corev1.RestartPolicyNever,
+					Volumes: []corev1.Volume{
+						{
+							Name: "environment",
+							VolumeSource: corev1.VolumeSource{
+								Secret: &corev1.SecretVolumeSource{
+									SecretName: e.secretName,
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -139,6 +217,13 @@ func (e *KubernetesExecutor) containers() []corev1.Container {
 			{
 				Name:  "main",
 				Image: os.Getenv("SEMAPHORE_DEFAULT_CONTAINER_IMAGE"),
+				VolumeMounts: []corev1.VolumeMount{
+					{
+						Name:      "environment",
+						ReadOnly:  true,
+						MountPath: "/tmp/injected",
+					},
+				},
 
 				// TODO: little hack to make it work with my kubernetes local cluster
 				ImagePullPolicy: corev1.PullNever,
@@ -165,6 +250,13 @@ func (e *KubernetesExecutor) convertContainersFromSemaphore() []corev1.Container
 			Image:   main.Image,
 			Env:     e.convertEnvVars(main.EnvVars),
 			Command: []string{"bash", "-c", "sleep infinity"},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      "environment",
+					ReadOnly:  true,
+					MountPath: "/tmp",
+				},
+			},
 		},
 	}
 
@@ -203,7 +295,7 @@ func (e *KubernetesExecutor) imagePullSecrets() []corev1.LocalObjectReference {
 // The idea here is to use the kubectl CLI to exec into the pod
 func (e *KubernetesExecutor) Start() int {
 	commandStartedAt := int(time.Now().Unix())
-	directive := "Starting containers..."
+	directive := "Starting shell session..."
 	exitCode := 0
 
 	e.logger.LogCommandStarted(directive)
@@ -223,7 +315,7 @@ func (e *KubernetesExecutor) Start() int {
 		return exitCode
 	}
 
-	e.logger.LogCommandOutput("Starting a new bash session in the container\n")
+	e.logger.LogCommandOutput("Starting a new bash session in the pod\n")
 
 	// #nosec
 	executable := "kubectl"
@@ -273,6 +365,7 @@ func (e *KubernetesExecutor) findPod() (*corev1.Pod, error) {
 
 		// Pod wasn't yet created
 		if len(podList.Items) == 0 {
+			e.logger.LogCommandOutput("Pod was not yet created - waiting...\n")
 			log.Infof("Pod for job %s was not yet created - waiting...", e.jobName)
 			time.Sleep(time.Second)
 			continue
@@ -282,19 +375,25 @@ func (e *KubernetesExecutor) findPod() (*corev1.Pod, error) {
 
 		// If the pod already finished, something went wrong.
 		if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded {
+			e.logger.LogCommandOutput(fmt.Sprintf("Pod ended up in %s state...\n", pod.Status.Phase))
 			return nil, fmt.Errorf("pod %s, for job %s, already finished with status %s", pod.Name, e.jobName, pod.Status.Phase)
 		}
 
 		if pod.Status.Phase == corev1.PodPending {
+			e.logger.LogCommandOutput("Pod is still pending - waiting...\n")
 			log.Infof("Pod %s, for job %s, is still pending - waiting...", pod.Name, e.jobName)
 			time.Sleep(time.Second)
 			continue
 		}
 
+		e.logger.LogCommandOutput("Pod is ready.\n")
 		return &pod, nil
 	}
 }
 
+// All the environment has already been exposed to the main container
+// through a temporary secret created before the k8s job was created, and used in the pod spec.
+// Here, we just need to source that file through the PTY session.
 func (e *KubernetesExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config.HostEnvVar) int {
 	commandStartedAt := int(time.Now().Unix())
 	directive := "Exporting environment variables"
@@ -304,38 +403,21 @@ func (e *KubernetesExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []c
 
 	defer func() {
 		commandFinishedAt := int(time.Now().Unix())
-
 		e.logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
-	environment, err := shell.CreateEnvironment(envVars, hostEnvVars)
-	if err != nil {
-		log.Errorf("Error creating environment: %v", err)
-		exitCode = 1
-		return exitCode
-	}
-
-	envFileName := filepath.Join(os.TempDir(), ".env")
-	err = environment.ToFile(envFileName, func(name string) {
-		e.logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))
-	})
-
-	if err != nil {
-		log.Errorf("Error writing environment file: %v", err)
-		exitCode = 255
-		return exitCode
-	}
-
-	cmd := fmt.Sprintf("source %s", envFileName)
-	exitCode = e.RunCommand(cmd, true, "")
+	exitCode = e.RunCommand("source /tmp/injected/.env", true, "")
 	if exitCode != 0 {
-		log.Errorf("Error sourcing environment file: %v", err)
+		log.Errorf("Error sourcing environment file")
 		return exitCode
 	}
 
 	return exitCode
 }
 
+// All the files have already been exposed to the main container
+// through a temporary secret created before the k8s job was created, and used in the pod spec.
+// Here, we just need to move the files to their correct location.
 func (e *KubernetesExecutor) InjectFiles(files []api.File) int {
 	directive := "Injecting Files"
 	commandStartedAt := int(time.Now().Unix())
@@ -343,61 +425,7 @@ func (e *KubernetesExecutor) InjectFiles(files []api.File) int {
 
 	e.logger.LogCommandStarted(directive)
 
-	for _, f := range files {
-		output := fmt.Sprintf("Injecting %s with file mode %s\n", f.Path, f.Mode)
-
-		e.logger.LogCommandOutput(output)
-
-		content, err := f.Decode()
-
-		if err != nil {
-			e.logger.LogCommandOutput("Failed to decode the content of the file.\n")
-			exitCode = 1
-			return exitCode
-		}
-
-		tmpPath := fmt.Sprintf("%s/file", os.TempDir())
-
-		// #nosec
-		err = ioutil.WriteFile(tmpPath, []byte(content), 0644)
-		if err != nil {
-			e.logger.LogCommandOutput(err.Error() + "\n")
-			exitCode = 255
-			break
-		}
-
-		destPath := ""
-
-		if f.Path[0] == '/' || f.Path[0] == '~' {
-			destPath = f.Path
-		} else {
-			destPath = "~/" + f.Path
-		}
-
-		cmd := fmt.Sprintf("mkdir -p %s", path.Dir(destPath))
-		exitCode = e.RunCommand(cmd, true, "")
-		if exitCode != 0 {
-			output := fmt.Sprintf("Failed to create destination path %s", destPath)
-			e.logger.LogCommandOutput(output + "\n")
-			break
-		}
-
-		cmd = fmt.Sprintf("cp %s %s", tmpPath, destPath)
-		exitCode = e.RunCommand(cmd, true, "")
-		if exitCode != 0 {
-			output := fmt.Sprintf("Failed to move to destination path %s %s", tmpPath, destPath)
-			e.logger.LogCommandOutput(output + "\n")
-			break
-		}
-
-		cmd = fmt.Sprintf("chmod %s %s", f.Mode, destPath)
-		exitCode = e.RunCommand(cmd, true, "")
-		if exitCode != 0 {
-			output := fmt.Sprintf("Failed to set file mode to %s", f.Mode)
-			e.logger.LogCommandOutput(output + "\n")
-			break
-		}
-	}
+	// TODO: do whatever it is you need to move files to their correct location
 
 	commandFinishedAt := int(time.Now().Unix())
 	e.logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
@@ -420,6 +448,25 @@ func (e *KubernetesExecutor) RunCommandWithOptions(options CommandOptions) int {
 		directive = options.Alias
 	}
 
+	// In kubernetes, we don't have a shared folder to write the /tmp/current-agent-cmd file.
+	// Therefore we need to create that file using the PTY too.
+	// TODO: make sure commands with quotes also work.
+	// TODO: couldn't we just execute the command directly without the temp file instead?
+	preCmd := e.Shell.NewProcessWithConfig(shell.Config{
+		Shell:                  e.Shell,
+		StoragePath:            "/tmp",
+		ExecuteWithoutTempFile: true,
+		Command:                fmt.Sprintf("echo '%s' > /tmp/current-agent-cmd", options.Command),
+		OnOutput:               func(output string) {},
+	})
+
+	preCmd.Run()
+	if preCmd.ExitCode != 0 {
+		log.Errorf("Error creating /tmp/current-agent-cmd")
+		return preCmd.ExitCode
+	}
+
+	// Now that we know that file exists, we can execute it without writing it again.
 	p := e.Shell.NewProcessWithOutput(options.Command, func(output string) {
 		if !options.Silent {
 			e.logger.LogCommandOutput(output)
@@ -459,6 +506,16 @@ func (e *KubernetesExecutor) Stop() int {
 		}
 	}
 
+	return e.Cleanup()
+}
+
+func (e *KubernetesExecutor) Cleanup() int {
+	e.removeK8sResources()
+	e.removeLocalResources()
+	return 0
+}
+
+func (e *KubernetesExecutor) removeK8sResources() {
 	if e.job != nil {
 		policy := v1.DeletePropagationForeground
 		err := e.k8sJobsInterface.Delete(context.Background(), e.job.Name, v1.DeleteOptions{
@@ -470,10 +527,20 @@ func (e *KubernetesExecutor) Stop() int {
 		}
 	}
 
-	return 0
+	if e.secret != nil {
+		err := e.k8sClientset.CoreV1().
+			Secrets(e.k8sNamespace).
+			Delete(context.Background(), e.secretName, v1.DeleteOptions{})
+
+		if err != nil {
+			log.Errorf("Error deleting k8s secret '%s': %v\n", e.job.Name, err)
+		}
+	}
 }
 
-func (e *KubernetesExecutor) Cleanup() int {
-	// TODO: not really sure what to do here yet.
-	return 0
+func (e *KubernetesExecutor) removeLocalResources() {
+	envFileName := filepath.Join(os.TempDir(), ".env")
+	if err := os.Remove(envFileName); err != nil {
+		log.Errorf("Error removing local file '%s': %v", envFileName)
+	}
 }

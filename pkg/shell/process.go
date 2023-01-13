@@ -35,26 +35,28 @@ exit $Env:SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS
 `
 
 type Config struct {
-	Shell       *Shell
-	StoragePath string
-	Command     string
-	OnOutput    func(string)
+	Shell                  *Shell
+	StoragePath            string
+	Command                string
+	OnOutput               func(string)
+	ExecuteWithoutTempFile bool
 }
 
 type Process struct {
-	Command         string
-	Shell           *Shell
-	StoragePath     string
-	StartedAt       int
-	FinishedAt      int
-	ExitCode        int
-	Pid             int
-	startMark       string
-	endMark         string
-	commandEndRegex *regexp.Regexp
-	inputBuffer     []byte
-	outputBuffer    *OutputBuffer
-	SysProcAttr     *syscall.SysProcAttr
+	Command                string
+	Shell                  *Shell
+	StoragePath            string
+	StartedAt              int
+	FinishedAt             int
+	ExitCode               int
+	Pid                    int
+	startMark              string
+	endMark                string
+	commandEndRegex        *regexp.Regexp
+	inputBuffer            []byte
+	outputBuffer           *OutputBuffer
+	SysProcAttr            *syscall.SysProcAttr
+	ExecuteWithoutTempFile bool
 }
 
 func randomMagicMark() string {
@@ -68,14 +70,15 @@ func NewProcess(config Config) *Process {
 	outputBuffer, _ := NewOutputBuffer(config.OnOutput)
 
 	return &Process{
-		Shell:           config.Shell,
-		StoragePath:     config.StoragePath,
-		Command:         config.Command,
-		ExitCode:        1,
-		startMark:       startMark,
-		endMark:         endMark,
-		commandEndRegex: commandEndRegex,
-		outputBuffer:    outputBuffer,
+		Shell:                  config.Shell,
+		StoragePath:            config.StoragePath,
+		Command:                config.Command,
+		ExitCode:               1,
+		startMark:              startMark,
+		endMark:                endMark,
+		commandEndRegex:        commandEndRegex,
+		outputBuffer:           outputBuffer,
+		ExecuteWithoutTempFile: config.ExecuteWithoutTempFile,
 	}
 }
 
@@ -103,17 +106,17 @@ func (p *Process) flushInputBufferTill(index int) {
 }
 
 func (p *Process) Run() {
-	instruction := p.constructShellInstruction()
-	p.StartedAt = int(time.Now().Unix())
-	defer func() {
-		p.FinishedAt = int(time.Now().Unix())
-	}()
-
 	err := p.loadCommand()
 	if err != nil {
 		log.Errorf("Err: %v", err)
 		return
 	}
+
+	instruction := p.constructShellInstruction()
+	p.StartedAt = int(time.Now().Unix())
+	defer func() {
+		p.FinishedAt = int(time.Now().Unix())
+	}()
 
 	/*
 	 * If the agent is running in an non-windows environment,
@@ -256,6 +259,11 @@ func (p *Process) runWithPTY(instruction string) {
 }
 
 func (p *Process) constructShellInstruction() string {
+	if p.ExecuteWithoutTempFile {
+		template := `echo -e "\001 %s"; %s; AGENT_CMD_RESULT=$?; echo -e "\001 %s $AGENT_CMD_RESULT"; echo "exit $AGENT_CMD_RESULT" | sh`
+		return fmt.Sprintf(template, p.startMark, p.Command, p.endMark)
+	}
+
 	if runtime.GOOS == "windows" {
 		return fmt.Sprintf(`%s.ps1`, p.CmdFilePath())
 	}
@@ -280,6 +288,13 @@ func (p *Process) constructShellInstruction() string {
  * scheme. To circumvent this, we are storing the command in a file.
  */
 func (p *Process) loadCommand() error {
+
+	// If we need to execute the command without the help
+	// of /tmp/current-agent-cmd, we don't need to create it.
+	if p.ExecuteWithoutTempFile {
+		return nil
+	}
+
 	if runtime.GOOS != "windows" {
 		return p.writeCommandToFile(p.CmdFilePath(), p.Command)
 	}
