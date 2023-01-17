@@ -13,6 +13,7 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
+	"github.com/semaphoreci/agent/pkg/retry"
 	shell "github.com/semaphoreci/agent/pkg/shell"
 
 	log "github.com/sirupsen/logrus"
@@ -313,9 +314,24 @@ func (e *KubernetesExecutor) Start() int {
 		e.logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
-	pod, err := e.findPod()
+	var pod corev1.Pod
+	err := retry.RetryWithConstantWait(retry.RetryOptions{
+		Task:                 "Waiting for pod to be ready",
+		MaxAttempts:          60,
+		DelayBetweenAttempts: time.Second,
+		Fn: func() error {
+			p, err := e.findPod()
+			if err != nil {
+				return err
+			}
+
+			pod = *p
+			return nil
+		},
+	})
+
 	if err != nil {
-		log.Errorf("Failed to find pod: %v", err)
+		log.Errorf("Failed to create pod: %v", err)
 		e.logger.LogCommandOutput("Failed to find pod\n")
 		e.logger.LogCommandOutput(err.Error())
 
@@ -363,41 +379,38 @@ func (e *KubernetesExecutor) Start() int {
 }
 
 func (e *KubernetesExecutor) findPod() (*corev1.Pod, error) {
-	for {
-		podList, err := e.k8sClientset.CoreV1().
-			Pods(e.k8sNamespace).
-			List(context.Background(), v1.ListOptions{LabelSelector: "job-name=" + e.jobName})
+	podList, err := e.k8sClientset.CoreV1().
+		Pods(e.k8sNamespace).
+		List(context.Background(), v1.ListOptions{LabelSelector: "job-name=" + e.jobName})
 
-		if err != nil {
-			return nil, err
-		}
-
-		// Pod wasn't yet created
-		if len(podList.Items) == 0 {
-			e.logger.LogCommandOutput("Pod was not yet created - waiting...\n")
-			log.Infof("Pod for job %s was not yet created - waiting...", e.jobName)
-			time.Sleep(time.Second)
-			continue
-		}
-
-		pod := podList.Items[0]
-
-		// If the pod already finished, something went wrong.
-		if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded {
-			e.logger.LogCommandOutput(fmt.Sprintf("Pod ended up in %s state...\n", pod.Status.Phase))
-			return nil, fmt.Errorf("pod %s, for job %s, already finished with status %s", pod.Name, e.jobName, pod.Status.Phase)
-		}
-
-		if pod.Status.Phase == corev1.PodPending {
-			e.logger.LogCommandOutput("Pod is still pending - waiting...\n")
-			log.Infof("Pod %s, for job %s, is still pending - waiting...", pod.Name, e.jobName)
-			time.Sleep(time.Second)
-			continue
-		}
-
-		e.logger.LogCommandOutput("Pod is ready.\n")
-		return &pod, nil
+	if err != nil {
+		return nil, err
 	}
+
+	// Pod wasn't yet created
+	if len(podList.Items) == 0 {
+		e.logger.LogCommandOutput("Pod was not yet created - waiting...\n")
+		log.Infof("Pod for k8s job '%s' was not yet created - waiting...", e.jobName)
+		return nil, fmt.Errorf("pod not created")
+	}
+
+	pod := podList.Items[0]
+
+	// If the pod already finished, something went wrong.
+	if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded {
+		e.logger.LogCommandOutput(fmt.Sprintf("Pod ended up in %s state...\n", pod.Status.Phase))
+		return nil, fmt.Errorf("pod %s, for job %s, already finished with status %s", pod.Name, e.jobName, pod.Status.Phase)
+	}
+
+	if pod.Status.Phase == corev1.PodPending {
+		e.logger.LogCommandOutput("Pod is still pending - waiting...\n")
+		log.Infof("Pod '%s', for job '%s', is still pending - waiting...", pod.Name, e.jobName)
+		return nil, fmt.Errorf("pod in pending state")
+	}
+
+	log.Info("Pod is ready.")
+	e.logger.LogCommandOutput("Pod is ready.\n")
+	return &pod, nil
 }
 
 // All the environment has already been exposed to the main container
