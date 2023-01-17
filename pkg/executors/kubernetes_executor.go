@@ -95,22 +95,30 @@ func (e *KubernetesExecutor) createAuxiliarySecret() error {
 	immutable := true
 
 	// We use one key for the environment variables.
-	data := map[string][]byte{".env": env}
+	data := map[string]string{".env": string(env)}
 
-	// and one key for each file injected in the job definition.
-	// TODO: what about file modes?
-	// TODO: what about files with ~ or absolute files
-	// TODO: not doing this for now, let's make sure the environment stuff is working first.
-	// for _, file := range e.jobRequest.Files {
-	// 	data[file.Path] = []byte(file.Content)
-	// }
+	// And one key for each file injected in the job definition.
+	// K8s doesn't allow many special characters in a secret's key; it uses [-._a-zA-Z0-9]+ for validation.
+	// So, we encode the flle's path (using base64 URL encoding, no padding),
+	// and use it as the secret's key.
+	// K8s will inject the file at /tmp/injected/<encoded-file-path>
+	// On InjectFiles(), we move the file to its proper place.
+	for _, file := range e.jobRequest.Files {
+		encodedPath := base64.RawURLEncoding.EncodeToString([]byte(file.Path))
+		content, err := file.Decode()
+		if err != nil {
+			return fmt.Errorf("error decoding file '%s': %v", file.Path, err)
+		}
+
+		data[encodedPath] = string(content)
+	}
 
 	e.secretName = fmt.Sprintf("%s-secret", e.jobName)
 	secret := corev1.Secret{
 		ObjectMeta: v1.ObjectMeta{Name: e.secretName},
 		Type:       corev1.SecretTypeOpaque,
 		Immutable:  &immutable,
-		Data:       data,
+		StringData: data,
 	}
 
 	newSecret, err := e.k8sClientset.CoreV1().
@@ -327,6 +335,7 @@ func (e *KubernetesExecutor) Start() int {
 		"main",
 		"--",
 		"bash",
+		"--login",
 	}
 
 	shell, err := shell.NewShellFromExecAndArgs(executable, args, os.TempDir())
@@ -425,10 +434,45 @@ func (e *KubernetesExecutor) InjectFiles(files []api.File) int {
 
 	e.logger.LogCommandStarted(directive)
 
-	// TODO: do whatever it is you need to move files to their correct location
+	defer func() {
+		commandFinishedAt := int(time.Now().Unix())
+		e.logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
+	}()
 
-	commandFinishedAt := int(time.Now().Unix())
-	e.logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
+	// Move files already in the container to their proper place.
+	for _, file := range files {
+		injectedFileName := base64.RawURLEncoding.EncodeToString([]byte(file.Path))
+		parentDir := filepath.Dir(file.Path)
+
+		log.Infof("Injecting %s from %s", file.Path, injectedFileName)
+		e.logger.LogCommandOutput(fmt.Sprintf("Injecting file %s\n", file.Path))
+
+		exitCode := e.RunCommand(fmt.Sprintf("mkdir -p %s", parentDir), true, "")
+		if exitCode != 0 {
+			errMessage := fmt.Sprintf("Error injecting file %s: failed to created parent directory %s\n", file.Path, parentDir)
+			e.logger.LogCommandOutput(errMessage)
+			log.Errorf(errMessage)
+			exitCode = 1
+			return exitCode
+		}
+
+		exitCode = e.RunCommand(fmt.Sprintf("cp /tmp/injected/%s %s", injectedFileName, file.Path), true, "")
+		if exitCode != 0 {
+			e.logger.LogCommandOutput(fmt.Sprintf("Error injecting file %s\n", file.Path))
+			log.Errorf("Error injecting file %s", file.Path)
+			exitCode = 1
+			return exitCode
+		}
+
+		exitCode = e.RunCommand(fmt.Sprintf("chmod %s %s", file.Mode, file.Path), true, "")
+		if exitCode != 0 {
+			errMessage := fmt.Sprintf("Error setting file mode (%s) for %s\n", file.Mode, file.Path)
+			e.logger.LogCommandOutput(errMessage)
+			log.Errorf(errMessage)
+			exitCode = 1
+			return exitCode
+		}
+	}
 
 	return exitCode
 }
