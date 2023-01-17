@@ -72,10 +72,7 @@ func (e *KubernetesExecutor) createAuxiliarySecret() error {
 	}
 
 	envFileName := filepath.Join(os.TempDir(), ".env")
-	err = environment.ToFile(envFileName, func(name string) {
-		// e.logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))
-	})
-
+	err = environment.ToFile(envFileName, nil)
 	if err != nil {
 		return fmt.Errorf("error creating temporary environment file: %v", err)
 	}
@@ -428,6 +425,13 @@ func (e *KubernetesExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []c
 		e.logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
+	// All the environment variables were already put into a secret,
+	// and injected into /tmp/injected/.env, and will be sourced below.
+	// Here, we just need to include them in the job's output.
+	for _, envVar := range envVars {
+		e.logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", envVar.Name))
+	}
+
 	exitCode = e.RunCommand("source /tmp/injected/.env", true, "")
 	if exitCode != 0 {
 		log.Errorf("Error sourcing environment file")
@@ -452,24 +456,34 @@ func (e *KubernetesExecutor) InjectFiles(files []api.File) int {
 		e.logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
-	// Move files already in the container to their proper place.
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Errorf("Error finding home directory: %v\n", err)
+		return 1
+	}
+
 	for _, file := range files {
-		injectedFileName := base64.RawURLEncoding.EncodeToString([]byte(file.Path))
+
+		// Find the key used to inject the file in /tmp/injected
+		fileNameSecretKey := base64.RawURLEncoding.EncodeToString([]byte(file.Path))
+
+		// Normalize path to properly handle absolute/relative/~ paths
+		destPath := file.NormalizePath(homeDir)
+		e.logger.LogCommandOutput(fmt.Sprintf("Injecting %s with file mode %s\n", destPath, file.Mode))
+
+		// Create the parent directory
 		parentDir := filepath.Dir(file.Path)
-
-		log.Infof("Injecting %s from %s", file.Path, injectedFileName)
-		e.logger.LogCommandOutput(fmt.Sprintf("Injecting file %s\n", file.Path))
-
 		exitCode := e.RunCommand(fmt.Sprintf("mkdir -p %s", parentDir), true, "")
 		if exitCode != 0 {
-			errMessage := fmt.Sprintf("Error injecting file %s: failed to created parent directory %s\n", file.Path, parentDir)
+			errMessage := fmt.Sprintf("Error injecting file %s: failed to created parent directory %s\n", destPath, parentDir)
 			e.logger.LogCommandOutput(errMessage)
 			log.Errorf(errMessage)
 			exitCode = 1
 			return exitCode
 		}
 
-		exitCode = e.RunCommand(fmt.Sprintf("cp /tmp/injected/%s %s", injectedFileName, file.Path), true, "")
+		// Copy the file injected as a secret in the /tmp/injected directory to its proper place
+		exitCode = e.RunCommand(fmt.Sprintf("cp /tmp/injected/%s %s", fileNameSecretKey, file.Path), true, "")
 		if exitCode != 0 {
 			e.logger.LogCommandOutput(fmt.Sprintf("Error injecting file %s\n", file.Path))
 			log.Errorf("Error injecting file %s", file.Path)
@@ -477,6 +491,7 @@ func (e *KubernetesExecutor) InjectFiles(files []api.File) int {
 			return exitCode
 		}
 
+		// Adjust the injected file's mode
 		exitCode = e.RunCommand(fmt.Sprintf("chmod %s %s", file.Mode, file.Path), true, "")
 		if exitCode != 0 {
 			errMessage := fmt.Sprintf("Error setting file mode (%s) for %s\n", file.Mode, file.Path)
