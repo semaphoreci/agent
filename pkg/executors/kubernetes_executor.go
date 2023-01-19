@@ -407,6 +407,13 @@ func (e *KubernetesExecutor) findPod() (*corev1.Pod, error) {
 		return nil, fmt.Errorf("pod in pending state")
 	}
 
+	for _, container := range pod.Status.ContainerStatuses {
+		if !container.Ready {
+			log.Info("container '%s' is not ready yet - waiting...", container.Name)
+			return nil, fmt.Errorf("container '%s' is not ready yet", container.Name)
+		}
+	}
+
 	log.Info("Pod is ready.")
 	e.logger.LogCommandOutput("Pod is ready.\n")
 	return &pod, nil
