@@ -1,7 +1,7 @@
 FROM ubuntu:20.04
 
 RUN apt-get update -y
-RUN apt-get install -y ca-certificates curl git jq
+RUN apt-get install -y ca-certificates curl git jq redis-tools
 RUN update-ca-certificates
 
 # kubectl is required to be present in the container running the agent
@@ -22,4 +22,4 @@ RUN mkdir -p /root/.ssh && \
 
 COPY build/agent /app/agent
 
-CMD /app/agent start --config-file /app/config/semaphore-agent.yml
+CMD ["/app/agent", "start", "--config-file", "/app/config/semaphore-agent.yml"]

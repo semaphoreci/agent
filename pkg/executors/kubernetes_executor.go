@@ -260,7 +260,7 @@ func (e *KubernetesExecutor) convertContainersFromSemaphore() []corev1.Container
 				{
 					Name:      "environment",
 					ReadOnly:  true,
-					MountPath: "/tmp",
+					MountPath: "/tmp/injected",
 				},
 			},
 		},
