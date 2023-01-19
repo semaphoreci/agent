@@ -263,6 +263,8 @@ func (e *KubernetesExecutor) convertContainersFromSemaphore() []corev1.Container
 					MountPath: "/tmp/injected",
 				},
 			},
+			// TODO: little hack to make it work with my kubernetes local cluster
+			ImagePullPolicy: corev1.PullNever,
 		},
 	}
 
@@ -520,29 +522,22 @@ func (e *KubernetesExecutor) RunCommandWithOptions(options CommandOptions) int {
 		directive = options.Alias
 	}
 
-	// In kubernetes, we don't have a shared folder to write the /tmp/current-agent-cmd file.
-	// Therefore we need to create that file using the PTY too.
-	// TODO: make sure commands with quotes also work.
-	// TODO: couldn't we just execute the command directly without the temp file instead?
-	preCmd := e.Shell.NewProcessWithConfig(shell.Config{
-		Shell:                  e.Shell,
-		StoragePath:            "/tmp",
-		ExecuteWithoutTempFile: true,
-		Command:                fmt.Sprintf("echo '%s' > /tmp/current-agent-cmd", options.Command),
-		OnOutput:               func(output string) {},
-	})
-
-	preCmd.Run()
-	if preCmd.ExitCode != 0 {
-		log.Errorf("Error creating /tmp/current-agent-cmd")
-		return preCmd.ExitCode
-	}
-
-	// Now that we know that file exists, we can execute it without writing it again.
-	p := e.Shell.NewProcessWithOutput(options.Command, func(output string) {
-		if !options.Silent {
-			e.logger.LogCommandOutput(output)
-		}
+	/*
+	 * Unlike the shell and docker-compose executors,
+	 * where a folder can be shared between the agent and the PTY executing the commands,
+	 * in here, we don't have that ability. So, we do not use a temporary folder for storing
+	 * the command being executed, and instead use base64 encoding to make sure multiline commands
+	 * and commands with different types of quote usage are handled properly.
+	 */
+	p := e.Shell.NewProcessWithConfig(shell.Config{
+		UseBase64Encoding: true,
+		Command:           options.Command,
+		Shell:             e.Shell,
+		OnOutput: func(output string) {
+			if !options.Silent {
+				e.logger.LogCommandOutput(output)
+			}
+		},
 	})
 
 	if !options.Silent {
