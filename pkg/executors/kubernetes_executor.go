@@ -1,10 +1,8 @@
 package executors
 
 import (
-	"context"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -13,27 +11,19 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
-	"github.com/semaphoreci/agent/pkg/retry"
+	"github.com/semaphoreci/agent/pkg/kubernetes"
 	shell "github.com/semaphoreci/agent/pkg/shell"
 
 	log "github.com/sirupsen/logrus"
-	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 type KubernetesExecutor struct {
-	k8sClientset  *kubernetes.Clientset
-	k8sRestConfig *rest.Config
-	k8sNamespace  string
-	jobRequest    *api.JobRequest
-	pod           *corev1.Pod
-	podName       string
-	secret        *corev1.Secret
-	secretName    string
-	logger        *eventlogger.Logger
-	Shell         *shell.Shell
+	k8sClient  *kubernetes.KubernetesClient
+	jobRequest *api.JobRequest
+	podName    string
+	secretName string
+	logger     *eventlogger.Logger
+	Shell      *shell.Shell
 
 	// We need to keep track if the initial environment has already
 	// been exposed or not, because ExportEnvVars() gets called twice.
@@ -41,115 +31,34 @@ type KubernetesExecutor struct {
 }
 
 func NewKubernetesExecutor(jobRequest *api.JobRequest, logger *eventlogger.Logger) (*KubernetesExecutor, error) {
-	k8sConfig, err := rest.InClusterConfig()
+	k8sClient, err := kubernetes.NewKubernetesClient()
 	if err != nil {
 		return nil, err
 	}
 
-	clientset, err := kubernetes.NewForConfig(k8sConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	namespace := os.Getenv("KUBERNETES_NAMESPACE")
-
-	// The downwards API allows the namespace to be exposed
-	// to the agent container through an environment variable.
-	// See: https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information.
 	return &KubernetesExecutor{
-		k8sRestConfig: k8sConfig,
-		k8sClientset:  clientset,
-		k8sNamespace:  namespace,
-		jobRequest:    jobRequest,
-		logger:        logger,
+		k8sClient:  k8sClient,
+		jobRequest: jobRequest,
+		logger:     logger,
 	}, nil
-}
-
-func (e *KubernetesExecutor) createAuxiliarySecret() error {
-	environment, err := shell.CreateEnvironment(e.jobRequest.EnvVars, []config.HostEnvVar{})
-	if err != nil {
-		return fmt.Errorf("error creating environment: %v", err)
-	}
-
-	envFileName := filepath.Join(os.TempDir(), ".env")
-	err = environment.ToFile(envFileName, nil)
-	if err != nil {
-		return fmt.Errorf("error creating temporary environment file: %v", err)
-	}
-
-	envFile, err := os.Open(envFileName)
-	if err != nil {
-		return fmt.Errorf("error opening environment file for reading: %v", err)
-	}
-
-	defer envFile.Close()
-
-	env, err := ioutil.ReadAll(envFile)
-	if err != nil {
-		return fmt.Errorf("error reading environment file: %v", err)
-	}
-
-	// We don't allow the secret to be changed after its creation.
-	immutable := true
-
-	// We use one key for the environment variables.
-	data := map[string]string{".env": string(env)}
-
-	// And one key for each file injected in the job definition.
-	// K8s doesn't allow many special characters in a secret's key; it uses [-._a-zA-Z0-9]+ for validation.
-	// So, we encode the flle's path (using base64 URL encoding, no padding),
-	// and use it as the secret's key.
-	// K8s will inject the file at /tmp/injected/<encoded-file-path>
-	// On InjectFiles(), we move the file to its proper place.
-	for _, file := range e.jobRequest.Files {
-		encodedPath := base64.RawURLEncoding.EncodeToString([]byte(file.Path))
-		content, err := file.Decode()
-		if err != nil {
-			return fmt.Errorf("error decoding file '%s': %v", file.Path, err)
-		}
-
-		data[encodedPath] = string(content)
-	}
-
-	e.secretName = fmt.Sprintf("%s-secret", e.podName)
-	secret := corev1.Secret{
-		ObjectMeta: v1.ObjectMeta{Name: e.secretName},
-		Type:       corev1.SecretTypeOpaque,
-		Immutable:  &immutable,
-		StringData: data,
-	}
-
-	newSecret, err := e.k8sClientset.CoreV1().
-		Secrets(e.k8sNamespace).
-		Create(context.Background(), &secret, v1.CreateOptions{})
-
-	if err != nil {
-		return fmt.Errorf("error creating secret '%s': %v", e.secretName, err)
-	}
-
-	e.secret = newSecret
-	return nil
 }
 
 func (e *KubernetesExecutor) Prepare() int {
 	e.podName = e.randomPodName()
+	e.secretName = fmt.Sprintf("%s-secret", e.podName)
 
-	err := e.createAuxiliarySecret()
+	err := e.k8sClient.CreateSecret(e.secretName, e.jobRequest)
 	if err != nil {
-		log.Errorf("Error creating auxiliary secret for pod: %v", err)
+		log.Errorf("Error creating secret '%s': %v", e.secretName, err)
 		return 1
 	}
 
-	pod, err := e.k8sClientset.CoreV1().
-		Pods(e.k8sNamespace).
-		Create(context.TODO(), e.newPod(), v1.CreateOptions{})
-
+	err = e.k8sClient.CreatePod(e.podName, []string{e.secretName}, e.jobRequest)
 	if err != nil {
-		log.Errorf("Error creating k8s pod: %v", err)
+		log.Errorf("Error creating pod: %v", err)
 		return 1
 	}
 
-	e.pod = pod
 	return 0
 }
 
@@ -162,127 +71,6 @@ func (e *KubernetesExecutor) randomPodName() string {
 	}
 
 	return string(b)
-}
-
-func (e *KubernetesExecutor) newPod() *corev1.Pod {
-
-	return &corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: e.k8sNamespace,
-
-			// TODO: use agent name + job ID here.
-			// Note: e.jobRequest.ID is not being sent by API.
-			Name: e.podName,
-
-			// TODO: put agent name here too
-			Labels: map[string]string{
-				"app": "semaphore-agent",
-			},
-		},
-
-		Spec: corev1.PodSpec{
-			Containers:       e.containers(),
-			ImagePullSecrets: e.imagePullSecrets(),
-			RestartPolicy:    corev1.RestartPolicyNever,
-			Volumes: []corev1.Volume{
-				{
-					Name: "environment",
-					VolumeSource: corev1.VolumeSource{
-						Secret: &corev1.SecretVolumeSource{
-							SecretName: e.secretName,
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func (e *KubernetesExecutor) containers() []corev1.Container {
-
-	// For jobs which do not specify containers, we use the image
-	// configured in the SEMAPHORE_DEFAULT_CONTAINER_IMAGE environment variable.
-	// TODO: use the same image being used by the agent itself.
-	if e.jobRequest.Executor == ExecutorTypeShell {
-		return []corev1.Container{
-			{
-				Name:  "main",
-				Image: os.Getenv("SEMAPHORE_DEFAULT_CONTAINER_IMAGE"),
-				VolumeMounts: []corev1.VolumeMount{
-					{
-						Name:      "environment",
-						ReadOnly:  true,
-						MountPath: "/tmp/injected",
-					},
-				},
-
-				// TODO: little hack to make it work with my kubernetes local cluster
-				ImagePullPolicy: corev1.PullNever,
-
-				// The k8s pod shouldn't finish, so we sleep infinitely to keep it up.
-				Command: []string{"bash", "-c", "sleep infinity"},
-			},
-		}
-	}
-
-	// For jobs which do specify containers, we just relay them to k8s.
-	return e.convertContainersFromSemaphore()
-}
-
-func (e *KubernetesExecutor) convertContainersFromSemaphore() []corev1.Container {
-	semaphoreContainers := e.jobRequest.Compose.Containers
-	main, rest := semaphoreContainers[0], semaphoreContainers[1:]
-
-	// The main container needs to be up forever,
-	// so we 'sleep infinity' in its command.
-	k8sContainers := []corev1.Container{
-		{
-			Name:    main.Name,
-			Image:   main.Image,
-			Env:     e.convertEnvVars(main.EnvVars),
-			Command: []string{"bash", "-c", "sleep infinity"},
-			VolumeMounts: []corev1.VolumeMount{
-				{
-					Name:      "environment",
-					ReadOnly:  true,
-					MountPath: "/tmp/injected",
-				},
-			},
-			// TODO: little hack to make it work with my kubernetes local cluster
-			ImagePullPolicy: corev1.PullNever,
-		},
-	}
-
-	// The rest of the containers will just follow whatever
-	// their images are already configured to do.
-	for _, container := range rest {
-		k8sContainers = append(k8sContainers, corev1.Container{
-			Name:  container.Name,
-			Image: container.Image,
-			Env:   e.convertEnvVars(container.EnvVars),
-		})
-	}
-
-	return k8sContainers
-}
-
-func (e *KubernetesExecutor) convertEnvVars(envVarsFromSemaphore []api.EnvVar) []corev1.EnvVar {
-	k8sEnvVars := []corev1.EnvVar{}
-
-	for _, envVar := range envVarsFromSemaphore {
-		v, _ := base64.StdEncoding.DecodeString(envVar.Value)
-		k8sEnvVars = append(k8sEnvVars, corev1.EnvVar{
-			Name:  envVar.Name,
-			Value: string(v),
-		})
-	}
-
-	return k8sEnvVars
-}
-
-// TODO: support for private images
-func (e *KubernetesExecutor) imagePullSecrets() []corev1.LocalObjectReference {
-	return []corev1.LocalObjectReference{}
 }
 
 // The idea here is to use the kubectl CLI to exec into the pod
@@ -298,27 +86,14 @@ func (e *KubernetesExecutor) Start() int {
 		e.logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
-	var pod corev1.Pod
-	err := retry.RetryWithConstantWait(retry.RetryOptions{
-		Task:                 "Waiting for pod to be ready",
-		MaxAttempts:          60,
-		DelayBetweenAttempts: time.Second,
-		Fn: func() error {
-			p, err := e.findPod()
-			if err != nil {
-				return err
-			}
-
-			pod = *p
-			return nil
-		},
+	err := e.k8sClient.WaitForPod(e.podName, func(msg string) {
+		e.logger.LogCommandOutput(msg)
+		log.Info(msg)
 	})
 
 	if err != nil {
 		log.Errorf("Failed to create pod: %v", err)
-		e.logger.LogCommandOutput("Failed to find pod\n")
-		e.logger.LogCommandOutput(err.Error())
-
+		e.logger.LogCommandOutput(fmt.Sprintf("Failed to create pod: %v\n", err))
 		exitCode = 1
 		return exitCode
 	}
@@ -330,7 +105,7 @@ func (e *KubernetesExecutor) Start() int {
 	args := []string{
 		"exec",
 		"-it",
-		pod.Name,
+		e.podName,
 		"-c",
 		"main",
 		"--",
@@ -360,39 +135,6 @@ func (e *KubernetesExecutor) Start() int {
 
 	e.Shell = shell
 	return exitCode
-}
-
-func (e *KubernetesExecutor) findPod() (*corev1.Pod, error) {
-	pod, err := e.k8sClientset.CoreV1().
-		Pods(e.k8sNamespace).
-		Get(context.Background(), e.podName, v1.GetOptions{})
-
-	if err != nil {
-		return nil, err
-	}
-
-	// If the pod already finished, something went wrong.
-	if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded {
-		e.logger.LogCommandOutput(fmt.Sprintf("Pod ended up in %s state...\n", pod.Status.Phase))
-		return nil, fmt.Errorf("pod '%s' already finished with status %s", pod.Name, pod.Status.Phase)
-	}
-
-	if pod.Status.Phase == corev1.PodPending {
-		e.logger.LogCommandOutput("Pod is still pending - waiting...\n")
-		log.Infof("Pod '%s', is still pending - waiting...", pod.Name)
-		return nil, fmt.Errorf("pod in pending state")
-	}
-
-	for _, container := range pod.Status.ContainerStatuses {
-		if !container.Ready {
-			log.Info("container '%s' is not ready yet - waiting...", container.Name)
-			return nil, fmt.Errorf("container '%s' is not ready yet", container.Name)
-		}
-	}
-
-	log.Info("Pod is ready.")
-	e.logger.LogCommandOutput("Pod is ready.\n")
-	return pod, nil
 }
 
 // This function gets called twice during a job's execution:
@@ -590,24 +332,14 @@ func (e *KubernetesExecutor) Cleanup() int {
 }
 
 func (e *KubernetesExecutor) removeK8sResources() {
-	if e.pod != nil {
-		err := e.k8sClientset.CoreV1().
-			Pods(e.k8sNamespace).
-			Delete(context.Background(), e.podName, v1.DeleteOptions{})
-
-		if err != nil {
-			log.Errorf("Error deleting pod '%s': %v\n", e.podName, err)
-		}
+	err := e.k8sClient.DeletePod(e.podName)
+	if err != nil {
+		log.Errorf("Error deleting pod '%s': %v\n", e.podName, err)
 	}
 
-	if e.secret != nil {
-		err := e.k8sClientset.CoreV1().
-			Secrets(e.k8sNamespace).
-			Delete(context.Background(), e.secretName, v1.DeleteOptions{})
-
-		if err != nil {
-			log.Errorf("Error deleting k8s secret '%s': %v\n", e.secretName, err)
-		}
+	err = e.k8sClient.DeleteSecret(e.secretName)
+	if err != nil {
+		log.Errorf("Error deleting secret '%s': %v\n", e.secretName, err)
 	}
 }
 
