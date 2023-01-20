@@ -34,6 +34,10 @@ type KubernetesExecutor struct {
 	secretName    string
 	logger        *eventlogger.Logger
 	Shell         *shell.Shell
+
+	// We need to keep track if the initial environment has already
+	// been exposed or not, because ExportEnvVars() gets called twice.
+	initialEnvironmentExposed bool
 }
 
 func NewKubernetesExecutor(jobRequest *api.JobRequest, logger *eventlogger.Logger) (*KubernetesExecutor, error) {
@@ -391,9 +395,10 @@ func (e *KubernetesExecutor) findPod() (*corev1.Pod, error) {
 	return pod, nil
 }
 
-// All the environment has already been exposed to the main container
-// through a temporary secret created before the k8s pod was created, and used in the pod spec.
-// Here, we just need to source that file through the PTY session.
+// This function gets called twice during a job's execution:
+// - On the first call, the environment variables come from a secret file injected into the pod.
+// - On the second call, the environment variables (currently, just the job result) need to be exported
+//   through commands executed through the PTY.
 func (e *KubernetesExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config.HostEnvVar) int {
 	commandStartedAt := int(time.Now().Unix())
 	directive := "Exporting environment variables"
@@ -404,15 +409,38 @@ func (e *KubernetesExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []c
 	defer func() {
 		commandFinishedAt := int(time.Now().Unix())
 		e.logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
+		e.initialEnvironmentExposed = true
 	}()
 
-	// All the environment variables were already put into a secret,
-	// and injected into /tmp/injected/.env, and will be sourced below.
-	// Here, we just need to include them in the job's output.
+	// Include the environment variables exposed in the job log.
 	for _, envVar := range envVars {
 		e.logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", envVar.Name))
 	}
 
+	// Second call of this function.
+	// Export environment variables through the PTY, one by one, using commands.
+	if e.initialEnvironmentExposed {
+		env, err := shell.CreateEnvironment(envVars, hostEnvVars)
+		if err != nil {
+			exitCode = 1
+			log.Errorf("Error creating environment: %v", err)
+			return exitCode
+		}
+
+		for _, command := range env.ToCommands() {
+			exitCode = e.RunCommand(command, true, "")
+			if exitCode != 0 {
+				log.Errorf("Error exporting environment variables")
+				return exitCode
+			}
+		}
+
+		return exitCode
+	}
+
+	// First call of this function.
+	// In this case, a secret with all the environment variables has been exposed in the pod spec,
+	// so all we need to do here is to source that file through the PTY session.
 	exitCode = e.RunCommand("source /tmp/injected/.env", true, "")
 	if exitCode != 0 {
 		log.Errorf("Error sourcing environment file")
