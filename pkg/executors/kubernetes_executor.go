@@ -363,6 +363,6 @@ func (e *KubernetesExecutor) removeK8sResources() {
 func (e *KubernetesExecutor) removeLocalResources() {
 	envFileName := filepath.Join(os.TempDir(), ".env")
 	if err := os.Remove(envFileName); err != nil {
-		log.Errorf("Error removing local file '%s': %v", envFileName)
+		log.Errorf("Error removing local file '%s': %v", envFileName, err)
 	}
 }
