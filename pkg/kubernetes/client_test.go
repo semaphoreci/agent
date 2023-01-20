@@ -253,6 +253,43 @@ func Test__CreatePod(t *testing.T) {
 	})
 }
 
+func Test__WaitForPod(t *testing.T) {
+	t.Run("pod exist and is ready - no error", func(t *testing.T) {
+		podName := "mypod"
+		clientset := newFakeClientset([]runtime.Object{
+			&corev1.Pod{
+				ObjectMeta: v1.ObjectMeta{Name: podName, Namespace: "default"},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{Name: "main", Image: "whatever"}},
+				},
+			},
+		})
+
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image"})
+		assert.NoError(t, client.WaitForPod(podName, func(s string) {}))
+	})
+
+	t.Run("pod does not exist - error", func(t *testing.T) {
+		podName := "mypod"
+		clientset := newFakeClientset([]runtime.Object{
+			&corev1.Pod{
+				ObjectMeta: v1.ObjectMeta{Name: podName, Namespace: "default"},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{Name: "main", Image: "whatever"}},
+				},
+			},
+		})
+
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:          "default",
+			DefaultImage:       "default-image",
+			PodPollingAttempts: 2,
+		})
+
+		assert.Error(t, client.WaitForPod("somepodthatdoesnotexist", func(s string) {}))
+	})
+}
+
 func Test_DeletePod(t *testing.T) {
 	podName := "mypod"
 	clientset := newFakeClientset([]runtime.Object{

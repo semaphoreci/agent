@@ -20,8 +20,26 @@ import (
 )
 
 type Config struct {
-	Namespace    string
-	DefaultImage string
+	Namespace          string
+	DefaultImage       string
+	PodPollingAttempts int
+	PodPollingInterval time.Duration
+}
+
+func (c *Config) PollingInterval() time.Duration {
+	if c.PodPollingInterval == 0 {
+		return time.Second
+	}
+
+	return c.PodPollingInterval
+}
+
+func (c *Config) PollingAttempts() int {
+	if c.PodPollingAttempts == 0 {
+		return 60
+	}
+
+	return c.PodPollingAttempts
 }
 
 func (c *Config) Validate() error {
@@ -258,8 +276,8 @@ func (c *KubernetesClient) imagePullSecrets() []corev1.LocalObjectReference {
 func (c *KubernetesClient) WaitForPod(name string, logFn func(string)) error {
 	return retry.RetryWithConstantWait(retry.RetryOptions{
 		Task:                 "Waiting for pod to be ready",
-		MaxAttempts:          60,
-		DelayBetweenAttempts: time.Second,
+		MaxAttempts:          c.config.PollingAttempts(),
+		DelayBetweenAttempts: c.config.PollingInterval(),
 		HideError:            true,
 		Fn: func() error {
 			_, err := c.findPod(name)
@@ -288,10 +306,12 @@ func (c *KubernetesClient) findPod(name string) (*corev1.Pod, error) {
 		return nil, fmt.Errorf("pod '%s' already finished with status %s", pod.Name, pod.Status.Phase)
 	}
 
+	// if pod is pending, we need to wait
 	if pod.Status.Phase == corev1.PodPending {
 		return nil, fmt.Errorf("pod in pending state")
 	}
 
+	// if one of the pod's containers isn't ready, we need to wait
 	for _, container := range pod.Status.ContainerStatuses {
 		if !container.Ready {
 			return nil, fmt.Errorf("container '%s' is not ready yet", container.Name)
