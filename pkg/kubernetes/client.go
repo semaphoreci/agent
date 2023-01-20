@@ -236,7 +236,7 @@ func (c *KubernetesClient) convertContainersFromSemaphore(containers []api.Conta
 	return k8sContainers
 }
 
-func (e *KubernetesClient) convertEnvVars(envVarsFromSemaphore []api.EnvVar) []corev1.EnvVar {
+func (c *KubernetesClient) convertEnvVars(envVarsFromSemaphore []api.EnvVar) []corev1.EnvVar {
 	k8sEnvVars := []corev1.EnvVar{}
 
 	for _, envVar := range envVarsFromSemaphore {
