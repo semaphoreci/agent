@@ -20,12 +20,18 @@ import (
 )
 
 type KubernetesClient struct {
-	clientset *kubernetes.Clientset
+	clientset kubernetes.Interface
 	namespace string
 }
 
-// TODO: handle authentication for agent running outside of a kubernetes cluster.
-func NewKubernetesClient() (*KubernetesClient, error) {
+func NewKubernetesClient(clientset kubernetes.Interface, namespace string) (*KubernetesClient, error) {
+	return &KubernetesClient{
+		clientset: clientset,
+		namespace: namespace,
+	}, nil
+}
+
+func NewInClusterClientset() (kubernetes.Interface, error) {
 	k8sConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
@@ -36,18 +42,7 @@ func NewKubernetesClient() (*KubernetesClient, error) {
 		return nil, err
 	}
 
-	// The downwards API allows the namespace to be exposed
-	// to the agent container through an environment variable.
-	// See: https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information.
-	namespace := os.Getenv("KUBERNETES_NAMESPACE")
-	if namespace == "" {
-		namespace = "default"
-	}
-
-	return &KubernetesClient{
-		clientset: clientset,
-		namespace: namespace,
-	}, nil
+	return clientset, nil
 }
 
 func (c *KubernetesClient) CreateSecret(name string, jobRequest *api.JobRequest) error {

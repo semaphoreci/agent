@@ -31,7 +31,20 @@ type KubernetesExecutor struct {
 }
 
 func NewKubernetesExecutor(jobRequest *api.JobRequest, logger *eventlogger.Logger) (*KubernetesExecutor, error) {
-	k8sClient, err := kubernetes.NewKubernetesClient()
+	clientset, err := kubernetes.NewInClusterClientset()
+	if err != nil {
+		return nil, err
+	}
+
+	// The downwards API allows the namespace to be exposed
+	// to the agent container through an environment variable.
+	// See: https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information.
+	namespace := os.Getenv("KUBERNETES_NAMESPACE")
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	k8sClient, err := kubernetes.NewKubernetesClient(clientset, namespace)
 	if err != nil {
 		return nil, err
 	}
