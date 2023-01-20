@@ -44,7 +44,11 @@ func NewKubernetesExecutor(jobRequest *api.JobRequest, logger *eventlogger.Logge
 		namespace = "default"
 	}
 
-	k8sClient, err := kubernetes.NewKubernetesClient(clientset, namespace)
+	k8sClient, err := kubernetes.NewKubernetesClient(clientset, kubernetes.Config{
+		Namespace:    namespace,
+		DefaultImage: os.Getenv("SEMAPHORE_DEFAULT_IMAGE"),
+	})
+
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +70,7 @@ func (e *KubernetesExecutor) Prepare() int {
 		return 1
 	}
 
-	err = e.k8sClient.CreatePod(e.podName, []string{e.secretName}, e.jobRequest)
+	err = e.k8sClient.CreatePod(e.podName, e.secretName, e.jobRequest)
 	if err != nil {
 		log.Errorf("Error creating pod: %v", err)
 		return 1

@@ -27,7 +27,7 @@ spec:
           image: semaphore-agent-k8s
           imagePullPolicy: Never
           env:
-            - name: SEMAPHORE_DEFAULT_CONTAINER_IMAGE
+            - name: SEMAPHORE_DEFAULT_IMAGE
               value: semaphore-agent-k8s
             - name: KUBERNETES_NAMESPACE
               valueFrom:

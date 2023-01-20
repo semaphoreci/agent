@@ -19,15 +19,36 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-type KubernetesClient struct {
-	clientset kubernetes.Interface
-	namespace string
+type Config struct {
+	Namespace    string
+	DefaultImage string
 }
 
-func NewKubernetesClient(clientset kubernetes.Interface, namespace string) (*KubernetesClient, error) {
+func (c *Config) Validate() error {
+	if c.Namespace == "" {
+		return fmt.Errorf("namespace must be specified")
+	}
+
+	if c.DefaultImage == "" {
+		return fmt.Errorf("default image must be specified")
+	}
+
+	return nil
+}
+
+type KubernetesClient struct {
+	clientset kubernetes.Interface
+	config    Config
+}
+
+func NewKubernetesClient(clientset kubernetes.Interface, config Config) (*KubernetesClient, error) {
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("config is invalid: %v", err)
+	}
+
 	return &KubernetesClient{
 		clientset: clientset,
-		namespace: namespace,
+		config:    config,
 	}, nil
 }
 
@@ -99,7 +120,7 @@ func (c *KubernetesClient) CreateSecret(name string, jobRequest *api.JobRequest)
 	}
 
 	_, err = c.clientset.CoreV1().
-		Secrets(c.namespace).
+		Secrets(c.config.Namespace).
 		Create(context.Background(), &secret, v1.CreateOptions{})
 
 	if err != nil {
@@ -109,10 +130,10 @@ func (c *KubernetesClient) CreateSecret(name string, jobRequest *api.JobRequest)
 	return nil
 }
 
-func (c *KubernetesClient) CreatePod(name string, secrets []string, jobRequest *api.JobRequest) error {
+func (c *KubernetesClient) CreatePod(name string, envSecretName string, jobRequest *api.JobRequest) error {
 	_, err := c.clientset.CoreV1().
-		Pods(c.namespace).
-		Create(context.TODO(), c.podSpecFromJobRequest(name, secrets, jobRequest), v1.CreateOptions{})
+		Pods(c.config.Namespace).
+		Create(context.TODO(), c.podSpecFromJobRequest(name, envSecretName, jobRequest), v1.CreateOptions{})
 
 	if err != nil {
 		return fmt.Errorf("error creating pod: %v", err)
@@ -121,28 +142,27 @@ func (c *KubernetesClient) CreatePod(name string, secrets []string, jobRequest *
 	return nil
 }
 
-func (c *KubernetesClient) podSpecFromJobRequest(podName string, secrets []string, jobRequest *api.JobRequest) *corev1.Pod {
+func (c *KubernetesClient) podSpecFromJobRequest(podName string, envSecretName string, jobRequest *api.JobRequest) *corev1.Pod {
 	spec := corev1.PodSpec{
 		Containers:       c.containers(jobRequest.Compose.Containers),
 		ImagePullSecrets: c.imagePullSecrets(),
 		RestartPolicy:    corev1.RestartPolicyNever,
-	}
-
-	for _, secret := range secrets {
-		spec.Volumes = append(spec.Volumes, corev1.Volume{
-			Name: "environment",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: secret,
+		Volumes: []corev1.Volume{
+			{
+				Name: "environment",
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: envSecretName,
+					},
 				},
 			},
-		})
+		},
 	}
 
 	return &corev1.Pod{
 		Spec: spec,
 		ObjectMeta: v1.ObjectMeta{
-			Namespace: c.namespace,
+			Namespace: c.config.Namespace,
 			Name:      podName,
 			Labels: map[string]string{
 				"app": "semaphore-agent",
@@ -153,13 +173,12 @@ func (c *KubernetesClient) podSpecFromJobRequest(podName string, secrets []strin
 
 func (c *KubernetesClient) containers(containers []api.Container) []corev1.Container {
 
-	// For jobs which do not specify containers (shell jobs), we use the image
-	// configured in the SEMAPHORE_DEFAULT_CONTAINER_IMAGE environment variable.
-	if len(containers) == 9 {
+	// For jobs which do not specify containers (shell jobs), we use the default image.
+	if len(containers) == 0 {
 		return []corev1.Container{
 			{
 				Name:  "main",
-				Image: os.Getenv("SEMAPHORE_DEFAULT_CONTAINER_IMAGE"),
+				Image: c.config.DefaultImage,
 				VolumeMounts: []corev1.VolumeMount{
 					{
 						Name:      "environment",
@@ -257,7 +276,7 @@ func (c *KubernetesClient) WaitForPod(name string, logFn func(string)) error {
 
 func (c *KubernetesClient) findPod(name string) (*corev1.Pod, error) {
 	pod, err := c.clientset.CoreV1().
-		Pods(c.namespace).
+		Pods(c.config.Namespace).
 		Get(context.Background(), name, v1.GetOptions{})
 
 	if err != nil {
@@ -284,12 +303,12 @@ func (c *KubernetesClient) findPod(name string) (*corev1.Pod, error) {
 
 func (c *KubernetesClient) DeletePod(name string) error {
 	return c.clientset.CoreV1().
-		Pods(c.namespace).
+		Pods(c.config.Namespace).
 		Delete(context.Background(), name, v1.DeleteOptions{})
 }
 
 func (c *KubernetesClient) DeleteSecret(name string) error {
 	return c.clientset.CoreV1().
-		Secrets(c.namespace).
+		Secrets(c.config.Namespace).
 		Delete(context.Background(), name, v1.DeleteOptions{})
 }
