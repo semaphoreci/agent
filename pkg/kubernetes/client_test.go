@@ -253,6 +253,49 @@ func Test__CreatePod(t *testing.T) {
 	})
 }
 
+func Test_DeletePod(t *testing.T) {
+	podName := "mypod"
+	clientset := newFakeClientset([]runtime.Object{
+		&corev1.Pod{
+			ObjectMeta: v1.ObjectMeta{Name: podName, Namespace: "default"},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{{Name: "main", Image: "whatever"}},
+			},
+		},
+	})
+
+	client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image"})
+	assert.NoError(t, client.DeletePod(podName))
+
+	// pod does not exist anymore
+	pod, err := clientset.CoreV1().
+		Pods("default").
+		Get(context.Background(), podName, v1.GetOptions{})
+	assert.Error(t, err)
+	assert.Nil(t, pod)
+}
+
+func Test_DeleteSecret(t *testing.T) {
+	secretName := "mysecret"
+	clientset := newFakeClientset([]runtime.Object{
+		&corev1.Secret{
+			ObjectMeta: v1.ObjectMeta{Name: secretName, Namespace: "default"},
+			Type:       corev1.SecretTypeOpaque,
+			StringData: map[string]string{},
+		},
+	})
+
+	client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image"})
+	assert.NoError(t, client.DeleteSecret(secretName))
+
+	// secret does not exist anymore
+	pod, err := clientset.CoreV1().
+		Secrets("default").
+		Get(context.Background(), secretName, v1.GetOptions{})
+	assert.Error(t, err)
+	assert.Nil(t, pod)
+}
+
 func newFakeClientset(objects []runtime.Object) kubernetes.Interface {
 	return fake.NewSimpleClientset(objects...)
 }

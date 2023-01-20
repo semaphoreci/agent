@@ -113,7 +113,7 @@ func (c *KubernetesClient) CreateSecret(name string, jobRequest *api.JobRequest)
 	}
 
 	secret := corev1.Secret{
-		ObjectMeta: v1.ObjectMeta{Name: name},
+		ObjectMeta: v1.ObjectMeta{Name: name, Namespace: c.config.Namespace},
 		Type:       corev1.SecretTypeOpaque,
 		Immutable:  &immutable,
 		StringData: data,
