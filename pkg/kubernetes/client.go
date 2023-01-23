@@ -90,7 +90,7 @@ func NewClientsetFromConfig() (kubernetes.Interface, error) {
 	kubeConfigPath := filepath.Join(homeDir, ".kube", "config")
 	kubeConfig, err := clientcmd.BuildConfigFromFlags("", kubeConfigPath)
 	if err != nil {
-		return nil, fmt.Errorf("error getting Kubernetes config: %v\n", err)
+		return nil, fmt.Errorf("error getting Kubernetes config: %v", err)
 	}
 
 	clientset, err := kubernetes.NewForConfig(kubeConfig)
