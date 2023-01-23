@@ -46,7 +46,7 @@ build.windows:
 	env GOOS=windows GOARCH=amd64 go build -o build/agent.exe main.go
 
 build.k8s.image:
-	docker build -f k8s/Dockerfile.k8s -t semaphore-agent-k8s .
+	docker build -f test/e2e_support/kubernetes/Dockerfile -t semaphore-agent-k8s .
 
 e2e: build
 	ruby test/e2e/$(TEST).rb
