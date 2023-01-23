@@ -119,6 +119,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	_ = pflag.Bool(config.FailOnMissingFiles, false, "Fail job if files specified using --files are missing")
 	_ = pflag.String(config.UploadJobLogs, config.UploadJobLogsConditionNever, "When should the agent upload the job logs as a job artifact. Default is never.")
 	_ = pflag.Bool(config.FailOnPreJobHookError, false, "Fail job if pre-job hook fails")
+	_ = pflag.Bool(config.KubernetesExecutor, false, "Use Kubernetes executor")
 
 	pflag.Parse()
 
@@ -183,6 +184,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		FailOnPreJobHookError:      viper.GetBool(config.FailOnPreJobHookError),
 		AgentVersion:               VERSION,
 		ExitOnShutdown:             true,
+		KubernetesExecutor:         viper.GetBool(config.KubernetesExecutor),
 	}
 
 	go func() {

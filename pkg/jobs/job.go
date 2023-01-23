@@ -38,15 +38,16 @@ type Job struct {
 }
 
 type JobOptions struct {
-	Request            *api.JobRequest
-	Client             *http.Client
-	Logger             *eventlogger.Logger
-	ExposeKvmDevice    bool
-	FileInjections     []config.FileInjection
-	FailOnMissingFiles bool
-	SelfHosted         bool
-	UploadJobLogs      string
-	RefreshTokenFn     func() (string, error)
+	Request               *api.JobRequest
+	Client                *http.Client
+	Logger                *eventlogger.Logger
+	ExposeKvmDevice       bool
+	FileInjections        []config.FileInjection
+	FailOnMissingFiles    bool
+	SelfHosted            bool
+	UseKubernetesExecutor bool
+	UploadJobLogs         string
+	RefreshTokenFn        func() (string, error)
 }
 
 func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
@@ -104,10 +105,7 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 }
 
 func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOptions JobOptions) (executors.Executor, error) {
-	// Check if we are running on a kubernetes container.
-	// If so, both job types (shell and dockercompose) will be created
-	// in a k8s job, so a kubernetes executor needs to be created instead.
-	if os.Getenv("KUBERNETES_SERVICE_HOST") != "" {
+	if jobOptions.UseKubernetesExecutor {
 		return executors.NewKubernetesExecutor(request, logger)
 	}
 

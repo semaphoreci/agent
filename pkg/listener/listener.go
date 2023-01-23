@@ -38,6 +38,7 @@ type Config struct {
 	ExitOnShutdown             bool
 	AgentVersion               string
 	AgentName                  string
+	KubernetesExecutor         bool
 }
 
 func Start(httpClient *http.Client, config Config) (*Listener, error) {

@@ -38,6 +38,7 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		UploadJobLogs:           config.UploadJobLogs,
 		FailOnPreJobHookError:   config.FailOnPreJobHookError,
 		ExitOnShutdown:          config.ExitOnShutdown,
+		KubernetesExecutor:      config.KubernetesExecutor,
 	}
 
 	go p.Start()
@@ -48,14 +49,20 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 }
 
 type JobProcessor struct {
-	HTTPClient              *http.Client
-	APIClient               *selfhostedapi.API
-	State                   selfhostedapi.AgentState
-	CurrentJobID            string
-	CurrentJobResult        selfhostedapi.JobResult
-	CurrentJob              *jobs.Job
-	LastSyncErrorAt         *time.Time
-	LastSuccessfulSync      time.Time
+
+	// Job processor state
+	HTTPClient         *http.Client
+	APIClient          *selfhostedapi.API
+	State              selfhostedapi.AgentState
+	CurrentJobID       string
+	CurrentJobResult   selfhostedapi.JobResult
+	CurrentJob         *jobs.Job
+	LastSyncErrorAt    *time.Time
+	LastSuccessfulSync time.Time
+	ShutdownReason     ShutdownReason
+	mutex              sync.Mutex
+
+	// Job processor config
 	DisconnectRetryAttempts int
 	GetJobRetryAttempts     int
 	CallbackRetryAttempts   int
@@ -68,8 +75,7 @@ type JobProcessor struct {
 	UploadJobLogs           string
 	FailOnPreJobHookError   bool
 	ExitOnShutdown          bool
-	ShutdownReason          ShutdownReason
-	mutex                   sync.Mutex
+	KubernetesExecutor      bool
 }
 
 func (p *JobProcessor) Start() {
@@ -155,13 +161,14 @@ func (p *JobProcessor) RunJob(jobID string) {
 	}
 
 	job, err := jobs.NewJobWithOptions(&jobs.JobOptions{
-		Request:            jobRequest,
-		Client:             p.HTTPClient,
-		ExposeKvmDevice:    false,
-		FileInjections:     p.FileInjections,
-		FailOnMissingFiles: p.FailOnMissingFiles,
-		SelfHosted:         true,
-		UploadJobLogs:      p.UploadJobLogs,
+		Request:               jobRequest,
+		Client:                p.HTTPClient,
+		ExposeKvmDevice:       false,
+		FileInjections:        p.FileInjections,
+		FailOnMissingFiles:    p.FailOnMissingFiles,
+		SelfHosted:            true,
+		UseKubernetesExecutor: p.KubernetesExecutor,
+		UploadJobLogs:         p.UploadJobLogs,
 		RefreshTokenFn: func() (string, error) {
 			return p.APIClient.RefreshToken()
 		},

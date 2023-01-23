@@ -86,6 +86,19 @@ func Test__CreateSecret(t *testing.T) {
 }
 
 func Test__CreatePod(t *testing.T) {
+	t.Run("no containers and no default image specified -> error", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
+		podName := "mypod"
+		envSecretName := "mysecret"
+
+		assert.ErrorContains(t, client.CreatePod(podName, envSecretName, &api.JobRequest{
+			Compose: api.Compose{
+				Containers: []api.Container{},
+			},
+		}), "no default image specified")
+	})
+
 	t.Run("no containers specified in job uses default image", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
 		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image"})

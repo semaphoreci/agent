@@ -17,6 +17,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 type Config struct {
@@ -47,10 +48,6 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("namespace must be specified")
 	}
 
-	if c.DefaultImage == "" {
-		return fmt.Errorf("default image must be specified")
-	}
-
 	return nil
 }
 
@@ -79,6 +76,26 @@ func NewInClusterClientset() (kubernetes.Interface, error) {
 	clientset, err := kubernetes.NewForConfig(k8sConfig)
 	if err != nil {
 		return nil, err
+	}
+
+	return clientset, nil
+}
+
+func NewClientsetFromConfig() (kubernetes.Interface, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("error getting user home directory: %v", err)
+	}
+
+	kubeConfigPath := filepath.Join(homeDir, ".kube", "config")
+	kubeConfig, err := clientcmd.BuildConfigFromFlags("", kubeConfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("error getting Kubernetes config: %v\n", err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error creating kubernetes clientset from config file: %v", err)
 	}
 
 	return clientset, nil
@@ -149,9 +166,14 @@ func (c *KubernetesClient) CreateSecret(name string, jobRequest *api.JobRequest)
 }
 
 func (c *KubernetesClient) CreatePod(name string, envSecretName string, jobRequest *api.JobRequest) error {
-	_, err := c.clientset.CoreV1().
+	pod, err := c.podSpecFromJobRequest(name, envSecretName, jobRequest)
+	if err != nil {
+		return fmt.Errorf("error building pod spec: %v", err)
+	}
+
+	_, err = c.clientset.CoreV1().
 		Pods(c.config.Namespace).
-		Create(context.TODO(), c.podSpecFromJobRequest(name, envSecretName, jobRequest), v1.CreateOptions{})
+		Create(context.TODO(), pod, v1.CreateOptions{})
 
 	if err != nil {
 		return fmt.Errorf("error creating pod: %v", err)
@@ -160,9 +182,14 @@ func (c *KubernetesClient) CreatePod(name string, envSecretName string, jobReque
 	return nil
 }
 
-func (c *KubernetesClient) podSpecFromJobRequest(podName string, envSecretName string, jobRequest *api.JobRequest) *corev1.Pod {
+func (c *KubernetesClient) podSpecFromJobRequest(podName string, envSecretName string, jobRequest *api.JobRequest) (*corev1.Pod, error) {
+	containers, err := c.containers(jobRequest.Compose.Containers)
+	if err != nil {
+		return nil, fmt.Errorf("error building containers for pod spec: %v", err)
+	}
+
 	spec := corev1.PodSpec{
-		Containers:       c.containers(jobRequest.Compose.Containers),
+		Containers:       containers,
 		ImagePullSecrets: c.imagePullSecrets(),
 		RestartPolicy:    corev1.RestartPolicyNever,
 		Volumes: []corev1.Volume{
@@ -186,36 +213,40 @@ func (c *KubernetesClient) podSpecFromJobRequest(podName string, envSecretName s
 				"app": "semaphore-agent",
 			},
 		},
-	}
+	}, nil
 }
 
-func (c *KubernetesClient) containers(containers []api.Container) []corev1.Container {
+func (c *KubernetesClient) containers(containers []api.Container) ([]corev1.Container, error) {
 
-	// For jobs which do not specify containers (shell jobs), we use the default image.
-	if len(containers) == 0 {
-		return []corev1.Container{
-			{
-				Name:  "main",
-				Image: c.config.DefaultImage,
-				VolumeMounts: []corev1.VolumeMount{
-					{
-						Name:      "environment",
-						ReadOnly:  true,
-						MountPath: "/tmp/injected",
-					},
-				},
-
-				// TODO: little hack to make it work with my kubernetes local cluster
-				ImagePullPolicy: corev1.PullNever,
-
-				// The k8s pod shouldn't finish, so we sleep infinitely to keep it up.
-				Command: []string{"bash", "-c", "sleep infinity"},
-			},
-		}
+	// If the job specifies containers in the YAML, we use them.
+	if len(containers) > 0 {
+		return c.convertContainersFromSemaphore(containers), nil
 	}
 
-	// For jobs which do specify containers, we just relay them to k8s.
-	return c.convertContainersFromSemaphore(containers)
+	// For jobs which do not specify containers, we require the default image to be specified.
+	if c.config.DefaultImage == "" {
+		return []corev1.Container{}, fmt.Errorf("no default image specified")
+	}
+
+	return []corev1.Container{
+		{
+			Name:  "main",
+			Image: c.config.DefaultImage,
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      "environment",
+					ReadOnly:  true,
+					MountPath: "/tmp/injected",
+				},
+			},
+
+			// TODO: little hack to make it work with my kubernetes local cluster
+			ImagePullPolicy: corev1.PullNever,
+
+			// The k8s pod shouldn't finish, so we sleep infinitely to keep it up.
+			Command: []string{"bash", "-c", "sleep infinity"},
+		},
+	}, nil
 }
 
 func (c *KubernetesClient) convertContainersFromSemaphore(containers []api.Container) []corev1.Container {

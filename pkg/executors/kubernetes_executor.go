@@ -33,7 +33,12 @@ type KubernetesExecutor struct {
 func NewKubernetesExecutor(jobRequest *api.JobRequest, logger *eventlogger.Logger) (*KubernetesExecutor, error) {
 	clientset, err := kubernetes.NewInClusterClientset()
 	if err != nil {
-		return nil, err
+		log.Warnf("No in-cluster configuration found - using ~/.kube/config...")
+
+		clientset, err = kubernetes.NewClientsetFromConfig()
+		if err != nil {
+			return nil, fmt.Errorf("error creating kubernetes clientset: %v", err)
+		}
 	}
 
 	// The downwards API allows the namespace to be exposed
