@@ -11,7 +11,7 @@ $AGENT_CONFIG = {
   "files" => [],
   "fail-on-missing-files" => false,
   "kubernetes-executor" => true,
-  "kubernetes-default-image" => "ruby:3.0-alpine",
+  "kubernetes-default-image" => "ruby:3-slim",
   "kubernetes-image-pull-policy" => "IfNotPresent"
 }
 
@@ -52,13 +52,9 @@ wait_for_job_to_finish
 assert_job_log <<-LOG
   {"event":"job_started",  "timestamp":"*"}
 
-  {"event":"cmd_started",  "timestamp":"*", "directive":"Pulling docker images..."}
+  {"event":"cmd_started",  "timestamp":"*", "directive":"Starting shell session..."}
   *** LONG_OUTPUT ***
-  {"event":"cmd_finished", "timestamp":"*", "directive":"Pulling docker images...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
-
-  {"event":"cmd_started",  "timestamp":"*", "directive":"Starting the docker image..."}
-  {"event":"cmd_output",   "timestamp":"*", "output":"Starting a new bash session.\\n"}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"Starting the docker image...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
+  {"event":"cmd_finished", "timestamp":"*", "directive":"Starting shell session...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Exporting A\\n"}
