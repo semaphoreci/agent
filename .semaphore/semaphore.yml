@@ -242,7 +242,11 @@ blocks:
             - env_var: TEST
               values:
                 - shell__env-vars
+                - shell__epilogue
+                - shell__file-injection
                 - docker_compose__env-vars
+                - docker_compose__epilogue
+                - docker_compose__file-injection
                 - docker_compose__multiple-containers
 
 promotions:
