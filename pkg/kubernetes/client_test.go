@@ -88,7 +88,7 @@ func Test__CreateSecret(t *testing.T) {
 func Test__CreatePod(t *testing.T) {
 	t.Run("no containers and no default image specified -> error", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", ImagePullPolicy: "Never"})
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -101,7 +101,7 @@ func Test__CreatePod(t *testing.T) {
 
 	t.Run("no containers specified in job uses default image", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image"})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image", ImagePullPolicy: "Never"})
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -150,7 +150,7 @@ func Test__CreatePod(t *testing.T) {
 
 	t.Run("1 container", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image"})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image", ImagePullPolicy: "Always"})
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -176,7 +176,7 @@ func Test__CreatePod(t *testing.T) {
 		if assert.Len(t, pod.Spec.Containers, 1) {
 			assert.Equal(t, pod.Spec.Containers[0].Name, "main")
 			assert.Equal(t, pod.Spec.Containers[0].Image, "custom-image")
-			assert.Equal(t, pod.Spec.Containers[0].ImagePullPolicy, corev1.PullNever)
+			assert.Equal(t, pod.Spec.Containers[0].ImagePullPolicy, corev1.PullAlways)
 			assert.Equal(t, pod.Spec.Containers[0].Command, []string{"bash", "-c", "sleep infinity"})
 			assert.Empty(t, pod.Spec.Containers[0].Env)
 			assert.Equal(t, pod.Spec.Containers[0].VolumeMounts, []corev1.VolumeMount{{Name: "environment", ReadOnly: true, MountPath: "/tmp/injected"}})
@@ -185,7 +185,7 @@ func Test__CreatePod(t *testing.T) {
 
 	t.Run("container with env vars", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image"})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image", ImagePullPolicy: "Always"})
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -215,7 +215,7 @@ func Test__CreatePod(t *testing.T) {
 		if assert.Len(t, pod.Spec.Containers, 1) {
 			assert.Equal(t, pod.Spec.Containers[0].Name, "main")
 			assert.Equal(t, pod.Spec.Containers[0].Image, "custom-image")
-			assert.Equal(t, pod.Spec.Containers[0].ImagePullPolicy, corev1.PullNever)
+			assert.Equal(t, pod.Spec.Containers[0].ImagePullPolicy, corev1.PullAlways)
 			assert.Equal(t, pod.Spec.Containers[0].Command, []string{"bash", "-c", "sleep infinity"})
 			assert.Equal(t, pod.Spec.Containers[0].Env, []corev1.EnvVar{{Name: "A", Value: "AAA"}})
 			assert.Equal(t, pod.Spec.Containers[0].VolumeMounts, []corev1.VolumeMount{{Name: "environment", ReadOnly: true, MountPath: "/tmp/injected"}})
@@ -224,7 +224,7 @@ func Test__CreatePod(t *testing.T) {
 
 	t.Run("multiple containers", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image"})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image", ImagePullPolicy: "Always"})
 		podName := "mypod"
 		envSecretName := "mysecret"
 
