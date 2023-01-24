@@ -6,6 +6,9 @@ RUN apt-get update && \
   apt-get install -y ssh && \
   pip install docker-compose awscli
 
+# By default, sshd runs on port 22, we need it to run on port 2222
+RUN sed -i 's/#Port 22/Port 2222/g' /etc/ssh/sshd_config
+
 # kubectl is required to be present in the container running the agent
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
   install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
@@ -16,4 +19,4 @@ ADD build/agent /app/agent
 
 WORKDIR /app
 
-CMD service ssh restart && ./agent serve
+CMD service ssh restart && ./agent serve --port 30000

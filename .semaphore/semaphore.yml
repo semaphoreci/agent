@@ -208,6 +208,41 @@ blocks:
                 - docker_compose_missing_host_files
                 - docker_compose_fail_on_missing_host_files
 
+  - name: "Kubernetes Executor E2E"
+    dependencies: []
+    task:
+      env_vars:
+        - name: GO111MODULE
+          value: "on"
+        - name: TEST_MODE
+          value: "listen"
+
+      prologue:
+        commands:
+          - sem-version go 1.18
+          - curl -sLO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 && install minikube-linux-amd64 /tmp/
+          - /tmp/minikube-linux-amd64 config set WantUpdateNotification false
+          - /tmp/minikube-linux-amd64 start --driver=docker
+          - checkout
+          - mkdir /tmp/agent
+          # The docker container uses root, and not semaphore
+          - grep -rl "/home/semaphore" ~/.kube | xargs sed -i 's/home\/semaphore/root/g'
+          - grep -rl "/home/semaphore" ~/.minikube | xargs sed -i 's/home\/semaphore/root/g'
+
+      epilogue:
+        commands:
+          - docker logs e2e_support_agent_1
+          - docker logs e2e_support_hub_1
+
+      jobs:
+        - name: Kubernetes executor
+          commands:
+            - "make e2e TEST=kubernetes/$TEST"
+          matrix:
+            - env_var: TEST
+              values:
+                - env_vars
+
 promotions:
   - name: Release
     pipeline_file: "release.yml"

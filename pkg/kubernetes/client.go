@@ -332,7 +332,13 @@ func (c *KubernetesClient) findPod(name string) (*corev1.Pod, error) {
 
 	// If the pod already finished, something went wrong.
 	if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded {
-		return nil, fmt.Errorf("pod '%s' already finished with status %s", pod.Name, pod.Status.Phase)
+		return nil, fmt.Errorf(
+			"pod '%s' already finished with status %s: reason: %v, message: %v",
+			pod.Name,
+			pod.Status.Phase,
+			pod.Status.Reason,
+			pod.Status.Message,
+		)
 	}
 
 	// if pod is pending, we need to wait
