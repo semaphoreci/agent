@@ -229,7 +229,7 @@ func (e *KubernetesExecutor) InjectFiles(files []api.File) int {
 
 		// Normalize path to properly handle absolute/relative/~ paths
 		destPath := file.NormalizePath(homeDir)
-		e.logger.LogCommandOutput(fmt.Sprintf("Injecting %s with file mode %s\n", destPath, file.Mode))
+		e.logger.LogCommandOutput(fmt.Sprintf("Injecting %s with file mode %s\n", file.Path, file.Mode))
 
 		// Create the parent directory
 		parentDir := filepath.Dir(file.Path)
