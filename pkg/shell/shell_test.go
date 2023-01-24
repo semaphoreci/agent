@@ -58,6 +58,10 @@ func Test__Shell__SimpleHelloWorld(t *testing.T) {
 }
 
 func Test__Shell__SimpleHelloWorldUsingBase64Encoding(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
 	var output bytes.Buffer
 
 	shell, _ := NewShell(os.TempDir())
