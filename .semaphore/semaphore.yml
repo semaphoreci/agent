@@ -241,7 +241,9 @@ blocks:
           matrix:
             - env_var: TEST
               values:
-                - env_vars
+                - shell__env-vars
+                - docker_compose__env-vars
+                - docker_compose__multiple-containers
 
 promotions:
   - name: Release
