@@ -23,6 +23,7 @@ import (
 type Config struct {
 	Namespace          string
 	DefaultImage       string
+	ImagePullPolicy    string
 	PodPollingAttempts int
 	PodPollingInterval time.Duration
 }
@@ -230,8 +231,9 @@ func (c *KubernetesClient) containers(containers []api.Container) ([]corev1.Cont
 
 	return []corev1.Container{
 		{
-			Name:  "main",
-			Image: c.config.DefaultImage,
+			Name:            "main",
+			Image:           c.config.DefaultImage,
+			ImagePullPolicy: corev1.PullPolicy(c.config.ImagePullPolicy),
 			VolumeMounts: []corev1.VolumeMount{
 				{
 					Name:      "environment",
@@ -239,9 +241,6 @@ func (c *KubernetesClient) containers(containers []api.Container) ([]corev1.Cont
 					MountPath: "/tmp/injected",
 				},
 			},
-
-			// TODO: little hack to make it work with my kubernetes local cluster
-			ImagePullPolicy: corev1.PullNever,
 
 			// The k8s pod shouldn't finish, so we sleep infinitely to keep it up.
 			Command: []string{"bash", "-c", "sleep infinity"},
@@ -256,10 +255,11 @@ func (c *KubernetesClient) convertContainersFromSemaphore(containers []api.Conta
 	// so we 'sleep infinity' in its command.
 	k8sContainers := []corev1.Container{
 		{
-			Name:    main.Name,
-			Image:   main.Image,
-			Env:     c.convertEnvVars(main.EnvVars),
-			Command: []string{"bash", "-c", "sleep infinity"},
+			Name:            main.Name,
+			Image:           main.Image,
+			Env:             c.convertEnvVars(main.EnvVars),
+			Command:         []string{"bash", "-c", "sleep infinity"},
+			ImagePullPolicy: corev1.PullPolicy(c.config.ImagePullPolicy),
 			VolumeMounts: []corev1.VolumeMount{
 				{
 					Name:      "environment",
@@ -267,8 +267,6 @@ func (c *KubernetesClient) convertContainersFromSemaphore(containers []api.Conta
 					MountPath: "/tmp/injected",
 				},
 			},
-			// TODO: little hack to make it work with my kubernetes local cluster
-			ImagePullPolicy: corev1.PullNever,
 		},
 	}
 

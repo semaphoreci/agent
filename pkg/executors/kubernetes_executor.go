@@ -30,7 +30,7 @@ type KubernetesExecutor struct {
 	initialEnvironmentExposed bool
 }
 
-func NewKubernetesExecutor(jobRequest *api.JobRequest, logger *eventlogger.Logger) (*KubernetesExecutor, error) {
+func NewKubernetesExecutor(jobRequest *api.JobRequest, logger *eventlogger.Logger, k8sConfig kubernetes.Config) (*KubernetesExecutor, error) {
 	clientset, err := kubernetes.NewInClusterClientset()
 	if err != nil {
 		log.Warnf("No in-cluster configuration found - using ~/.kube/config...")
@@ -41,19 +41,7 @@ func NewKubernetesExecutor(jobRequest *api.JobRequest, logger *eventlogger.Logge
 		}
 	}
 
-	// The downwards API allows the namespace to be exposed
-	// to the agent container through an environment variable.
-	// See: https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information.
-	namespace := os.Getenv("KUBERNETES_NAMESPACE")
-	if namespace == "" {
-		namespace = "default"
-	}
-
-	k8sClient, err := kubernetes.NewKubernetesClient(clientset, kubernetes.Config{
-		Namespace:    namespace,
-		DefaultImage: os.Getenv("SEMAPHORE_DEFAULT_IMAGE"),
-	})
-
+	k8sClient, err := kubernetes.NewKubernetesClient(clientset, k8sConfig)
 	if err != nil {
 		return nil, err
 	}

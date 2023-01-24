@@ -20,25 +20,28 @@ type Listener struct {
 }
 
 type Config struct {
-	Endpoint                   string
-	RegisterRetryLimit         int
-	GetJobRetryLimit           int
-	CallbackRetryLimit         int
-	Token                      string
-	Scheme                     string
-	ShutdownHookPath           string
-	PreJobHookPath             string
-	DisconnectAfterJob         bool
-	DisconnectAfterIdleSeconds int
-	EnvVars                    []config.HostEnvVar
-	FileInjections             []config.FileInjection
-	FailOnMissingFiles         bool
-	UploadJobLogs              string
-	FailOnPreJobHookError      bool
-	ExitOnShutdown             bool
-	AgentVersion               string
-	AgentName                  string
-	KubernetesExecutor         bool
+	Endpoint                         string
+	RegisterRetryLimit               int
+	GetJobRetryLimit                 int
+	CallbackRetryLimit               int
+	Token                            string
+	Scheme                           string
+	ShutdownHookPath                 string
+	PreJobHookPath                   string
+	DisconnectAfterJob               bool
+	DisconnectAfterIdleSeconds       int
+	EnvVars                          []config.HostEnvVar
+	FileInjections                   []config.FileInjection
+	FailOnMissingFiles               bool
+	UploadJobLogs                    string
+	FailOnPreJobHookError            bool
+	ExitOnShutdown                   bool
+	AgentVersion                     string
+	AgentName                        string
+	KubernetesExecutor               bool
+	KubernetesDefaultImage           string
+	KubernetesImagePullPolicy        string
+	KubernetesPodStartTimeoutSeconds int
 }
 
 func Start(httpClient *http.Client, config Config) (*Listener, error) {
