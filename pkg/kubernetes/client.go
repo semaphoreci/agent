@@ -333,27 +333,74 @@ func (c *KubernetesClient) findPod(name string) (*corev1.Pod, error) {
 	// If the pod already finished, something went wrong.
 	if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded {
 		return nil, fmt.Errorf(
-			"pod '%s' already finished with status %s: reason: %v, message: %v",
+			"pod '%s' already finished with status %s - reason: '%v', message: '%v', statuses: %v",
 			pod.Name,
 			pod.Status.Phase,
 			pod.Status.Reason,
 			pod.Status.Message,
+			c.getContainerStatuses(pod.Status.ContainerStatuses),
 		)
 	}
 
 	// if pod is pending, we need to wait
 	if pod.Status.Phase == corev1.PodPending {
-		return nil, fmt.Errorf("pod in pending state")
+		return nil, fmt.Errorf("pod in pending state - statuses: %v", c.getContainerStatuses(pod.Status.ContainerStatuses))
 	}
 
 	// if one of the pod's containers isn't ready, we need to wait
 	for _, container := range pod.Status.ContainerStatuses {
 		if !container.Ready {
-			return nil, fmt.Errorf("container '%s' is not ready yet", container.Name)
+			return nil, fmt.Errorf(
+				"container '%s' is not ready yet - statuses: %v",
+				container.Name,
+				c.getContainerStatuses(pod.Status.ContainerStatuses),
+			)
 		}
 	}
 
 	return pod, nil
+}
+
+func (c *KubernetesClient) getContainerStatuses(statuses []corev1.ContainerStatus) []string {
+	messages := []string{}
+	for _, s := range statuses {
+		if s.State.Terminated != nil {
+			messages = append(
+				messages,
+				fmt.Sprintf(
+					"container '%s' terminated - reason='%s', message='%s'",
+					s.Image,
+					s.State.Terminated.Reason,
+					s.State.Terminated.Message,
+				),
+			)
+		}
+
+		if s.State.Waiting != nil {
+			messages = append(
+				messages,
+				fmt.Sprintf(
+					"container '%s' waiting - reason='%s', message='%s'",
+					s.Image,
+					s.State.Waiting.Reason,
+					s.State.Waiting.Message,
+				),
+			)
+		}
+
+		if s.State.Running != nil {
+			messages = append(
+				messages,
+				fmt.Sprintf(
+					"container '%s' is running since %v",
+					s.Image,
+					s.State.Running.StartedAt,
+				),
+			)
+		}
+	}
+
+	return messages
 }
 
 func (c *KubernetesClient) DeletePod(name string) error {
