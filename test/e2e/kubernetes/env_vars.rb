@@ -11,7 +11,7 @@ $AGENT_CONFIG = {
   "files" => [],
   "fail-on-missing-files" => false,
   "kubernetes-executor" => true,
-  "kubernetes-default-image" => "ruby:3.0-alpine"
+  "kubernetes-default-image" => "ruby:3.0-alpine",
   "kubernetes-image-pull-policy" => "IfNotPresent"
 }
 
