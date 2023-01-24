@@ -297,7 +297,6 @@ func (c *KubernetesClient) convertEnvVars(envVarsFromSemaphore []api.EnvVar) []c
 	return k8sEnvVars
 }
 
-// TODO: support for private images
 func (c *KubernetesClient) imagePullSecrets() []corev1.LocalObjectReference {
 	return []corev1.LocalObjectReference{}
 }

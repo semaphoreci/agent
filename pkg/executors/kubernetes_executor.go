@@ -83,7 +83,6 @@ func (e *KubernetesExecutor) randomPodName() string {
 	return string(b)
 }
 
-// The idea here is to use the kubectl CLI to exec into the pod
 func (e *KubernetesExecutor) Start() int {
 	commandStartedAt := int(time.Now().Unix())
 	directive := "Starting shell session..."
