@@ -17,6 +17,7 @@ const (
 	FailOnMissingFiles         = "fail-on-missing-files"
 	UploadJobLogs              = "upload-job-logs"
 	FailOnPreJobHookError      = "fail-on-pre-job-hook-error"
+	InterruptionGracePeriod    = "interruption-grace-period"
 )
 
 type UploadJobLogsCondition string
@@ -48,6 +49,7 @@ var ValidConfigKeys = []string{
 	FailOnMissingFiles,
 	UploadJobLogs,
 	FailOnPreJobHookError,
+	InterruptionGracePeriod,
 }
 
 type HostEnvVar struct {

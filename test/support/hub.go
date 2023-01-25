@@ -145,6 +145,11 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 
 	switch request.State {
 	case selfhostedapi.AgentStateWaitingForJobs:
+		if request.InterruptedAt > 0 {
+			syncResponse.Action = selfhostedapi.AgentActionShutdown
+			syncResponse.ShutdownReason = selfhostedapi.ShutdownReasonInterrupted
+		}
+
 		if m.ShouldShutdown {
 			syncResponse.Action = selfhostedapi.AgentActionShutdown
 			syncResponse.ShutdownReason = selfhostedapi.ShutdownReasonRequested
@@ -166,6 +171,14 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 	case selfhostedapi.AgentStateRunningJob:
 		m.RunningJob = true
 
+		if request.InterruptedAt > 0 {
+			gracePeriodEnd := time.Unix(request.InterruptedAt, 0).Add(time.Duration(m.RegisterRequest.InterruptionGracePeriod) * time.Second)
+			if time.Now().After(gracePeriodEnd) {
+				syncResponse.Action = selfhostedapi.AgentActionStopJob
+				syncResponse.JobID = m.JobRequest.ID
+			}
+		}
+
 		if m.ShouldShutdown {
 			syncResponse.Action = selfhostedapi.AgentActionStopJob
 			syncResponse.JobID = m.JobRequest.ID
@@ -179,6 +192,9 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 		if m.ShouldShutdown {
 			syncResponse.Action = selfhostedapi.AgentActionShutdown
 			syncResponse.ShutdownReason = selfhostedapi.ShutdownReasonRequested
+		} else if request.InterruptedAt > 0 {
+			syncResponse.Action = selfhostedapi.AgentActionShutdown
+			syncResponse.ShutdownReason = selfhostedapi.ShutdownReasonInterrupted
 		} else if m.RegisterRequest.SingleJob {
 			syncResponse.Action = selfhostedapi.AgentActionShutdown
 			syncResponse.ShutdownReason = selfhostedapi.ShutdownReasonJobFinished

@@ -69,6 +69,7 @@ type JobProcessor struct {
 	FailOnPreJobHookError   bool
 	ExitOnShutdown          bool
 	ShutdownReason          ShutdownReason
+	InterruptedAt           int64
 	mutex                   sync.Mutex
 }
 
@@ -92,9 +93,10 @@ func (p *JobProcessor) SyncLoop() {
 
 func (p *JobProcessor) Sync() {
 	request := &selfhostedapi.SyncRequest{
-		State:     p.State,
-		JobID:     p.CurrentJobID,
-		JobResult: p.CurrentJobResult,
+		State:         p.State,
+		JobID:         p.CurrentJobID,
+		JobResult:     p.CurrentJobResult,
+		InterruptedAt: p.InterruptedAt,
 	}
 
 	response, err := p.APIClient.Sync(request)
@@ -242,8 +244,11 @@ func (p *JobProcessor) SetupInterruptHandler() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		log.Info("Ctrl+C pressed in Terminal")
-		p.Shutdown(ShutdownReasonInterrupted, 0)
+		log.Info("Termination signal received")
+
+		// When we receive an interruption signal
+		// we tell the API about it, and let it tell the agent when to shut down.
+		p.InterruptedAt = time.Now().Unix()
 	}()
 }
 
