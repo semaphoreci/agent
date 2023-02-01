@@ -23,21 +23,25 @@ import (
 
 func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, config Config) (*JobProcessor, error) {
 	p := &JobProcessor{
-		HTTPClient:              httpClient,
-		APIClient:               apiClient,
-		LastSuccessfulSync:      time.Now(),
-		State:                   selfhostedapi.AgentStateWaitingForJobs,
-		DisconnectRetryAttempts: 100,
-		GetJobRetryAttempts:     config.GetJobRetryLimit,
-		CallbackRetryAttempts:   config.CallbackRetryLimit,
-		ShutdownHookPath:        config.ShutdownHookPath,
-		PreJobHookPath:          config.PreJobHookPath,
-		EnvVars:                 config.EnvVars,
-		FileInjections:          config.FileInjections,
-		FailOnMissingFiles:      config.FailOnMissingFiles,
-		UploadJobLogs:           config.UploadJobLogs,
-		FailOnPreJobHookError:   config.FailOnPreJobHookError,
-		ExitOnShutdown:          config.ExitOnShutdown,
+		HTTPClient:                       httpClient,
+		APIClient:                        apiClient,
+		LastSuccessfulSync:               time.Now(),
+		State:                            selfhostedapi.AgentStateWaitingForJobs,
+		DisconnectRetryAttempts:          100,
+		GetJobRetryAttempts:              config.GetJobRetryLimit,
+		CallbackRetryAttempts:            config.CallbackRetryLimit,
+		ShutdownHookPath:                 config.ShutdownHookPath,
+		PreJobHookPath:                   config.PreJobHookPath,
+		EnvVars:                          config.EnvVars,
+		FileInjections:                   config.FileInjections,
+		FailOnMissingFiles:               config.FailOnMissingFiles,
+		UploadJobLogs:                    config.UploadJobLogs,
+		FailOnPreJobHookError:            config.FailOnPreJobHookError,
+		ExitOnShutdown:                   config.ExitOnShutdown,
+		KubernetesExecutor:               config.KubernetesExecutor,
+		KubernetesDefaultImage:           config.KubernetesDefaultImage,
+		KubernetesImagePullPolicy:        config.KubernetesImagePullPolicy,
+		KubernetesPodStartTimeoutSeconds: config.KubernetesPodStartTimeoutSeconds,
 	}
 
 	go p.Start()
@@ -48,29 +52,37 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 }
 
 type JobProcessor struct {
-	HTTPClient              *http.Client
-	APIClient               *selfhostedapi.API
-	State                   selfhostedapi.AgentState
-	CurrentJobID            string
-	CurrentJobResult        selfhostedapi.JobResult
-	CurrentJob              *jobs.Job
-	LastSyncErrorAt         *time.Time
-	LastSuccessfulSync      time.Time
-	DisconnectRetryAttempts int
-	GetJobRetryAttempts     int
-	CallbackRetryAttempts   int
-	ShutdownHookPath        string
-	PreJobHookPath          string
-	StopSync                bool
-	EnvVars                 []config.HostEnvVar
-	FileInjections          []config.FileInjection
-	FailOnMissingFiles      bool
-	UploadJobLogs           string
-	FailOnPreJobHookError   bool
-	ExitOnShutdown          bool
-	ShutdownReason          ShutdownReason
-	InterruptedAt           int64
-	mutex                   sync.Mutex
+
+	// Job processor state
+	HTTPClient         *http.Client
+	APIClient          *selfhostedapi.API
+	State              selfhostedapi.AgentState
+	CurrentJobID       string
+	CurrentJobResult   selfhostedapi.JobResult
+	CurrentJob         *jobs.Job
+	LastSyncErrorAt    *time.Time
+	LastSuccessfulSync time.Time
+	InterruptedAt      int64
+	ShutdownReason     ShutdownReason
+	mutex              sync.Mutex
+
+	// Job processor config
+	DisconnectRetryAttempts          int
+	GetJobRetryAttempts              int
+	CallbackRetryAttempts            int
+	ShutdownHookPath                 string
+	PreJobHookPath                   string
+	StopSync                         bool
+	EnvVars                          []config.HostEnvVar
+	FileInjections                   []config.FileInjection
+	FailOnMissingFiles               bool
+	UploadJobLogs                    string
+	FailOnPreJobHookError            bool
+	ExitOnShutdown                   bool
+	KubernetesExecutor               bool
+	KubernetesDefaultImage           string
+	KubernetesImagePullPolicy        string
+	KubernetesPodStartTimeoutSeconds int
 }
 
 func (p *JobProcessor) Start() {
@@ -157,13 +169,17 @@ func (p *JobProcessor) RunJob(jobID string) {
 	}
 
 	job, err := jobs.NewJobWithOptions(&jobs.JobOptions{
-		Request:            jobRequest,
-		Client:             p.HTTPClient,
-		ExposeKvmDevice:    false,
-		FileInjections:     p.FileInjections,
-		FailOnMissingFiles: p.FailOnMissingFiles,
-		SelfHosted:         true,
-		UploadJobLogs:      p.UploadJobLogs,
+		Request:                          jobRequest,
+		Client:                           p.HTTPClient,
+		ExposeKvmDevice:                  false,
+		FileInjections:                   p.FileInjections,
+		FailOnMissingFiles:               p.FailOnMissingFiles,
+		SelfHosted:                       true,
+		UseKubernetesExecutor:            p.KubernetesExecutor,
+		KubernetesDefaultImage:           p.KubernetesDefaultImage,
+		KubernetesImagePullPolicy:        p.KubernetesImagePullPolicy,
+		KubernetesPodStartTimeoutSeconds: p.KubernetesPodStartTimeoutSeconds,
+		UploadJobLogs:                    p.UploadJobLogs,
 		RefreshTokenFn: func() (string, error) {
 			return p.APIClient.RefreshToken()
 		},

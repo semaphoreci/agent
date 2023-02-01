@@ -110,6 +110,17 @@ func (e *Environment) ToSlice() []string {
 	return arr
 }
 
+func (e *Environment) ToCommands() []string {
+	commands := []string{}
+
+	for _, name := range e.Keys() {
+		value, _ := e.Get(name)
+		commands = append(commands, fmt.Sprintf("export %s=%s\n", name, shellQuote(value)))
+	}
+
+	return commands
+}
+
 func (e *Environment) ToFile(fileName string, callback func(name string)) error {
 	fileContent := ""
 	for _, name := range e.Keys() {

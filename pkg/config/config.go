@@ -18,7 +18,27 @@ const (
 	UploadJobLogs              = "upload-job-logs"
 	FailOnPreJobHookError      = "fail-on-pre-job-hook-error"
 	InterruptionGracePeriod    = "interruption-grace-period"
+	KubernetesExecutor         = "kubernetes-executor"
+	KubernetesDefaultImage     = "kubernetes-default-image"
+	KubernetesImagePullPolicy  = "kubernetes-image-pull-policy"
+	KubernetesPodStartTimeout  = "kubernetes-pod-start-timeout"
 )
+
+const DefaultKubernetesPodStartTimeout = 60
+
+type ImagePullPolicy string
+
+const (
+	ImagePullPolicyNever        = "Never"
+	ImagePullPolicyAlways       = "Always"
+	ImagePullPolicyIfNotPresent = "IfNotPresent"
+)
+
+var ValidImagePullPolicies = []string{
+	ImagePullPolicyNever,
+	ImagePullPolicyAlways,
+	ImagePullPolicyIfNotPresent,
+}
 
 type UploadJobLogsCondition string
 
@@ -50,6 +70,10 @@ var ValidConfigKeys = []string{
 	UploadJobLogs,
 	FailOnPreJobHookError,
 	InterruptionGracePeriod,
+	KubernetesExecutor,
+	KubernetesDefaultImage,
+	KubernetesImagePullPolicy,
+	KubernetesPodStartTimeout,
 }
 
 type HostEnvVar struct {

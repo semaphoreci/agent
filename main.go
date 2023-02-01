@@ -120,6 +120,14 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	_ = pflag.Bool(config.FailOnMissingFiles, false, "Fail job if files specified using --files are missing")
 	_ = pflag.String(config.UploadJobLogs, config.UploadJobLogsConditionNever, "When should the agent upload the job logs as a job artifact. Default is never.")
 	_ = pflag.Bool(config.FailOnPreJobHookError, false, "Fail job if pre-job hook fails")
+	_ = pflag.Bool(config.KubernetesExecutor, false, "Use Kubernetes executor")
+	_ = pflag.String(config.KubernetesDefaultImage, "", "Default image used for jobs that do not specify images, when using kubernetes executor")
+	_ = pflag.String(config.KubernetesImagePullPolicy, config.ImagePullPolicyNever, "Image pull policy to use for Kubernetes executor. Default is never.")
+	_ = pflag.Int(
+		config.KubernetesPodStartTimeout,
+		config.DefaultKubernetesPodStartTimeout,
+		fmt.Sprintf("Timeout for the pod to be ready, in seconds. Default is %d.", config.DefaultKubernetesPodStartTimeout),
+	)
 
 	pflag.Parse()
 
@@ -146,6 +154,10 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		log.Fatal("Idle timeout can't be negative. Exiting...")
 	}
 
+	if viper.GetInt(config.KubernetesPodStartTimeout) < 0 {
+		log.Fatal("Kubernetes pod start timeout can't be negative. Exiting...")
+	}
+
 	scheme := "https"
 	if viper.GetBool(config.NoHTTPS) {
 		scheme = "http"
@@ -166,25 +178,29 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	log.SetFormatter(&formatter)
 
 	config := listener.Config{
-		AgentName:                  agentName,
-		Endpoint:                   viper.GetString(config.Endpoint),
-		Token:                      viper.GetString(config.Token),
-		RegisterRetryLimit:         30,
-		GetJobRetryLimit:           10,
-		CallbackRetryLimit:         60,
-		Scheme:                     scheme,
-		ShutdownHookPath:           viper.GetString(config.ShutdownHookPath),
-		PreJobHookPath:             viper.GetString(config.PreJobHookPath),
-		DisconnectAfterJob:         viper.GetBool(config.DisconnectAfterJob),
-		DisconnectAfterIdleSeconds: viper.GetInt(config.DisconnectAfterIdleTimeout),
-		InterruptionGracePeriod:    viper.GetInt(config.InterruptionGracePeriod),
-		EnvVars:                    hostEnvVars,
-		FileInjections:             fileInjections,
-		FailOnMissingFiles:         viper.GetBool(config.FailOnMissingFiles),
-		UploadJobLogs:              viper.GetString(config.UploadJobLogs),
-		FailOnPreJobHookError:      viper.GetBool(config.FailOnPreJobHookError),
-		AgentVersion:               VERSION,
-		ExitOnShutdown:             true,
+		AgentName:                        agentName,
+		Endpoint:                         viper.GetString(config.Endpoint),
+		Token:                            viper.GetString(config.Token),
+		RegisterRetryLimit:               30,
+		GetJobRetryLimit:                 10,
+		CallbackRetryLimit:               60,
+		Scheme:                           scheme,
+		ShutdownHookPath:                 viper.GetString(config.ShutdownHookPath),
+		PreJobHookPath:                   viper.GetString(config.PreJobHookPath),
+		DisconnectAfterJob:               viper.GetBool(config.DisconnectAfterJob),
+		DisconnectAfterIdleSeconds:       viper.GetInt(config.DisconnectAfterIdleTimeout),
+		InterruptionGracePeriod:          viper.GetInt(config.InterruptionGracePeriod),
+		EnvVars:                          hostEnvVars,
+		FileInjections:                   fileInjections,
+		FailOnMissingFiles:               viper.GetBool(config.FailOnMissingFiles),
+		UploadJobLogs:                    viper.GetString(config.UploadJobLogs),
+		FailOnPreJobHookError:            viper.GetBool(config.FailOnPreJobHookError),
+		AgentVersion:                     VERSION,
+		ExitOnShutdown:                   true,
+		KubernetesExecutor:               viper.GetBool(config.KubernetesExecutor),
+		KubernetesDefaultImage:           viper.GetString(config.KubernetesDefaultImage),
+		KubernetesImagePullPolicy:        viper.GetString(config.KubernetesImagePullPolicy),
+		KubernetesPodStartTimeoutSeconds: viper.GetInt(config.KubernetesPodStartTimeout),
 	}
 
 	go func() {
@@ -232,6 +248,16 @@ func validateConfiguration() {
 			uploadJobLogs,
 			config.UploadJobLogs,
 			config.ValidUploadJobLogsCondition,
+		)
+	}
+
+	imagePullPolicy := viper.GetString(config.KubernetesImagePullPolicy)
+	if !contains(config.ValidImagePullPolicies, imagePullPolicy) {
+		log.Fatalf(
+			"Unsupported value '%s' for '%s'. Allowed values are: %v. Exiting...",
+			imagePullPolicy,
+			config.KubernetesImagePullPolicy,
+			config.ValidImagePullPolicies,
 		)
 	}
 }
