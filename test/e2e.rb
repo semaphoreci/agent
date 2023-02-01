@@ -26,14 +26,14 @@ when "listen" then
   $LOGGER = <<-JSON
   {
     "method": "push",
-    "url": "http://hub:4567/api/v1/logs/#{$JOB_ID}",
+    "url": "http://localhost:4567/api/v1/logs/#{$JOB_ID}",
     "token": "jwtToken"
   }
   JSON
 
   if !$AGENT_CONFIG
     $AGENT_CONFIG = {
-      "endpoint" => "hub:4567",
+      "endpoint" => "localhost:4567",
       "token" => "321h1l2jkh1jk42341",
       "no-https" => true,
       "shutdown-hook-path" => "",

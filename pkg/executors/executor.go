@@ -25,3 +25,4 @@ type CommandOptions struct {
 
 const ExecutorTypeShell = "shell"
 const ExecutorTypeDockerCompose = "dockercompose"
+const ExecutorKubernetes = "kubernetes"

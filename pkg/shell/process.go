@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"io"
@@ -35,26 +36,28 @@ exit $Env:SEMAPHORE_AGENT_CURRENT_CMD_EXIT_STATUS
 `
 
 type Config struct {
-	Shell       *Shell
-	StoragePath string
-	Command     string
-	OnOutput    func(string)
+	Shell             *Shell
+	StoragePath       string
+	Command           string
+	OnOutput          func(string)
+	UseBase64Encoding bool
 }
 
 type Process struct {
-	Command         string
-	Shell           *Shell
-	StoragePath     string
-	StartedAt       int
-	FinishedAt      int
-	ExitCode        int
-	Pid             int
-	startMark       string
-	endMark         string
-	commandEndRegex *regexp.Regexp
-	inputBuffer     []byte
-	outputBuffer    *OutputBuffer
-	SysProcAttr     *syscall.SysProcAttr
+	Command           string
+	Shell             *Shell
+	StoragePath       string
+	StartedAt         int
+	FinishedAt        int
+	ExitCode          int
+	Pid               int
+	startMark         string
+	endMark           string
+	commandEndRegex   *regexp.Regexp
+	inputBuffer       []byte
+	outputBuffer      *OutputBuffer
+	SysProcAttr       *syscall.SysProcAttr
+	UseBase64Encoding bool
 }
 
 func randomMagicMark() string {
@@ -68,14 +71,15 @@ func NewProcess(config Config) *Process {
 	outputBuffer, _ := NewOutputBuffer(config.OnOutput)
 
 	return &Process{
-		Shell:           config.Shell,
-		StoragePath:     config.StoragePath,
-		Command:         config.Command,
-		ExitCode:        1,
-		startMark:       startMark,
-		endMark:         endMark,
-		commandEndRegex: commandEndRegex,
-		outputBuffer:    outputBuffer,
+		Shell:             config.Shell,
+		StoragePath:       config.StoragePath,
+		Command:           config.Command,
+		ExitCode:          1,
+		startMark:         startMark,
+		endMark:           endMark,
+		commandEndRegex:   commandEndRegex,
+		outputBuffer:      outputBuffer,
+		UseBase64Encoding: config.UseBase64Encoding,
 	}
 }
 
@@ -103,17 +107,17 @@ func (p *Process) flushInputBufferTill(index int) {
 }
 
 func (p *Process) Run() {
-	instruction := p.constructShellInstruction()
-	p.StartedAt = int(time.Now().Unix())
-	defer func() {
-		p.FinishedAt = int(time.Now().Unix())
-	}()
-
 	err := p.loadCommand()
 	if err != nil {
 		log.Errorf("Err: %v", err)
 		return
 	}
+
+	instruction := p.constructShellInstruction()
+	p.StartedAt = int(time.Now().Unix())
+	defer func() {
+		p.FinishedAt = int(time.Now().Unix())
+	}()
 
 	/*
 	 * If the agent is running in an non-windows environment,
@@ -256,6 +260,23 @@ func (p *Process) runWithPTY(instruction string) {
 }
 
 func (p *Process) constructShellInstruction() string {
+	/*
+	 * When the agent and the PTY executing the commands can't share
+	 * a folder, we need to execute the command without the aid of a temporary file.
+	 * To handle that, we make the agent encode the command here,
+	 * and make the PTY decode it before executing it. That allows us to handle
+	 * multiline commands and commands with quotes without going into escaping character hell.
+	 */
+	if p.UseBase64Encoding {
+		base64EncodedCommand := base64.StdEncoding.EncodeToString([]byte(p.Command))
+		return fmt.Sprintf(
+			`echo -e "\001 %s"; source <(echo %s | base64 -d); AGENT_CMD_RESULT=$?; echo -e "\001 %s $AGENT_CMD_RESULT"; echo "exit $AGENT_CMD_RESULT" | sh`,
+			p.startMark,
+			base64EncodedCommand,
+			p.endMark,
+		)
+	}
+
 	if runtime.GOOS == "windows" {
 		return fmt.Sprintf(`%s.ps1`, p.CmdFilePath())
 	}
@@ -280,6 +301,13 @@ func (p *Process) constructShellInstruction() string {
  * scheme. To circumvent this, we are storing the command in a file.
  */
 func (p *Process) loadCommand() error {
+
+	// If we are using base64 encoding when executing the command,
+	// we don't need a temporary file for storing it, so we don't create it.
+	if p.UseBase64Encoding {
+		return nil
+	}
+
 	if runtime.GOOS != "windows" {
 		return p.writeCommandToFile(p.CmdFilePath(), p.Command)
 	}

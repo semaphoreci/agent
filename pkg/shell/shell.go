@@ -234,6 +234,10 @@ func (s *Shell) NewProcessWithOutput(command string, outputConsumer func(string)
 		})
 }
 
+func (s *Shell) NewProcessWithConfig(config Config) *Process {
+	return NewProcess(config)
+}
+
 func (s *Shell) Close() error {
 	if s.TTY != nil {
 		err := s.TTY.Close()
