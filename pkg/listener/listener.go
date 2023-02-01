@@ -30,6 +30,7 @@ type Config struct {
 	PreJobHookPath                   string
 	DisconnectAfterJob               bool
 	DisconnectAfterIdleSeconds       int
+	InterruptionGracePeriod          int
 	EnvVars                          []config.HostEnvVar
 	FileInjections                   []config.FileInjection
 	FailOnMissingFiles               bool
@@ -75,6 +76,11 @@ func (l *Listener) Stop() {
 	l.JobProcessor.Shutdown(ShutdownReasonRequested, 0)
 }
 
+// only used during tests
+func (l *Listener) Interrupt() {
+	l.JobProcessor.InterruptedAt = time.Now().Unix()
+}
+
 func (l *Listener) DisplayHelloMessage() {
 	fmt.Println("                                      ")
 	fmt.Println("                 00000000000          ")
@@ -93,14 +99,15 @@ func (l *Listener) DisplayHelloMessage() {
 
 func (l *Listener) Register(name string) error {
 	req := &selfhostedapi.RegisterRequest{
-		Version:     l.Config.AgentVersion,
-		Name:        name,
-		PID:         os.Getpid(),
-		OS:          osinfo.Name(),
-		Arch:        osinfo.Arch(),
-		Hostname:    osinfo.Hostname(),
-		SingleJob:   l.Config.DisconnectAfterJob,
-		IdleTimeout: l.Config.DisconnectAfterIdleSeconds,
+		Version:                 l.Config.AgentVersion,
+		Name:                    name,
+		PID:                     os.Getpid(),
+		OS:                      osinfo.Name(),
+		Arch:                    osinfo.Arch(),
+		Hostname:                osinfo.Hostname(),
+		SingleJob:               l.Config.DisconnectAfterJob,
+		IdleTimeout:             l.Config.DisconnectAfterIdleSeconds,
+		InterruptionGracePeriod: l.Config.InterruptionGracePeriod,
 	}
 
 	err := retry.RetryWithConstantWait(retry.RetryOptions{

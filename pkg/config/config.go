@@ -17,6 +17,7 @@ const (
 	FailOnMissingFiles         = "fail-on-missing-files"
 	UploadJobLogs              = "upload-job-logs"
 	FailOnPreJobHookError      = "fail-on-pre-job-hook-error"
+	InterruptionGracePeriod    = "interruption-grace-period"
 	KubernetesExecutor         = "kubernetes-executor"
 	KubernetesDefaultImage     = "kubernetes-default-image"
 	KubernetesImagePullPolicy  = "kubernetes-image-pull-policy"
@@ -68,6 +69,7 @@ var ValidConfigKeys = []string{
 	FailOnMissingFiles,
 	UploadJobLogs,
 	FailOnPreJobHookError,
+	InterruptionGracePeriod,
 	KubernetesExecutor,
 	KubernetesDefaultImage,
 	KubernetesImagePullPolicy,

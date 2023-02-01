@@ -34,11 +34,13 @@ const JobResultPassed = "passed"
 const ShutdownReasonIdle = "idle"
 const ShutdownReasonJobFinished = "job-finished"
 const ShutdownReasonRequested = "requested"
+const ShutdownReasonInterrupted = "interrupted"
 
 type SyncRequest struct {
-	State     AgentState `json:"state"`
-	JobID     string     `json:"job_id"`
-	JobResult JobResult  `json:"job_result"`
+	State         AgentState `json:"state"`
+	JobID         string     `json:"job_id"`
+	JobResult     JobResult  `json:"job_result"`
+	InterruptedAt int64      `json:"interrupted_at"`
 }
 
 type SyncResponse struct {
