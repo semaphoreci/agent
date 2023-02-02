@@ -152,6 +152,112 @@ const ImagePullCredentialsStrategyGenericDocker = "GenericDocker"
 const ImagePullCredentialsStrategyECR = "AWS_ECR"
 const ImagePullCredentialsStrategyGCR = "GCR"
 
+func (c *ImagePullCredentials) Username() (string, error) {
+	s, err := c.Strategy()
+	if err != nil {
+		return "", err
+	}
+
+	switch s {
+	case ImagePullCredentialsStrategyDockerHub:
+		return c.findEnvVar("DOCKERHUB_USERNAME")
+	case ImagePullCredentialsStrategyGenericDocker:
+		return c.findEnvVar("DOCKER_USERNAME")
+	case ImagePullCredentialsStrategyECR:
+		return "AWS", nil
+	case ImagePullCredentialsStrategyGCR:
+		return "_json_key", nil
+	default:
+		return "", fmt.Errorf("%s not supported", s)
+	}
+}
+
+func (c *ImagePullCredentials) Password() (string, error) {
+	s, err := c.Strategy()
+	if err != nil {
+		return "", err
+	}
+
+	switch s {
+	case ImagePullCredentialsStrategyDockerHub:
+		return c.findEnvVar("DOCKERHUB_PASSWORD")
+	case ImagePullCredentialsStrategyGenericDocker:
+		return c.findEnvVar("DOCKER_PASSWORD")
+	case ImagePullCredentialsStrategyECR:
+		// TODO: use AWS CLI or aws SDK to fetch the password
+		return "", nil
+	case ImagePullCredentialsStrategyGCR:
+		fileContent, err := c.findFile("/tmp/gcr/keyfile.json")
+		if err != nil {
+			return "", err
+		}
+
+		return fileContent, nil
+	default:
+		return "", fmt.Errorf("%s not supported", s)
+	}
+}
+
+func (c *ImagePullCredentials) Server() (string, error) {
+	s, err := c.Strategy()
+	if err != nil {
+		return "", err
+	}
+
+	switch s {
+	case ImagePullCredentialsStrategyDockerHub:
+		return "docker.io", nil
+	case ImagePullCredentialsStrategyGenericDocker:
+		return c.findEnvVar("DOCKER_URL")
+	case ImagePullCredentialsStrategyGCR:
+		return c.findEnvVar("GCR_HOSTNAME")
+	case ImagePullCredentialsStrategyECR:
+		region, err := c.findEnvVar("AWS_REGION")
+		if err != nil {
+			return "", err
+		}
+
+		accountId, err := c.findEnvVar("AWS_ACCOUNT_ID")
+		if err != nil {
+			return "", err
+		}
+
+		return fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com", accountId, region), nil
+	default:
+		return "", fmt.Errorf("%s not supported", s)
+	}
+}
+
+func (c *ImagePullCredentials) findFile(path string) (string, error) {
+	for _, f := range c.Files {
+		if f.Path == path {
+			v, err := f.Decode()
+			if err != nil {
+				return "", fmt.Errorf("error decoding %s: %v", path, err)
+			}
+
+			return string(v), nil
+		}
+	}
+
+	return "", fmt.Errorf("no file with path '%s' found", path)
+}
+
+func (c *ImagePullCredentials) findEnvVar(varName string) (string, error) {
+	for _, envVar := range c.EnvVars {
+		if envVar.Name == varName {
+			v, err := envVar.Decode()
+			if err != nil {
+				return "", fmt.Errorf("error decoding %s: %v", varName, err)
+			}
+
+			return string(v), nil
+		}
+	}
+
+	return "", fmt.Errorf("no env var '%s' found", varName)
+}
+
 func (c *ImagePullCredentials) Strategy() (string, error) {
 	for _, e := range c.EnvVars {
 		if e.Name == "DOCKER_CREDENTIAL_TYPE" {
@@ -171,7 +277,7 @@ func (c *ImagePullCredentials) Strategy() (string, error) {
 			case ImagePullCredentialsStrategyGCR:
 				return ImagePullCredentialsStrategyGCR, nil
 			default:
-				return "", fmt.Errorf("Unknown DOCKER_CREDENTIAL_TYPE: '%s'", v)
+				return "", fmt.Errorf("unknown DOCKER_CREDENTIAL_TYPE: '%s'", v)
 			}
 		}
 	}
