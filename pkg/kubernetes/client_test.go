@@ -92,7 +92,7 @@ func Test__CreatePod(t *testing.T) {
 		podName := "mypod"
 		envSecretName := "mysecret"
 
-		assert.ErrorContains(t, client.CreatePod(podName, envSecretName, &api.JobRequest{
+		assert.ErrorContains(t, client.CreatePod(podName, envSecretName, "", &api.JobRequest{
 			Compose: api.Compose{
 				Containers: []api.Container{},
 			},
@@ -106,7 +106,7 @@ func Test__CreatePod(t *testing.T) {
 		envSecretName := "mysecret"
 
 		// create pod using job request
-		assert.NoError(t, client.CreatePod(podName, envSecretName, &api.JobRequest{
+		assert.NoError(t, client.CreatePod(podName, envSecretName, "", &api.JobRequest{
 			Compose: api.Compose{
 				Containers: []api.Container{},
 			},
@@ -155,7 +155,7 @@ func Test__CreatePod(t *testing.T) {
 		envSecretName := "mysecret"
 
 		// create pod using job request
-		assert.NoError(t, client.CreatePod(podName, envSecretName, &api.JobRequest{
+		assert.NoError(t, client.CreatePod(podName, envSecretName, "", &api.JobRequest{
 			Compose: api.Compose{
 				Containers: []api.Container{
 					{
@@ -190,7 +190,7 @@ func Test__CreatePod(t *testing.T) {
 		envSecretName := "mysecret"
 
 		// create pod using job request
-		assert.NoError(t, client.CreatePod(podName, envSecretName, &api.JobRequest{
+		assert.NoError(t, client.CreatePod(podName, envSecretName, "", &api.JobRequest{
 			Compose: api.Compose{
 				Containers: []api.Container{
 					{
@@ -229,7 +229,7 @@ func Test__CreatePod(t *testing.T) {
 		envSecretName := "mysecret"
 
 		// create pod using job request
-		assert.NoError(t, client.CreatePod(podName, envSecretName, &api.JobRequest{
+		assert.NoError(t, client.CreatePod(podName, envSecretName, "", &api.JobRequest{
 			Compose: api.Compose{
 				Containers: []api.Container{
 					{
@@ -263,6 +263,95 @@ func Test__CreatePod(t *testing.T) {
 			assert.Empty(t, pod.Spec.Containers[1].Command)
 			assert.Empty(t, pod.Spec.Containers[1].VolumeMounts)
 		}
+	})
+
+	t.Run("no image pull secrets", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{})
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:       "default",
+			DefaultImage:    "default-image",
+			ImagePullPolicy: "Always",
+		})
+
+		podName := "mypod"
+
+		// create pod using job request
+		assert.NoError(t, client.CreatePod(podName, "myenvsecret", "", &api.JobRequest{}))
+
+		pod, err := clientset.CoreV1().
+			Pods("default").
+			Get(context.Background(), podName, v1.GetOptions{})
+
+		assert.NoError(t, err)
+		assert.Len(t, pod.Spec.ImagePullSecrets, 0)
+	})
+
+	t.Run("with image pull secrets from config", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{})
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:        "default",
+			DefaultImage:     "default-image",
+			ImagePullPolicy:  "Always",
+			ImagePullSecrets: []string{"secret-1"},
+		})
+
+		podName := "mypod"
+
+		// create pod using job request
+		assert.NoError(t, client.CreatePod(podName, "myenvsecret", "", &api.JobRequest{}))
+
+		pod, err := clientset.CoreV1().
+			Pods("default").
+			Get(context.Background(), podName, v1.GetOptions{})
+
+		assert.NoError(t, err)
+		assert.Equal(t, pod.Spec.ImagePullSecrets, []corev1.LocalObjectReference{{Name: "secret-1"}})
+	})
+
+	t.Run("with image pull secret - ephemeral", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{})
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:       "default",
+			DefaultImage:    "default-image",
+			ImagePullPolicy: "Always",
+		})
+
+		podName := "mypod"
+
+		// create pod using job request
+		assert.NoError(t, client.CreatePod(podName, "myenvsecret", "my-image-pull-secret", &api.JobRequest{}))
+
+		pod, err := clientset.CoreV1().
+			Pods("default").
+			Get(context.Background(), podName, v1.GetOptions{})
+
+		assert.NoError(t, err)
+		assert.Equal(t, pod.Spec.ImagePullSecrets, []corev1.LocalObjectReference{{Name: "my-image-pull-secret"}})
+	})
+
+	t.Run("with image pull secret from config + ephemeral", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{})
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:        "default",
+			DefaultImage:     "default-image",
+			ImagePullPolicy:  "Always",
+			ImagePullSecrets: []string{"secret-1"},
+		})
+
+		podName := "mypod"
+
+		// create pod using job request
+		assert.NoError(t, client.CreatePod(podName, "myenvsecret", "my-image-pull-secret", &api.JobRequest{}))
+
+		pod, err := clientset.CoreV1().
+			Pods("default").
+			Get(context.Background(), podName, v1.GetOptions{})
+
+		assert.NoError(t, err)
+		assert.Equal(t, pod.Spec.ImagePullSecrets, []corev1.LocalObjectReference{
+			{Name: "secret-1"},
+			{Name: "my-image-pull-secret"},
+		})
 	})
 }
 
