@@ -55,16 +55,6 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-type DockerConfig struct {
-	Auths map[string]DockerConfigAuthEntry `json:"auths" datapolicy:"token"`
-}
-
-type DockerConfigAuthEntry struct {
-	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty" datapolicy:"password"`
-	Auth     string `json:"auth,omitempty" datapolicy:"token"`
-}
-
 type KubernetesClient struct {
 	clientset kubernetes.Interface
 	config    Config
@@ -196,11 +186,9 @@ func (c *KubernetesClient) CreateImagePullSecret(secretName string, credentials 
 }
 
 func (c *KubernetesClient) buildImagePullSecret(secretName string, credentials []api.ImagePullCredentials) (*corev1.Secret, error) {
-	immutable := true
-
-	data, err := c.buildDockerConfig(credentials)
+	data, err := docker.NewDockerConfig(credentials)
 	if err != nil {
-		return nil, fmt.Errorf("error building docker config for '%s': %v", secretName, err)
+		return nil, fmt.Errorf("error creating docker config for '%s': %v", secretName, err)
 	}
 
 	json, err := json.Marshal(data)
@@ -208,6 +196,7 @@ func (c *KubernetesClient) buildImagePullSecret(secretName string, credentials [
 		return nil, fmt.Errorf("error serializing docker config for '%s': %v", secretName, err)
 	}
 
+	immutable := true
 	secret := corev1.Secret{
 		ObjectMeta: v1.ObjectMeta{Name: secretName, Namespace: c.config.Namespace},
 		Type:       corev1.SecretTypeDockerConfigJson,
@@ -216,37 +205,6 @@ func (c *KubernetesClient) buildImagePullSecret(secretName string, credentials [
 	}
 
 	return &secret, nil
-}
-
-func (c *KubernetesClient) buildDockerConfig(credentials []api.ImagePullCredentials) (*DockerConfig, error) {
-	dockerConfig := DockerConfig{Auths: map[string]DockerConfigAuthEntry{}}
-
-	for _, credential := range credentials {
-		u, err := docker.Username(credential)
-		if err != nil {
-			return nil, err
-		}
-
-		p, err := docker.Password(credential)
-		if err != nil {
-			return nil, err
-		}
-
-		e := DockerConfigAuthEntry{
-			Username: u,
-			Password: p,
-			Auth:     base64.StdEncoding.EncodeToString([]byte(u + ":" + p)),
-		}
-
-		server, err := docker.Server(credential)
-		if err != nil {
-			return nil, err
-		}
-
-		dockerConfig.Auths[server] = e
-	}
-
-	return &dockerConfig, nil
 }
 
 func (c *KubernetesClient) CreatePod(name string, envSecretName string, imagePullSecret string, jobRequest *api.JobRequest) error {
