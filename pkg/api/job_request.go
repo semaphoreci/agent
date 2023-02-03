@@ -159,7 +159,7 @@ func (c *ImagePullCredentials) ToCmdEnvVars() ([]string, error) {
 		name := env.Name
 		value, err := env.Decode()
 		if err != nil {
-			return envs, fmt.Errorf("error decoding %s: %v", env.Name, err)
+			return envs, fmt.Errorf("error decoding '%s': %v", env.Name, err)
 		}
 
 		envs = append(envs, fmt.Sprintf("%s=%s", name, string(value)))
@@ -173,14 +173,14 @@ func (c *ImagePullCredentials) FindFile(path string) (string, error) {
 		if f.Path == path {
 			v, err := f.Decode()
 			if err != nil {
-				return "", fmt.Errorf("error decoding %s: %v", path, err)
+				return "", fmt.Errorf("error decoding '%s': %v", path, err)
 			}
 
 			return string(v), nil
 		}
 	}
 
-	return "", fmt.Errorf("no file with path '%s' found", path)
+	return "", fmt.Errorf("no file '%s' found", path)
 }
 
 func (c *ImagePullCredentials) FindEnvVar(varName string) (string, error) {
@@ -188,7 +188,7 @@ func (c *ImagePullCredentials) FindEnvVar(varName string) (string, error) {
 		if envVar.Name == varName {
 			v, err := envVar.Decode()
 			if err != nil {
-				return "", fmt.Errorf("error decoding %s: %v", varName, err)
+				return "", fmt.Errorf("error decoding '%s': %v", varName, err)
 			}
 
 			return string(v), nil
