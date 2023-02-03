@@ -12,6 +12,7 @@ import (
 
 	"github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
+	"github.com/semaphoreci/agent/pkg/docker"
 	"github.com/semaphoreci/agent/pkg/retry"
 	"github.com/semaphoreci/agent/pkg/shell"
 	corev1 "k8s.io/api/core/v1"
@@ -221,12 +222,12 @@ func (c *KubernetesClient) buildDockerConfig(credentials []api.ImagePullCredenti
 	dockerConfig := DockerConfig{Auths: map[string]DockerConfigAuthEntry{}}
 
 	for _, credential := range credentials {
-		u, err := credential.Username()
+		u, err := docker.Username(credential)
 		if err != nil {
 			return nil, err
 		}
 
-		p, err := credential.Password()
+		p, err := docker.Password(credential)
 		if err != nil {
 			return nil, err
 		}
@@ -237,7 +238,7 @@ func (c *KubernetesClient) buildDockerConfig(credentials []api.ImagePullCredenti
 			Auth:     base64.StdEncoding.EncodeToString([]byte(u + ":" + p)),
 		}
 
-		server, err := credential.Server()
+		server, err := docker.Server(credential)
 		if err != nil {
 			return nil, err
 		}

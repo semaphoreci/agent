@@ -6,10 +6,41 @@ import (
 	"strings"
 
 	versions "github.com/hashicorp/go-version"
+	"github.com/semaphoreci/agent/pkg/api"
 	log "github.com/sirupsen/logrus"
 )
 
-func GetECRLoginCmd(envs []string) (string, error) {
+func GetECRServerURL(credentials api.ImagePullCredentials) (string, error) {
+	region, err := credentials.FindEnvVar("AWS_REGION")
+	if err != nil {
+		return "", err
+	}
+
+	accountId, err := GetAccountID(credentials)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com", accountId, region), nil
+}
+
+func GetECRLoginPassword(credentials api.ImagePullCredentials) (string, error) {
+	envs, err := credentials.ToCmdEnvVars()
+	if err != nil {
+		return "", err
+	}
+
+	cmd := exec.Command("bash", "-c", "aws ecr get-login-password")
+	cmd.Env = envs
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("error executing aws ecr get-login-password: Output: %s - Error: %v", string(output), err)
+	}
+
+	return strings.TrimSuffix(string(output), "\n"), nil
+}
+
+func GetECRLoginCmd(credentials api.ImagePullCredentials) (string, error) {
 	awsV2, _ := versions.NewVersion("2.0.0")
 	awsCLIVersion, err := findAWSCLIVersion()
 	if err != nil {
@@ -17,12 +48,9 @@ func GetECRLoginCmd(envs []string) (string, error) {
 	}
 
 	if awsCLIVersion.GreaterThanOrEqual(awsV2) {
-		accountID := getAccountIDFromVars(envs)
-		if accountID == "" {
-			accountID, err = getAccountIDFromSTS(envs)
-			if err != nil {
-				return "", err
-			}
+		accountID, err := GetAccountID(credentials)
+		if err != nil {
+			return "", err
 		}
 
 		/*
@@ -45,8 +73,8 @@ func GetECRLoginCmd(envs []string) (string, error) {
 	 * This is to make sure we execute the output of that command as well.
 	 * See: https://docs.aws.amazon.com/cli/latest/reference/ecr/get-login.html
 	 */
-	accountID := getAccountIDFromVars(envs)
-	if accountID == "" {
+	accountID, err := credentials.FindEnvVar("AWS_ACCOUNT_ID")
+	if err != nil {
 		return `$(aws ecr get-login --no-include-email --region $AWS_REGION)`, nil
 	}
 
@@ -57,18 +85,26 @@ func GetECRLoginCmd(envs []string) (string, error) {
 	return fmt.Sprintf(`$(aws ecr get-login --no-include-email --region $AWS_REGION --registry-ids %s)`, accountID), nil
 }
 
-func getAccountIDFromVars(envs []string) string {
-	for _, envVar := range envs {
-		parts := strings.Split(envVar, "=")
-		if parts[0] == "AWS_ACCOUNT_ID" {
-			return parts[1]
-		}
+func GetAccountID(credentials api.ImagePullCredentials) (string, error) {
+	accountID, err := credentials.FindEnvVar("AWS_ACCOUNT_ID")
+	if err == nil {
+		return accountID, nil
 	}
 
-	return ""
+	accountID, err = getAccountIDFromSTS(credentials)
+	if err != nil {
+		return "", err
+	}
+
+	return accountID, nil
 }
 
-func getAccountIDFromSTS(envs []string) (string, error) {
+func getAccountIDFromSTS(credentials api.ImagePullCredentials) (string, error) {
+	envs, err := credentials.ToCmdEnvVars()
+	if err != nil {
+		return "", err
+	}
+
 	cmd := exec.Command("bash", "-c", "aws sts get-caller-identity --query Account --output text")
 	cmd.Env = envs
 
