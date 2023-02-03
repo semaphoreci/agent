@@ -25,6 +25,7 @@ type Config struct {
 	Namespace          string
 	DefaultImage       string
 	ImagePullPolicy    string
+	ImagePullSecrets   []string
 	PodPollingAttempts int
 	PodPollingInterval time.Duration
 }
@@ -272,7 +273,7 @@ func (c *KubernetesClient) podSpecFromJobRequest(podName string, envSecretName s
 
 	spec := corev1.PodSpec{
 		Containers:       containers,
-		ImagePullSecrets: []corev1.LocalObjectReference{{Name: imagePullSecret}},
+		ImagePullSecrets: c.imagePullSecrets(imagePullSecret),
 		RestartPolicy:    corev1.RestartPolicyNever,
 		Volumes: []corev1.Volume{
 			{
@@ -296,6 +297,22 @@ func (c *KubernetesClient) podSpecFromJobRequest(podName string, envSecretName s
 			},
 		},
 	}, nil
+}
+
+func (c *KubernetesClient) imagePullSecrets(imagePullSecret string) []corev1.LocalObjectReference {
+	secrets := []corev1.LocalObjectReference{}
+
+	// Use the secrets previously created, and passed to the agent through its configuration.
+	for _, s := range c.config.ImagePullSecrets {
+		secrets = append(secrets, corev1.LocalObjectReference{Name: s})
+	}
+
+	// Use the temporary secret created for the credentials sent in the job definition.
+	if imagePullSecret != "" {
+		secrets = append(secrets, corev1.LocalObjectReference{Name: imagePullSecret})
+	}
+
+	return secrets
 }
 
 func (c *KubernetesClient) containers(containers []api.Container) ([]corev1.Container, error) {

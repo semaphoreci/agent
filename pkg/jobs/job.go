@@ -49,6 +49,7 @@ type JobOptions struct {
 	UseKubernetesExecutor            bool
 	KubernetesDefaultImage           string
 	KubernetesImagePullPolicy        string
+	KubernetesImagePullSecrets       []string
 	KubernetesPodStartTimeoutSeconds int
 	UploadJobLogs                    string
 	RefreshTokenFn                   func() (string, error)
@@ -122,6 +123,7 @@ func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOpti
 			Namespace:          namespace,
 			DefaultImage:       jobOptions.KubernetesDefaultImage,
 			ImagePullPolicy:    jobOptions.KubernetesImagePullPolicy,
+			ImagePullSecrets:   jobOptions.KubernetesImagePullSecrets,
 			PodPollingAttempts: jobOptions.KubernetesPodStartTimeoutSeconds,
 			PodPollingInterval: time.Second,
 		})
