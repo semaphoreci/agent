@@ -21,10 +21,11 @@ const (
 	KubernetesExecutor         = "kubernetes-executor"
 	KubernetesDefaultImage     = "kubernetes-default-image"
 	KubernetesImagePullPolicy  = "kubernetes-image-pull-policy"
+	KubernetesImagePullSecrets = "kubernetes-image-pull-secrets"
 	KubernetesPodStartTimeout  = "kubernetes-pod-start-timeout"
 )
 
-const DefaultKubernetesPodStartTimeout = 60
+const DefaultKubernetesPodStartTimeout = 300
 
 type ImagePullPolicy string
 
@@ -73,6 +74,7 @@ var ValidConfigKeys = []string{
 	KubernetesExecutor,
 	KubernetesDefaultImage,
 	KubernetesImagePullPolicy,
+	KubernetesImagePullSecrets,
 	KubernetesPodStartTimeout,
 }
 

@@ -18,12 +18,13 @@ import (
 )
 
 type KubernetesExecutor struct {
-	k8sClient  *kubernetes.KubernetesClient
-	jobRequest *api.JobRequest
-	podName    string
-	secretName string
-	logger     *eventlogger.Logger
-	Shell      *shell.Shell
+	k8sClient       *kubernetes.KubernetesClient
+	jobRequest      *api.JobRequest
+	podName         string
+	envSecretName   string
+	imagePullSecret string
+	logger          *eventlogger.Logger
+	Shell           *shell.Shell
 
 	// We need to keep track if the initial environment has already
 	// been exposed or not, because ExportEnvVars() gets called twice.
@@ -55,15 +56,26 @@ func NewKubernetesExecutor(jobRequest *api.JobRequest, logger *eventlogger.Logge
 
 func (e *KubernetesExecutor) Prepare() int {
 	e.podName = e.randomPodName()
-	e.secretName = fmt.Sprintf("%s-secret", e.podName)
+	e.envSecretName = fmt.Sprintf("%s-secret", e.podName)
 
-	err := e.k8sClient.CreateSecret(e.secretName, e.jobRequest)
+	err := e.k8sClient.CreateSecret(e.envSecretName, e.jobRequest)
 	if err != nil {
-		log.Errorf("Error creating secret '%s': %v", e.secretName, err)
+		log.Errorf("Error creating secret '%s': %v", e.envSecretName, err)
 		return 1
 	}
 
-	err = e.k8sClient.CreatePod(e.podName, e.secretName, e.jobRequest)
+	// If image pull credentials are specified in the YAML,
+	// we create a temporary secret to store them and use it to pull the image.
+	if len(e.jobRequest.Compose.ImagePullCredentials) > 0 {
+		e.imagePullSecret = fmt.Sprintf("%s-image-pull-secret", e.podName)
+		err = e.k8sClient.CreateImagePullSecret(e.imagePullSecret, e.jobRequest.Compose.ImagePullCredentials)
+		if err != nil {
+			log.Errorf("Error creating image pull credentials '%s': %v", e.envSecretName, err)
+			return 1
+		}
+	}
+
+	err = e.k8sClient.CreatePod(e.podName, e.envSecretName, e.imagePullSecret, e.jobRequest)
 	if err != nil {
 		log.Errorf("Error creating pod: %v", err)
 		return 1
@@ -346,9 +358,19 @@ func (e *KubernetesExecutor) removeK8sResources() {
 		log.Errorf("Error deleting pod '%s': %v\n", e.podName, err)
 	}
 
-	err = e.k8sClient.DeleteSecret(e.secretName)
+	err = e.k8sClient.DeleteSecret(e.envSecretName)
 	if err != nil {
-		log.Errorf("Error deleting secret '%s': %v\n", e.secretName, err)
+		log.Errorf("Error deleting secret '%s': %v\n", e.envSecretName, err)
+	}
+
+	// Not all jobs create this temporary secret,
+	// just the ones that send credentials to pull images
+	// in the job definition, so we only delete it if it was previously created.
+	if e.imagePullSecret != "" {
+		err = e.k8sClient.DeleteSecret(e.imagePullSecret)
+		if err != nil {
+			log.Errorf("Error deleting secret '%s': %v\n", e.imagePullSecret, err)
+		}
 	}
 }
 

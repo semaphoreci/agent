@@ -123,6 +123,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	_ = pflag.Bool(config.KubernetesExecutor, false, "Use Kubernetes executor")
 	_ = pflag.String(config.KubernetesDefaultImage, "", "Default image used for jobs that do not specify images, when using kubernetes executor")
 	_ = pflag.String(config.KubernetesImagePullPolicy, config.ImagePullPolicyNever, "Image pull policy to use for Kubernetes executor. Default is never.")
+	_ = pflag.StringSlice(config.KubernetesImagePullSecrets, []string{}, "Kubernetes secrets to use to pull images.")
 	_ = pflag.Int(
 		config.KubernetesPodStartTimeout,
 		config.DefaultKubernetesPodStartTimeout,
@@ -200,6 +201,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		KubernetesExecutor:               viper.GetBool(config.KubernetesExecutor),
 		KubernetesDefaultImage:           viper.GetString(config.KubernetesDefaultImage),
 		KubernetesImagePullPolicy:        viper.GetString(config.KubernetesImagePullPolicy),
+		KubernetesImagePullSecrets:       viper.GetStringSlice(config.KubernetesImagePullSecrets),
 		KubernetesPodStartTimeoutSeconds: viper.GetInt(config.KubernetesPodStartTimeout),
 	}
 

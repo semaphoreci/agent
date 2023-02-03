@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
+	"github.com/semaphoreci/agent/pkg/docker"
 	"github.com/semaphoreci/agent/pkg/retry"
 	"github.com/semaphoreci/agent/pkg/shell"
 	corev1 "k8s.io/api/core/v1"
@@ -24,6 +26,7 @@ type Config struct {
 	Namespace          string
 	DefaultImage       string
 	ImagePullPolicy    string
+	ImagePullSecrets   []string
 	PodPollingAttempts int
 	PodPollingInterval time.Duration
 }
@@ -166,8 +169,46 @@ func (c *KubernetesClient) CreateSecret(name string, jobRequest *api.JobRequest)
 	return nil
 }
 
-func (c *KubernetesClient) CreatePod(name string, envSecretName string, jobRequest *api.JobRequest) error {
-	pod, err := c.podSpecFromJobRequest(name, envSecretName, jobRequest)
+func (c *KubernetesClient) CreateImagePullSecret(secretName string, credentials []api.ImagePullCredentials) error {
+	secret, err := c.buildImagePullSecret(secretName, credentials)
+	if err != nil {
+		return fmt.Errorf("error building image pull secret spec for '%s': %v", secretName, err)
+	}
+
+	_, err = c.clientset.CoreV1().
+		Secrets(c.config.Namespace).
+		Create(context.Background(), secret, v1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("error creating image pull secret '%s': %v", secretName, err)
+	}
+
+	return nil
+}
+
+func (c *KubernetesClient) buildImagePullSecret(secretName string, credentials []api.ImagePullCredentials) (*corev1.Secret, error) {
+	data, err := docker.NewDockerConfig(credentials)
+	if err != nil {
+		return nil, fmt.Errorf("error creating docker config for '%s': %v", secretName, err)
+	}
+
+	json, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("error serializing docker config for '%s': %v", secretName, err)
+	}
+
+	immutable := true
+	secret := corev1.Secret{
+		ObjectMeta: v1.ObjectMeta{Name: secretName, Namespace: c.config.Namespace},
+		Type:       corev1.SecretTypeDockerConfigJson,
+		Immutable:  &immutable,
+		Data:       map[string][]byte{corev1.DockerConfigJsonKey: json},
+	}
+
+	return &secret, nil
+}
+
+func (c *KubernetesClient) CreatePod(name string, envSecretName string, imagePullSecret string, jobRequest *api.JobRequest) error {
+	pod, err := c.podSpecFromJobRequest(name, envSecretName, imagePullSecret, jobRequest)
 	if err != nil {
 		return fmt.Errorf("error building pod spec: %v", err)
 	}
@@ -183,7 +224,7 @@ func (c *KubernetesClient) CreatePod(name string, envSecretName string, jobReque
 	return nil
 }
 
-func (c *KubernetesClient) podSpecFromJobRequest(podName string, envSecretName string, jobRequest *api.JobRequest) (*corev1.Pod, error) {
+func (c *KubernetesClient) podSpecFromJobRequest(podName string, envSecretName string, imagePullSecret string, jobRequest *api.JobRequest) (*corev1.Pod, error) {
 	containers, err := c.containers(jobRequest.Compose.Containers)
 	if err != nil {
 		return nil, fmt.Errorf("error building containers for pod spec: %v", err)
@@ -191,7 +232,7 @@ func (c *KubernetesClient) podSpecFromJobRequest(podName string, envSecretName s
 
 	spec := corev1.PodSpec{
 		Containers:       containers,
-		ImagePullSecrets: c.imagePullSecrets(),
+		ImagePullSecrets: c.imagePullSecrets(imagePullSecret),
 		RestartPolicy:    corev1.RestartPolicyNever,
 		Volumes: []corev1.Volume{
 			{
@@ -215,6 +256,22 @@ func (c *KubernetesClient) podSpecFromJobRequest(podName string, envSecretName s
 			},
 		},
 	}, nil
+}
+
+func (c *KubernetesClient) imagePullSecrets(imagePullSecret string) []corev1.LocalObjectReference {
+	secrets := []corev1.LocalObjectReference{}
+
+	// Use the secrets previously created, and passed to the agent through its configuration.
+	for _, s := range c.config.ImagePullSecrets {
+		secrets = append(secrets, corev1.LocalObjectReference{Name: s})
+	}
+
+	// Use the temporary secret created for the credentials sent in the job definition.
+	if imagePullSecret != "" {
+		secrets = append(secrets, corev1.LocalObjectReference{Name: imagePullSecret})
+	}
+
+	return secrets
 }
 
 func (c *KubernetesClient) containers(containers []api.Container) ([]corev1.Container, error) {
@@ -295,10 +352,6 @@ func (c *KubernetesClient) convertEnvVars(envVarsFromSemaphore []api.EnvVar) []c
 	}
 
 	return k8sEnvVars
-}
-
-func (c *KubernetesClient) imagePullSecrets() []corev1.LocalObjectReference {
-	return []corev1.LocalObjectReference{}
 }
 
 func (c *KubernetesClient) WaitForPod(name string, logFn func(string)) error {

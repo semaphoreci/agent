@@ -41,6 +41,7 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		KubernetesExecutor:               config.KubernetesExecutor,
 		KubernetesDefaultImage:           config.KubernetesDefaultImage,
 		KubernetesImagePullPolicy:        config.KubernetesImagePullPolicy,
+		KubernetesImagePullSecrets:       config.KubernetesImagePullSecrets,
 		KubernetesPodStartTimeoutSeconds: config.KubernetesPodStartTimeoutSeconds,
 	}
 
@@ -82,6 +83,7 @@ type JobProcessor struct {
 	KubernetesExecutor               bool
 	KubernetesDefaultImage           string
 	KubernetesImagePullPolicy        string
+	KubernetesImagePullSecrets       []string
 	KubernetesPodStartTimeoutSeconds int
 }
 
@@ -178,6 +180,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 		UseKubernetesExecutor:            p.KubernetesExecutor,
 		KubernetesDefaultImage:           p.KubernetesDefaultImage,
 		KubernetesImagePullPolicy:        p.KubernetesImagePullPolicy,
+		KubernetesImagePullSecrets:       p.KubernetesImagePullSecrets,
 		KubernetesPodStartTimeoutSeconds: p.KubernetesPodStartTimeoutSeconds,
 		UploadJobLogs:                    p.UploadJobLogs,
 		RefreshTokenFn: func() (string, error) {

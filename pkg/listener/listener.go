@@ -42,6 +42,7 @@ type Config struct {
 	KubernetesExecutor               bool
 	KubernetesDefaultImage           string
 	KubernetesImagePullPolicy        string
+	KubernetesImagePullSecrets       []string
 	KubernetesPodStartTimeoutSeconds int
 }
 
