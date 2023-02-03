@@ -135,6 +135,10 @@ func StoppedCommandExitCode() int {
 	return 1
 }
 
+func ManuallyStoppedCommandExitCode() int {
+	return 130
+}
+
 func CopyFile(src, dest string) string {
 	if runtime.GOOS == "windows" {
 		return fmt.Sprintf("Copy-Item %s -Destination %s", src, dest)

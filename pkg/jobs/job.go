@@ -270,7 +270,8 @@ func (job *Job) RunRegularCommands(options RunOptions) string {
 		exitCode = job.RunCommandsUntilFirstFailure(job.Request.Commands)
 	}
 
-	if job.Stopped {
+	if job.Stopped || exitCode == 130 {
+		job.Stopped = true
 		log.Info("Regular commands were stopped")
 		return JobStopped
 	} else if exitCode == 0 {
