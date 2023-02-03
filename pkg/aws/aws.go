@@ -30,7 +30,7 @@ func GetECRLoginPassword(credentials api.ImagePullCredentials) (string, error) {
 		return "", err
 	}
 
-	cmd := exec.Command("bash", "-c", "aws ecr get-login-password")
+	cmd := exec.Command("bash", "-c", "aws ecr get-login-password --region $AWS_REGION")
 	cmd.Env = envs
 	output, err := cmd.CombinedOutput()
 	if err != nil {
