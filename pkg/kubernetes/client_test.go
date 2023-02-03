@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"testing"
 
 	"github.com/semaphoreci/agent/pkg/api"
@@ -81,6 +82,61 @@ func Test__CreateSecret(t *testing.T) {
 			".env": "export A=AAA\nexport B=BBB\nexport C=CCC\n",
 			key1:   "Random content",
 			key2:   "Random content 2",
+		})
+	})
+}
+
+func Test__CreateImagePullSecret(t *testing.T) {
+	t.Run("bad image pull credentials -> error", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", ImagePullPolicy: "Never"})
+		err := client.CreateImagePullSecret("badsecret", []api.ImagePullCredentials{
+			{
+				EnvVars: []api.EnvVar{
+					{Name: "DOCKER_CREDENTIAL_TYPE", Value: base64.StdEncoding.EncodeToString([]byte("NOT_SUPPORTED"))},
+				},
+			},
+		})
+
+		assert.Error(t, err)
+		assert.ErrorContains(t, err, "unknown DOCKER_CREDENTIAL_TYPE")
+	})
+
+	t.Run("good image pull credentials -> creates secret", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", ImagePullPolicy: "Never"})
+		secretName := "mysecretname"
+
+		err := client.CreateImagePullSecret(secretName, []api.ImagePullCredentials{
+			{
+				EnvVars: []api.EnvVar{
+					{Name: "DOCKER_CREDENTIAL_TYPE", Value: base64.StdEncoding.EncodeToString([]byte(api.ImagePullCredentialsStrategyGenericDocker))},
+					{Name: "DOCKER_USERNAME", Value: base64.StdEncoding.EncodeToString([]byte("myuser"))},
+					{Name: "DOCKER_PASSWORD", Value: base64.StdEncoding.EncodeToString([]byte("mypass"))},
+					{Name: "DOCKER_URL", Value: base64.StdEncoding.EncodeToString([]byte("my-custom-registry.com"))},
+				},
+			},
+		})
+
+		assert.NoError(t, err)
+
+		secret, err := clientset.CoreV1().
+			Secrets("default").
+			Get(context.Background(), secretName, v1.GetOptions{})
+
+		assert.NoError(t, err)
+		dockerCfg := DockerConfig{Auths: map[string]DockerConfigAuthEntry{}}
+		dockerCfg.Auths["my-custom-registry.com"] = DockerConfigAuthEntry{
+			Username: "myuser",
+			Password: "mypass",
+			Auth:     base64.StdEncoding.EncodeToString([]byte("myuser:mypass")),
+		}
+
+		expected, _ := json.Marshal(dockerCfg)
+		assert.Equal(t, corev1.SecretTypeDockerConfigJson, secret.Type)
+		assert.True(t, *secret.Immutable)
+		assert.Equal(t, secret.Data, map[string][]byte{
+			corev1.DockerConfigJsonKey: expected,
 		})
 	})
 }
