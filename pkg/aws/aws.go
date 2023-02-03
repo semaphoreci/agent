@@ -16,12 +16,12 @@ func GetECRServerURL(credentials api.ImagePullCredentials) (string, error) {
 		return "", err
 	}
 
-	accountId, err := GetAccountID(credentials)
+	accountID, err := GetAccountID(credentials)
 	if err != nil {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com", accountId, region), nil
+	return fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com", accountID, region), nil
 }
 
 func GetECRLoginPassword(credentials api.ImagePullCredentials) (string, error) {
