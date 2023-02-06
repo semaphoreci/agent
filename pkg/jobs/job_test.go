@@ -535,6 +535,10 @@ func Test__StopJob(t *testing.T) {
 }
 
 func Test__StopJobWithExitCode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
 		EnvVars: []api.EnvVar{},
