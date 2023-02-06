@@ -34,7 +34,7 @@ assert_job_log <<-LOG
   {"event":"cmd_started",  "timestamp":"*", "directive":"Injecting Files"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"Injecting Files","exit_code":0,"finished_at":"*","started_at":"*"}
 
-  {"event":"cmd_started",  "timestamp":"*", "directive":"for i in {1..10}; do echo \"[$i] this is some output, just for testing purposes\"; done"}
+  {"event":"cmd_started",  "timestamp":"*", "directive":"for i in {1..10}; do echo \\"[$i] this is some output, just for testing purposes\\"; done"}
   {"event":"cmd_output",   "timestamp":"*", "output":"[1] this is some output, just for testing purposes\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"[2] this is some output, just for testing purposes\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"[3] this is some output, just for testing purposes\\n"}
@@ -45,7 +45,7 @@ assert_job_log <<-LOG
   {"event":"cmd_output",   "timestamp":"*", "output":"[8] this is some output, just for testing purposes\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"[9] this is some output, just for testing purposes\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"[10] this is some output, just for testing purposes\\n"}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"for i in {1..10}; do echo \"[$i] this is some output, just for testing purposes\"; done","exit_code":0,"finished_at":"*","started_at":"*"}
+  {"event":"cmd_finished", "timestamp":"*", "directive":"for i in {1..10}; do echo \\"[$i] this is some output, just for testing purposes\\"; done","exit_code":0,"finished_at":"*","started_at":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Exporting SEMAPHORE_JOB_RESULT\\n"}
