@@ -85,6 +85,15 @@ def wait_for_agent_to_shutdown
   $strategy.wait_for_agent_to_shutdown
 end
 
+def assert_artifact_is_available
+  system "artifact pull job agent/job_logs.txt"
+  if $?.exitstatus == 0
+    abort "agent/job_logs.txt does not exist"
+  else
+    echo "agent/job_logs.txt exists!"
+  end
+end
+
 def bad_callback_url
   "https://httpbin.org/status/500"
 end
