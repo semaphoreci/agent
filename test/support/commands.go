@@ -135,6 +135,14 @@ func StoppedCommandExitCode() int {
 	return 1
 }
 
+func ReturnExitCodeCommand(exitCode int) string {
+	if runtime.GOOS == "windows" {
+		return "powershell -Command 'exit 130'"
+	}
+
+	return "echo 'exit 130' | sh"
+}
+
 func ManuallyStoppedCommandExitCode() int {
 	return 130
 }

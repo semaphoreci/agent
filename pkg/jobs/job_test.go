@@ -539,7 +539,7 @@ func Test__StopJobWithExitCode(t *testing.T) {
 	request := &api.JobRequest{
 		EnvVars: []api.EnvVar{},
 		Commands: []api.Command{
-			{Directive: "echo 'Stopping job...' && return 130"},
+			{Directive: testsupport.ReturnExitCodeCommand(130)},
 			{Directive: testsupport.Output("hello")},
 		},
 		Callbacks: api.Callbacks{
@@ -576,8 +576,7 @@ func Test__StopJobWithExitCode(t *testing.T) {
 		"directive: Injecting Files",
 		"Exit Code: 0",
 
-		"directive: echo 'Stopping job...' && return 130",
-		"Stopping job...\n",
+		fmt.Sprintf("directive: %s", testsupport.ReturnExitCodeCommand(130)),
 		fmt.Sprintf("Exit Code: %d", testsupport.ManuallyStoppedCommandExitCode()),
 
 		"job_finished: stopped",
