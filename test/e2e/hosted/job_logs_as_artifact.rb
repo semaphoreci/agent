@@ -12,7 +12,7 @@ start_job <<-JSON
     "env_vars": [],
     "files": [],
     "commands": [
-      { "directive": "for i in {1..10}; do echo \"[$i] this is some output, just for testing purposes\"; done" }
+      { "directive": "for i in {1..10}; do echo \\\"[$i] this is some output, just for testing purposes\\\"; done" }
     ],
 
     "epilogue_always_commands": [],
