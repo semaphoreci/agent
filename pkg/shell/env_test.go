@@ -144,6 +144,22 @@ func Test__EnvironmentToSlice(t *testing.T) {
 	assert.Contains(t, env.ToSlice(), "C=CCC")
 }
 
+func Test__EnvironmentToCommands(t *testing.T) {
+	varsFromRequest := []api.EnvVar{
+		{Name: "A", Value: base64.StdEncoding.EncodeToString([]byte("AAA"))},
+		{Name: "B", Value: base64.StdEncoding.EncodeToString([]byte("BBB"))},
+		{Name: "C", Value: base64.StdEncoding.EncodeToString([]byte("CCC"))},
+	}
+
+	env, err := CreateEnvironment(varsFromRequest, []config.HostEnvVar{})
+	assert.Nil(t, err)
+	assert.Equal(t, env.ToCommands(), []string{
+		"export A=AAA\n",
+		"export B=BBB\n",
+		"export C=CCC\n",
+	})
+}
+
 func Test__EnvironmentAppend(t *testing.T) {
 	vars := []api.EnvVar{
 		{Name: "C", Value: base64.StdEncoding.EncodeToString([]byte("CCC"))},

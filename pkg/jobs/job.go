@@ -15,6 +15,7 @@ import (
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	executors "github.com/semaphoreci/agent/pkg/executors"
 	httputils "github.com/semaphoreci/agent/pkg/httputils"
+	"github.com/semaphoreci/agent/pkg/kubernetes"
 	"github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
 	"github.com/semaphoreci/agent/pkg/retry"
 	log "github.com/sirupsen/logrus"
@@ -38,15 +39,20 @@ type Job struct {
 }
 
 type JobOptions struct {
-	Request            *api.JobRequest
-	Client             *http.Client
-	Logger             *eventlogger.Logger
-	ExposeKvmDevice    bool
-	FileInjections     []config.FileInjection
-	FailOnMissingFiles bool
-	SelfHosted         bool
-	UploadJobLogs      string
-	RefreshTokenFn     func() (string, error)
+	Request                          *api.JobRequest
+	Client                           *http.Client
+	Logger                           *eventlogger.Logger
+	ExposeKvmDevice                  bool
+	FileInjections                   []config.FileInjection
+	FailOnMissingFiles               bool
+	SelfHosted                       bool
+	UseKubernetesExecutor            bool
+	KubernetesDefaultImage           string
+	KubernetesImagePullPolicy        string
+	KubernetesImagePullSecrets       []string
+	KubernetesPodStartTimeoutSeconds int
+	UploadJobLogs                    string
+	RefreshTokenFn                   func() (string, error)
 }
 
 func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
@@ -104,6 +110,25 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 }
 
 func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOptions JobOptions) (executors.Executor, error) {
+	if jobOptions.UseKubernetesExecutor {
+		// The downwards API allows the namespace to be exposed
+		// to the agent container through an environment variable.
+		// See: https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information.
+		namespace := os.Getenv("KUBERNETES_NAMESPACE")
+		if namespace == "" {
+			namespace = "default"
+		}
+
+		return executors.NewKubernetesExecutor(request, logger, kubernetes.Config{
+			Namespace:          namespace,
+			DefaultImage:       jobOptions.KubernetesDefaultImage,
+			ImagePullPolicy:    jobOptions.KubernetesImagePullPolicy,
+			ImagePullSecrets:   jobOptions.KubernetesImagePullSecrets,
+			PodPollingAttempts: jobOptions.KubernetesPodStartTimeoutSeconds,
+			PodPollingInterval: time.Second,
+		})
+	}
+
 	switch request.Executor {
 	case executors.ExecutorTypeShell:
 		return executors.NewShellExecutor(request, logger, jobOptions.SelfHosted), nil
@@ -247,7 +272,8 @@ func (job *Job) RunRegularCommands(options RunOptions) string {
 		exitCode = job.RunCommandsUntilFirstFailure(job.Request.Commands)
 	}
 
-	if job.Stopped {
+	if job.Stopped || exitCode == 130 {
+		job.Stopped = true
 		log.Info("Regular commands were stopped")
 		return JobStopped
 	} else if exitCode == 0 {

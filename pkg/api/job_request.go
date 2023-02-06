@@ -153,6 +153,52 @@ const ImagePullCredentialsStrategyGenericDocker = "GenericDocker"
 const ImagePullCredentialsStrategyECR = "AWS_ECR"
 const ImagePullCredentialsStrategyGCR = "GCR"
 
+func (c *ImagePullCredentials) ToCmdEnvVars() ([]string, error) {
+	envs := []string{}
+
+	for _, env := range c.EnvVars {
+		name := env.Name
+		value, err := env.Decode()
+		if err != nil {
+			return envs, fmt.Errorf("error decoding '%s': %v", env.Name, err)
+		}
+
+		envs = append(envs, fmt.Sprintf("%s=%s", name, string(value)))
+	}
+
+	return envs, nil
+}
+
+func (c *ImagePullCredentials) FindFile(path string) (string, error) {
+	for _, f := range c.Files {
+		if f.Path == path {
+			v, err := f.Decode()
+			if err != nil {
+				return "", fmt.Errorf("error decoding '%s': %v", path, err)
+			}
+
+			return string(v), nil
+		}
+	}
+
+	return "", fmt.Errorf("no file '%s' found", path)
+}
+
+func (c *ImagePullCredentials) FindEnvVar(varName string) (string, error) {
+	for _, envVar := range c.EnvVars {
+		if envVar.Name == varName {
+			v, err := envVar.Decode()
+			if err != nil {
+				return "", fmt.Errorf("error decoding '%s': %v", varName, err)
+			}
+
+			return string(v), nil
+		}
+	}
+
+	return "", fmt.Errorf("no env var '%s' found", varName)
+}
+
 func (c *ImagePullCredentials) Strategy() (string, error) {
 	for _, e := range c.EnvVars {
 		if e.Name == "DOCKER_CREDENTIAL_TYPE" {
@@ -172,7 +218,7 @@ func (c *ImagePullCredentials) Strategy() (string, error) {
 			case ImagePullCredentialsStrategyGCR:
 				return ImagePullCredentialsStrategyGCR, nil
 			default:
-				return "", fmt.Errorf("Unknown DOCKER_CREDENTIAL_TYPE: '%s'", v)
+				return "", fmt.Errorf("unknown DOCKER_CREDENTIAL_TYPE: '%s'", v)
 			}
 		}
 	}

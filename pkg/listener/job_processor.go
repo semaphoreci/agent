@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 
@@ -22,21 +23,26 @@ import (
 
 func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, config Config) (*JobProcessor, error) {
 	p := &JobProcessor{
-		HTTPClient:              httpClient,
-		APIClient:               apiClient,
-		LastSuccessfulSync:      time.Now(),
-		State:                   selfhostedapi.AgentStateWaitingForJobs,
-		DisconnectRetryAttempts: 100,
-		GetJobRetryAttempts:     config.GetJobRetryLimit,
-		CallbackRetryAttempts:   config.CallbackRetryLimit,
-		ShutdownHookPath:        config.ShutdownHookPath,
-		PreJobHookPath:          config.PreJobHookPath,
-		EnvVars:                 config.EnvVars,
-		FileInjections:          config.FileInjections,
-		FailOnMissingFiles:      config.FailOnMissingFiles,
-		UploadJobLogs:           config.UploadJobLogs,
-		FailOnPreJobHookError:   config.FailOnPreJobHookError,
-		ExitOnShutdown:          config.ExitOnShutdown,
+		HTTPClient:                       httpClient,
+		APIClient:                        apiClient,
+		LastSuccessfulSync:               time.Now(),
+		State:                            selfhostedapi.AgentStateWaitingForJobs,
+		DisconnectRetryAttempts:          100,
+		GetJobRetryAttempts:              config.GetJobRetryLimit,
+		CallbackRetryAttempts:            config.CallbackRetryLimit,
+		ShutdownHookPath:                 config.ShutdownHookPath,
+		PreJobHookPath:                   config.PreJobHookPath,
+		EnvVars:                          config.EnvVars,
+		FileInjections:                   config.FileInjections,
+		FailOnMissingFiles:               config.FailOnMissingFiles,
+		UploadJobLogs:                    config.UploadJobLogs,
+		FailOnPreJobHookError:            config.FailOnPreJobHookError,
+		ExitOnShutdown:                   config.ExitOnShutdown,
+		KubernetesExecutor:               config.KubernetesExecutor,
+		KubernetesDefaultImage:           config.KubernetesDefaultImage,
+		KubernetesImagePullPolicy:        config.KubernetesImagePullPolicy,
+		KubernetesImagePullSecrets:       config.KubernetesImagePullSecrets,
+		KubernetesPodStartTimeoutSeconds: config.KubernetesPodStartTimeoutSeconds,
 	}
 
 	go p.Start()
@@ -47,27 +53,38 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 }
 
 type JobProcessor struct {
-	HTTPClient              *http.Client
-	APIClient               *selfhostedapi.API
-	State                   selfhostedapi.AgentState
-	CurrentJobID            string
-	CurrentJobResult        selfhostedapi.JobResult
-	CurrentJob              *jobs.Job
-	LastSyncErrorAt         *time.Time
-	LastSuccessfulSync      time.Time
-	DisconnectRetryAttempts int
-	GetJobRetryAttempts     int
-	CallbackRetryAttempts   int
-	ShutdownHookPath        string
-	PreJobHookPath          string
-	StopSync                bool
-	EnvVars                 []config.HostEnvVar
-	FileInjections          []config.FileInjection
-	FailOnMissingFiles      bool
-	UploadJobLogs           string
-	FailOnPreJobHookError   bool
-	ExitOnShutdown          bool
-	ShutdownReason          ShutdownReason
+
+	// Job processor state
+	HTTPClient         *http.Client
+	APIClient          *selfhostedapi.API
+	State              selfhostedapi.AgentState
+	CurrentJobID       string
+	CurrentJobResult   selfhostedapi.JobResult
+	CurrentJob         *jobs.Job
+	LastSyncErrorAt    *time.Time
+	LastSuccessfulSync time.Time
+	InterruptedAt      int64
+	ShutdownReason     ShutdownReason
+	mutex              sync.Mutex
+
+	// Job processor config
+	DisconnectRetryAttempts          int
+	GetJobRetryAttempts              int
+	CallbackRetryAttempts            int
+	ShutdownHookPath                 string
+	PreJobHookPath                   string
+	StopSync                         bool
+	EnvVars                          []config.HostEnvVar
+	FileInjections                   []config.FileInjection
+	FailOnMissingFiles               bool
+	UploadJobLogs                    string
+	FailOnPreJobHookError            bool
+	ExitOnShutdown                   bool
+	KubernetesExecutor               bool
+	KubernetesDefaultImage           string
+	KubernetesImagePullPolicy        string
+	KubernetesImagePullSecrets       []string
+	KubernetesPodStartTimeoutSeconds int
 }
 
 func (p *JobProcessor) Start() {
@@ -90,9 +107,10 @@ func (p *JobProcessor) SyncLoop() {
 
 func (p *JobProcessor) Sync() {
 	request := &selfhostedapi.SyncRequest{
-		State:     p.State,
-		JobID:     p.CurrentJobID,
-		JobResult: p.CurrentJobResult,
+		State:         p.State,
+		JobID:         p.CurrentJobID,
+		JobResult:     p.CurrentJobResult,
+		InterruptedAt: p.InterruptedAt,
 	}
 
 	response, err := p.APIClient.Sync(request)
@@ -153,13 +171,18 @@ func (p *JobProcessor) RunJob(jobID string) {
 	}
 
 	job, err := jobs.NewJobWithOptions(&jobs.JobOptions{
-		Request:            jobRequest,
-		Client:             p.HTTPClient,
-		ExposeKvmDevice:    false,
-		FileInjections:     p.FileInjections,
-		FailOnMissingFiles: p.FailOnMissingFiles,
-		SelfHosted:         true,
-		UploadJobLogs:      p.UploadJobLogs,
+		Request:                          jobRequest,
+		Client:                           p.HTTPClient,
+		ExposeKvmDevice:                  false,
+		FileInjections:                   p.FileInjections,
+		FailOnMissingFiles:               p.FailOnMissingFiles,
+		SelfHosted:                       true,
+		UseKubernetesExecutor:            p.KubernetesExecutor,
+		KubernetesDefaultImage:           p.KubernetesDefaultImage,
+		KubernetesImagePullPolicy:        p.KubernetesImagePullPolicy,
+		KubernetesImagePullSecrets:       p.KubernetesImagePullSecrets,
+		KubernetesPodStartTimeoutSeconds: p.KubernetesPodStartTimeoutSeconds,
+		UploadJobLogs:                    p.UploadJobLogs,
 		RefreshTokenFn: func() (string, error) {
 			return p.APIClient.RefreshToken()
 		},
@@ -205,6 +228,16 @@ func (p *JobProcessor) getJobWithRetries(jobID string) (*api.JobRequest, error) 
 }
 
 func (p *JobProcessor) StopJob(jobID string) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	// The job finished before the sync request returned a stop-job command.
+	// Here, we don't do anything since the job is already finished and
+	// a finished-job state will be reported in the next sync.
+	if p.State == selfhostedapi.AgentStateFinishedJob {
+		return
+	}
+
 	p.CurrentJobID = jobID
 	p.State = selfhostedapi.AgentStateStoppingJob
 
@@ -212,8 +245,10 @@ func (p *JobProcessor) StopJob(jobID string) {
 }
 
 func (p *JobProcessor) JobFinished(result selfhostedapi.JobResult) {
+	p.mutex.Lock()
 	p.State = selfhostedapi.AgentStateFinishedJob
 	p.CurrentJobResult = result
+	p.mutex.Unlock()
 }
 
 func (p *JobProcessor) WaitForJobs() {
@@ -228,8 +263,11 @@ func (p *JobProcessor) SetupInterruptHandler() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		log.Info("Ctrl+C pressed in Terminal")
-		p.Shutdown(ShutdownReasonInterrupted, 0)
+		log.Info("Termination signal received")
+
+		// When we receive an interruption signal
+		// we tell the API about it, and let it tell the agent when to shut down.
+		p.InterruptedAt = time.Now().Unix()
 	}()
 }
 

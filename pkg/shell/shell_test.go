@@ -57,6 +57,29 @@ func Test__Shell__SimpleHelloWorld(t *testing.T) {
 	assert.Equal(t, output.String(), "Hello\n")
 }
 
+func Test__Shell__SimpleHelloWorldUsingBase64Encoding(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
+	var output bytes.Buffer
+
+	shell, _ := NewShell(os.TempDir())
+	shell.Start()
+
+	p1 := shell.NewProcessWithConfig(Config{
+		Command:           "echo Hello",
+		UseBase64Encoding: true,
+		Shell:             shell,
+		OnOutput: func(line string) {
+			output.WriteString(line)
+		},
+	})
+
+	p1.Run()
+	assert.Equal(t, output.String(), "Hello\n")
+}
+
 func Test__Shell__HandlingBashProcessKill(t *testing.T) {
 	var output bytes.Buffer
 

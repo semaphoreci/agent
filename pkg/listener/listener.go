@@ -20,24 +20,30 @@ type Listener struct {
 }
 
 type Config struct {
-	Endpoint                   string
-	RegisterRetryLimit         int
-	GetJobRetryLimit           int
-	CallbackRetryLimit         int
-	Token                      string
-	Scheme                     string
-	ShutdownHookPath           string
-	PreJobHookPath             string
-	DisconnectAfterJob         bool
-	DisconnectAfterIdleSeconds int
-	EnvVars                    []config.HostEnvVar
-	FileInjections             []config.FileInjection
-	FailOnMissingFiles         bool
-	UploadJobLogs              string
-	FailOnPreJobHookError      bool
-	ExitOnShutdown             bool
-	AgentVersion               string
-	AgentName                  string
+	Endpoint                         string
+	RegisterRetryLimit               int
+	GetJobRetryLimit                 int
+	CallbackRetryLimit               int
+	Token                            string
+	Scheme                           string
+	ShutdownHookPath                 string
+	PreJobHookPath                   string
+	DisconnectAfterJob               bool
+	DisconnectAfterIdleSeconds       int
+	InterruptionGracePeriod          int
+	EnvVars                          []config.HostEnvVar
+	FileInjections                   []config.FileInjection
+	FailOnMissingFiles               bool
+	UploadJobLogs                    string
+	FailOnPreJobHookError            bool
+	ExitOnShutdown                   bool
+	AgentVersion                     string
+	AgentName                        string
+	KubernetesExecutor               bool
+	KubernetesDefaultImage           string
+	KubernetesImagePullPolicy        string
+	KubernetesImagePullSecrets       []string
+	KubernetesPodStartTimeoutSeconds int
 }
 
 func Start(httpClient *http.Client, config Config) (*Listener, error) {
@@ -71,6 +77,11 @@ func (l *Listener) Stop() {
 	l.JobProcessor.Shutdown(ShutdownReasonRequested, 0)
 }
 
+// only used during tests
+func (l *Listener) Interrupt() {
+	l.JobProcessor.InterruptedAt = time.Now().Unix()
+}
+
 func (l *Listener) DisplayHelloMessage() {
 	fmt.Println("                                      ")
 	fmt.Println("                 00000000000          ")
@@ -89,14 +100,15 @@ func (l *Listener) DisplayHelloMessage() {
 
 func (l *Listener) Register(name string) error {
 	req := &selfhostedapi.RegisterRequest{
-		Version:     l.Config.AgentVersion,
-		Name:        name,
-		PID:         os.Getpid(),
-		OS:          osinfo.Name(),
-		Arch:        osinfo.Arch(),
-		Hostname:    osinfo.Hostname(),
-		SingleJob:   l.Config.DisconnectAfterJob,
-		IdleTimeout: l.Config.DisconnectAfterIdleSeconds,
+		Version:                 l.Config.AgentVersion,
+		Name:                    name,
+		PID:                     os.Getpid(),
+		OS:                      osinfo.Name(),
+		Arch:                    osinfo.Arch(),
+		Hostname:                osinfo.Hostname(),
+		SingleJob:               l.Config.DisconnectAfterJob,
+		IdleTimeout:             l.Config.DisconnectAfterIdleSeconds,
+		InterruptionGracePeriod: l.Config.InterruptionGracePeriod,
 	}
 
 	err := retry.RetryWithConstantWait(retry.RetryOptions{

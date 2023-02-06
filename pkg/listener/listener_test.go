@@ -322,6 +322,154 @@ func Test__ShutdownAfterIdleTimeout(t *testing.T) {
 	loghubMockServer.Close()
 }
 
+func Test__ShutdownAfterInterruption(t *testing.T) {
+	testsupport.SetupTestLogs()
+
+	loghubMockServer := testsupport.NewLoghubMockServer()
+	loghubMockServer.Init()
+
+	hubMockServer := testsupport.NewHubMockServer()
+	hubMockServer.Init()
+	hubMockServer.UseLogsURL(loghubMockServer.URL())
+
+	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
+		ExitOnShutdown:     false,
+		Endpoint:           hubMockServer.Host(),
+		Token:              "token",
+		RegisterRetryLimit: 5,
+		Scheme:             "http",
+		EnvVars:            []config.HostEnvVar{},
+		FileInjections:     []config.FileInjection{},
+		AgentVersion:       "0.0.7",
+	}
+
+	listener, err := Start(http.DefaultClient, config)
+	assert.Nil(t, err)
+
+	listener.Interrupt()
+	assert.Nil(t, hubMockServer.WaitUntilDisconnected(15, 2*time.Second))
+	assert.Equal(t, listener.JobProcessor.ShutdownReason, ShutdownReasonInterrupted)
+
+	hubMockServer.Close()
+	loghubMockServer.Close()
+}
+
+func Test__ShutdownAfterInterruptionNoGracePeriod(t *testing.T) {
+	testsupport.SetupTestLogs()
+
+	loghubMockServer := testsupport.NewLoghubMockServer()
+	loghubMockServer.Init()
+
+	hubMockServer := testsupport.NewHubMockServer()
+	hubMockServer.Init()
+	hubMockServer.UseLogsURL(loghubMockServer.URL())
+
+	config := Config{
+		AgentName:          fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
+		ExitOnShutdown:     false,
+		DisconnectAfterJob: true,
+		Endpoint:           hubMockServer.Host(),
+		Token:              "token",
+		RegisterRetryLimit: 5,
+		Scheme:             "http",
+		EnvVars:            []config.HostEnvVar{},
+		FileInjections:     []config.FileInjection{},
+		AgentVersion:       "0.0.7",
+	}
+
+	listener, err := Start(http.DefaultClient, config)
+	assert.Nil(t, err)
+
+	// assigns job that sleeps for 60s
+	hubMockServer.AssignJob(&api.JobRequest{
+		ID: "Test__ShutdownAfterJobFinished",
+		Commands: []api.Command{
+			{Directive: "sleep 60"},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+			URL:    loghubMockServer.URL(),
+			Token:  "doesnotmatter",
+		},
+	})
+
+	// wait until job is running
+	assert.Nil(t, hubMockServer.WaitUntilRunningJob(10, time.Second))
+
+	// send interrupt signal and assert agents disconnected
+	// with interrupted reason and job is stopped immediately.
+	listener.Interrupt()
+	assert.Nil(t, hubMockServer.WaitUntilDisconnected(30, 2*time.Second))
+	assert.Equal(t, listener.JobProcessor.ShutdownReason, ShutdownReasonInterrupted)
+	assert.Equal(t, selfhostedapi.JobResult(selfhostedapi.JobResultStopped), hubMockServer.GetLastJobResult())
+
+	hubMockServer.Close()
+	loghubMockServer.Close()
+}
+
+func Test__ShutdownAfterInterruptionWithGracePeriod(t *testing.T) {
+	testsupport.SetupTestLogs()
+
+	loghubMockServer := testsupport.NewLoghubMockServer()
+	loghubMockServer.Init()
+
+	hubMockServer := testsupport.NewHubMockServer()
+	hubMockServer.Init()
+	hubMockServer.UseLogsURL(loghubMockServer.URL())
+
+	config := Config{
+		AgentName:               fmt.Sprintf("agent-name-%d", rand.Intn(10000000)),
+		ExitOnShutdown:          false,
+		DisconnectAfterJob:      true,
+		Endpoint:                hubMockServer.Host(),
+		Token:                   "token",
+		RegisterRetryLimit:      5,
+		Scheme:                  "http",
+		EnvVars:                 []config.HostEnvVar{},
+		FileInjections:          []config.FileInjection{},
+		AgentVersion:            "0.0.7",
+		InterruptionGracePeriod: 30,
+	}
+
+	listener, err := Start(http.DefaultClient, config)
+	assert.Nil(t, err)
+
+	// assigns job that sleeps for 10s
+	hubMockServer.AssignJob(&api.JobRequest{
+		ID: "Test__ShutdownAfterJobFinished",
+		Commands: []api.Command{
+			{Directive: "sleep 15"},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+			URL:    loghubMockServer.URL(),
+			Token:  "doesnotmatter",
+		},
+	})
+
+	// wait until job is running
+	assert.Nil(t, hubMockServer.WaitUntilRunningJob(10, time.Second))
+
+	// send interrupt signal and assert agents disconnected
+	// with interrupted reason and job finishes properly.
+	listener.Interrupt()
+	assert.Nil(t, hubMockServer.WaitUntilDisconnected(30, time.Second))
+	assert.Equal(t, listener.JobProcessor.ShutdownReason, ShutdownReasonInterrupted)
+	assert.Equal(t, selfhostedapi.JobResult(selfhostedapi.JobResultPassed), hubMockServer.GetLastJobResult())
+
+	hubMockServer.Close()
+	loghubMockServer.Close()
+}
+
 func Test__ShutdownFromUpstreamWhileWaiting(t *testing.T) {
 	testsupport.SetupTestLogs()
 

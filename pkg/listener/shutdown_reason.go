@@ -11,12 +11,12 @@ const (
 	ShutdownReasonIdle ShutdownReason = iota
 	ShutdownReasonJobFinished
 	ShutdownReasonRequested
+	ShutdownReasonInterrupted
 	ShutdownReasonUnknown
 
 	// When the agent shuts down due to these reasons,
 	// the agent decides to do so.
 	ShutdownReasonUnableToSync
-	ShutdownReasonInterrupted
 )
 
 func ShutdownReasonFromAPI(reasonFromAPI selfhostedapi.ShutdownReason) ShutdownReason {
@@ -27,6 +27,8 @@ func ShutdownReasonFromAPI(reasonFromAPI selfhostedapi.ShutdownReason) ShutdownR
 		return ShutdownReasonJobFinished
 	case selfhostedapi.ShutdownReasonRequested:
 		return ShutdownReasonRequested
+	case selfhostedapi.ShutdownReasonInterrupted:
+		return ShutdownReasonInterrupted
 	}
 
 	return ShutdownReasonUnknown

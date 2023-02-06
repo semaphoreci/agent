@@ -280,7 +280,7 @@ func (e *DockerComposeExecutor) injectImagePullSecrets() int {
 		case api.ImagePullCredentialsStrategyDockerHub:
 			exitCode = e.injectImagePullSecretsForDockerHub(c.EnvVars)
 		case api.ImagePullCredentialsStrategyECR:
-			exitCode = e.injectImagePullSecretsForECR(c.EnvVars)
+			exitCode = e.injectImagePullSecretsForECR(c)
 		case api.ImagePullCredentialsStrategyGenericDocker:
 			exitCode = e.injectImagePullSecretsForGenericDocker(c.EnvVars)
 		case api.ImagePullCredentialsStrategyGCR:
@@ -376,24 +376,16 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForGenericDocker(envVars [
 	return 0
 }
 
-func (e *DockerComposeExecutor) injectImagePullSecretsForECR(envVars []api.EnvVar) int {
+func (e *DockerComposeExecutor) injectImagePullSecretsForECR(credentials api.ImagePullCredentials) int {
 	e.Logger.LogCommandOutput("Setting up credentials for ECR\n")
 
-	envs := []string{}
-
-	for _, env := range envVars {
-		name := env.Name
-		value, err := env.Decode()
-
-		if err != nil {
-			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to decode %s\n", name))
-			return 1
-		}
-
-		envs = append(envs, fmt.Sprintf("%s=%s", name, string(value)))
+	envs, err := credentials.ToCmdEnvVars()
+	if err != nil {
+		e.Logger.LogCommandOutput(fmt.Sprintf("Error preparing environment variables: %v", err))
+		return 1
 	}
 
-	loginCmd, err := aws.GetECRLoginCmd(envs)
+	loginCmd, err := aws.GetECRLoginCmd(credentials)
 	if err != nil {
 		e.Logger.LogCommandOutput(fmt.Sprintf("Failed to determine docker login command: %v\n", err))
 		return 1
