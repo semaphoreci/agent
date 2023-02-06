@@ -177,6 +177,7 @@ blocks:
               values:
                 - ssh_jump_points
                 - job_logs_as_artifact
+                - no_job_logs_as_artifact
 
   - name: "Self hosted E2E"
     dependencies: []

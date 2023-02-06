@@ -48,3 +48,47 @@ func Test__LogsArePushedToFile(t *testing.T) {
 	err = fileBackend.Close()
 	assert.Nil(t, err)
 }
+
+func Test__CloseWithOptions(t *testing.T) {
+
+	t.Run("trimmed logs", func(t *testing.T) {
+		tmpFileName := filepath.Join(os.TempDir(), fmt.Sprintf("logs_%d.json", time.Now().UnixNano()))
+
+		// The max is 50 bytes
+		fileBackend, err := NewFileBackend(tmpFileName, 50)
+		assert.Nil(t, err)
+		assert.Nil(t, fileBackend.Open())
+
+		timestamp := int(time.Now().Unix())
+		assert.Nil(t, fileBackend.Write(&JobStartedEvent{Timestamp: timestamp, Event: "job_started"}))
+		assert.Nil(t, fileBackend.Write(&CommandStartedEvent{Timestamp: timestamp, Event: "cmd_started", Directive: "echo hello"}))
+		assert.Nil(t, fileBackend.Write(&CommandOutputEvent{Timestamp: timestamp, Event: "cmd_output", Output: "hello\n"}))
+
+		logsWereTrimmed := false
+		err = fileBackend.CloseWithOptions(CloseOptions{OnClose: func(b bool) { logsWereTrimmed = b }})
+		assert.Nil(t, err)
+		assert.True(t, logsWereTrimmed)
+	})
+
+	t.Run("no trimmed logs", func(t *testing.T) {
+		tmpFileName := filepath.Join(os.TempDir(), fmt.Sprintf("logs_%d.json", time.Now().UnixNano()))
+
+		// The max is 1M
+		fileBackend, err := NewFileBackend(tmpFileName, 1024*1024)
+		assert.Nil(t, err)
+		assert.Nil(t, fileBackend.Open())
+
+		timestamp := int(time.Now().Unix())
+		assert.Nil(t, fileBackend.Write(&JobStartedEvent{Timestamp: timestamp, Event: "job_started"}))
+		assert.Nil(t, fileBackend.Write(&CommandStartedEvent{Timestamp: timestamp, Event: "cmd_started", Directive: "echo hello"}))
+		assert.Nil(t, fileBackend.Write(&CommandOutputEvent{Timestamp: timestamp, Event: "cmd_output", Output: "hello\n"}))
+
+		logsWereTrimmed := false
+		err = fileBackend.CloseWithOptions(CloseOptions{OnClose: func(b bool) {
+			logsWereTrimmed = b
+		}})
+
+		assert.Nil(t, err)
+		assert.False(t, logsWereTrimmed)
+	})
+}

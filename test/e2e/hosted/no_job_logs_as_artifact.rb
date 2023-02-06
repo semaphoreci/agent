@@ -1,8 +1,6 @@
 #!/bin/ruby
 # rubocop:disable all
 
-$LOGGER = '{ "method": "pull", "max_size_in_bytes": 100 }'
-
 require_relative '../../e2e'
 
 start_job <<-JSON
@@ -56,4 +54,4 @@ assert_job_log <<-LOG
   {"event":"job_finished", "timestamp":"*", "result":"passed"}
 LOG
 
-assert_artifact_is_available
+assert_artifact_is_not_available

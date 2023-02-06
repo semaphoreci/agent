@@ -21,7 +21,7 @@ type FileBackend struct {
 }
 
 func NewFileBackend(path string, maxSizeInBytes int) (*FileBackend, error) {
-	return &FileBackend{path: path}, nil
+	return &FileBackend{path: path, maxSizeInBytes: maxSizeInBytes}, nil
 }
 
 func (l *FileBackend) Open() error {
@@ -69,6 +69,13 @@ func (l *FileBackend) CloseWithOptions(options CloseOptions) error {
 			log.Errorf("Couldn't stat file '%s': %v", l.file.Name(), err)
 		} else {
 			trimmed := fileInfo.Size() >= int64(l.maxSizeInBytes)
+			log.Debugf(
+				"Log file has %d bytes - max bytes allowed are %d - trimmed=%v",
+				fileInfo.Size(),
+				int64(l.maxSizeInBytes),
+				trimmed,
+			)
+
 			options.OnClose(trimmed)
 		}
 	}

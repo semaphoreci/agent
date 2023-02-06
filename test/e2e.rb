@@ -94,6 +94,15 @@ def assert_artifact_is_available
   end
 end
 
+def assert_artifact_is_not_available
+  system "artifact pull job agent/job_logs.txt"
+  if $?.exitstatus == 0
+    abort "agent/job_logs.txt exists, but shouldn't!"
+  else
+    echo "agent/job_logs.txt does not exist"
+  end
+end
+
 def bad_callback_url
   "https://httpbin.org/status/500"
 end
