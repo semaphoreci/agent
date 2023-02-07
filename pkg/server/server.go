@@ -244,7 +244,7 @@ func (s *Server) resolveUploadJobsConfig(jobRequest *api.JobRequest) string {
 
 	// If the value specified is not a valid one, use the default.
 	if !slices.Contains(config.ValidUploadJobLogsCondition, value) {
-		log.Debug(
+		log.Debugf(
 			"The value '%s' is not acceptable as SEMAPHORE_AGENT_UPLOAD_JOB_LOGS - using '%s'",
 			value, config.UploadJobLogsConditionNever,
 		)
