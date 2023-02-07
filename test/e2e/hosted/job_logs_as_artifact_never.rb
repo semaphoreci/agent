@@ -38,6 +38,7 @@ assert_job_log <<-LOG
   {"event":"job_started",  "timestamp":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"Exporting SEMAPHORE_AGENT_UPLOAD_JOB_LOGS\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Exporting SEMAPHORE_ARTIFACT_TOKEN\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Exporting SEMAPHORE_JOB_ID\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Exporting SEMAPHORE_ORGANIZATION_URL\\n"}
