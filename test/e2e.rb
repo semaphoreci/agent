@@ -88,9 +88,9 @@ end
 def assert_artifact_is_available
   system "artifact pull job agent/job_logs.txt"
   if $?.exitstatus == 0
-    abort "agent/job_logs.txt does not exist"
+    puts "agent/job_logs.txt exists!"
   else
-    echo "agent/job_logs.txt exists!"
+    abort "agent/job_logs.txt does not exist"
   end
 end
 
@@ -99,7 +99,7 @@ def assert_artifact_is_not_available
   if $?.exitstatus == 0
     abort "agent/job_logs.txt exists, but shouldn't!"
   else
-    echo "agent/job_logs.txt does not exist"
+    puts "agent/job_logs.txt does not exist"
   end
 end
 
