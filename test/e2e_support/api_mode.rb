@@ -11,13 +11,13 @@ class ApiMode
     system "docker stop $(docker ps -q)"
     system "docker rm $(docker ps -qa)"
     system "docker build -t agent -f Dockerfile.test ."
-    system "docker run --privileged --device /dev/ptmx --network=host -v /tmp/agent-temp-directory/:/tmp/agent-temp-directory -v /var/run/docker.sock:/var/run/docker.sock --name agent -tdi agent bash -c \"service ssh restart && nohup ./agent serve --port 30000 --auth-token-secret 'TzRVcspTmxhM9fUkdi1T/0kVXNETCi8UdZ8dLM8va4E' & sleep infinity\""
+    system "docker run --privileged --device /dev/ptmx --network=host -v /tmp/agent-temp-directory/:/tmp/agent-temp-directory -v /var/run/docker.sock:/var/run/docker.sock --name agent -tdi agent bash -c \"service ssh restart && export SEMAPHORE_AGENT_LOG_LEVEL=debug && nohup ./agent serve --port 30000 --auth-token-secret 'TzRVcspTmxhM9fUkdi1T/0kVXNETCi8UdZ8dLM8va4E' & sleep infinity\""
 
     pingable = nil
     until pingable
       puts "Waiting for agent to start"
 
-      `curl -H "Authorization: Bearer #{$TOKEN}" --fail -X GET -k "https://0.0.0.0:30000/is_alive"`
+      `curl -s -H "Authorization: Bearer #{$TOKEN}" --fail -X GET -k "https://0.0.0.0:30000/is_alive"`
 
       pingable = ($?.exitstatus == 0)
     end
@@ -31,7 +31,7 @@ class ApiMode
     puts "============================"
     puts "Sending job request to Agent"
 
-    output = `curl -H "Authorization: Bearer #{$TOKEN}" --fail -X POST -k "https://0.0.0.0:30000/jobs" --data @#{r.path}`
+    output = `curl -s -H "Authorization: Bearer #{$TOKEN}" --fail -X POST -k "https://0.0.0.0:30000/jobs" --data @#{r.path}`
 
     abort "Failed to send: #{output}" if $?.exitstatus != 0
   end
@@ -40,7 +40,7 @@ class ApiMode
     puts "============================"
     puts "Stopping job..."
 
-    output = `curl -H "Authorization: Bearer #{$TOKEN}" --fail -X POST -k "https://0.0.0.0:30000/jobs/terminate"`
+    output = `curl -s -H "Authorization: Bearer #{$TOKEN}" --fail -X POST -k "https://0.0.0.0:30000/jobs/terminate"`
 
     abort "Failed to stob job: #{output}" if $?.exitstatus != 0
   end
@@ -51,7 +51,7 @@ class ApiMode
 
     Timeout.timeout(60 * 2) do
       loop do
-        `curl -H "Authorization: Bearer #{$TOKEN}" --fail -k "https://0.0.0.0:30000/job_logs" | grep "#{cmd}"`
+        `curl -s -H "Authorization: Bearer #{$TOKEN}" --fail -k "https://0.0.0.0:30000/job_logs" | grep "#{cmd}"`
 
         if $?.exitstatus == 0
           break
@@ -68,7 +68,7 @@ class ApiMode
 
     Timeout.timeout(60 * 3) do
       loop do
-        `curl -H "Authorization: Bearer #{$TOKEN}" --fail -k "https://0.0.0.0:30000/job_logs" | grep "job_finished"`
+        `curl -s -H "Authorization: Bearer #{$TOKEN}" --fail -k "https://0.0.0.0:30000/job_logs" | grep "job_finished"`
 
         if $?.exitstatus == 0
       	break
@@ -91,7 +91,7 @@ class ApiMode
     puts "========================="
     puts "Asserting Job Logs"
 
-    actual_log = `curl -H "Authorization: Bearer #{$TOKEN}" -k "https://0.0.0.0:30000/jobs/#{$JOB_ID}/log"`
+    actual_log = `curl -s -H "X-Client-Name: archivator" -H "Authorization: Bearer #{$TOKEN}" -k "https://0.0.0.0:30000/jobs/#{$JOB_ID}/log"`
 
     puts "-----------------------------------"
     puts actual_log

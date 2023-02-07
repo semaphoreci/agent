@@ -169,9 +169,18 @@ blocks:
           - docker exec -ti agent cat /tmp/agent_log
 
       jobs:
-        - name: Test SSH jump point
+        - name: Hosted
           commands:
-            - "TEST_MODE=api make e2e TEST=hosted/ssh_jump_points"
+            - "TEST_MODE=api make e2e TEST=hosted/$TEST"
+          matrix:
+            - env_var: TEST
+              values:
+                - ssh_jump_points
+                - job_logs_as_artifact_default
+                - job_logs_as_artifact_always
+                - job_logs_as_artifact_never
+                - job_logs_as_artifact_not_trimmed
+                - job_logs_as_artifact_trimmed
 
   - name: "Self hosted E2E"
     dependencies: []

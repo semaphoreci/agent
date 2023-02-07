@@ -10,13 +10,18 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// We use 16MB as the default max size for a job log.
+// This default value is used when the job request doesn't specify a limit.
+const DefaultMaxSizeInBytes = 16777216
+
 type FileBackend struct {
-	path string
-	file *os.File
+	path           string
+	file           *os.File
+	maxSizeInBytes int
 }
 
-func NewFileBackend(path string) (*FileBackend, error) {
-	return &FileBackend{path: path}, nil
+func NewFileBackend(path string, maxSizeInBytes int) (*FileBackend, error) {
+	return &FileBackend{path: path, maxSizeInBytes: maxSizeInBytes}, nil
 }
 
 func (l *FileBackend) Open() error {
@@ -56,6 +61,23 @@ func (l *FileBackend) CloseWithOptions(options CloseOptions) error {
 	if err != nil {
 		log.Errorf("Error closing file %s: %v\n", l.file.Name(), err)
 		return err
+	}
+
+	if options.OnClose != nil {
+		fileInfo, err := os.Stat(l.file.Name())
+		if err != nil {
+			log.Errorf("Couldn't stat file '%s': %v", l.file.Name(), err)
+		} else {
+			trimmed := fileInfo.Size() >= int64(l.maxSizeInBytes)
+			log.Debugf(
+				"Log file has %d bytes - max bytes allowed are %d - trimmed=%v",
+				fileInfo.Size(),
+				int64(l.maxSizeInBytes),
+				trimmed,
+			)
+
+			options.OnClose(trimmed)
+		}
 	}
 
 	log.Debugf("Removing %s\n", l.file.Name())

@@ -79,9 +79,10 @@ type Callbacks struct {
 }
 
 type Logger struct {
-	Method string `json:"method" yaml:"method"`
-	URL    string `json:"url" yaml:"url"`
-	Token  string `json:"token" yaml:"token"`
+	Method         string `json:"method" yaml:"method"`
+	URL            string `json:"url" yaml:"url"`
+	Token          string `json:"token" yaml:"token"`
+	MaxSizeInBytes int    `json:"max_size_in_bytes" yaml:"max_size_in_bytes"`
 }
 
 type PublicKey string
@@ -105,6 +106,10 @@ type JobRequest struct {
 	Files     []File    `json:"files" yaml:"file"`
 	Callbacks Callbacks `json:"callbacks" yaml:"callbacks"`
 	Logger    Logger    `json:"logger" yaml:"logger"`
+}
+
+func (j *JobRequest) FindEnvVar(varName string) (string, error) {
+	return findEnvVar(j.EnvVars, varName)
 }
 
 func NewRequestFromJSON(content []byte) (*JobRequest, error) {
@@ -184,7 +189,11 @@ func (c *ImagePullCredentials) FindFile(path string) (string, error) {
 }
 
 func (c *ImagePullCredentials) FindEnvVar(varName string) (string, error) {
-	for _, envVar := range c.EnvVars {
+	return findEnvVar(c.EnvVars, varName)
+}
+
+func findEnvVar(envVars []EnvVar, varName string) (string, error) {
+	for _, envVar := range envVars {
 		if envVar.Name == varName {
 			v, err := envVar.Decode()
 			if err != nil {
