@@ -86,7 +86,7 @@ def wait_for_agent_to_shutdown
 end
 
 def assert_artifact_is_available
-  system "artifact pull job agent/job_logs.txt"
+  system "artifact pull job agent/job_logs.txt -v"
   if $?.exitstatus == 0
     puts "agent/job_logs.txt exists!"
   else
@@ -95,7 +95,7 @@ def assert_artifact_is_available
 end
 
 def assert_artifact_is_not_available
-  system "artifact pull job agent/job_logs.txt"
+  system "artifact pull job agent/job_logs.txt -v"
   if $?.exitstatus == 0
     abort "agent/job_logs.txt exists, but shouldn't!"
   else
