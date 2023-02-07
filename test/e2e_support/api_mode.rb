@@ -11,7 +11,7 @@ class ApiMode
     system "docker stop $(docker ps -q)"
     system "docker rm $(docker ps -qa)"
     system "docker build -t agent -f Dockerfile.test ."
-    system "docker run --privileged --device /dev/ptmx --network=host -v /tmp/agent-temp-directory/:/tmp/agent-temp-directory -v /var/run/docker.sock:/var/run/docker.sock --name agent -tdi agent bash -c \"service ssh restart && nohup SEMAPHORE_AGENT_LOG_LEVEL=debug ./agent serve --port 30000 --auth-token-secret 'TzRVcspTmxhM9fUkdi1T/0kVXNETCi8UdZ8dLM8va4E' & sleep infinity\""
+    system "docker run --privileged --device /dev/ptmx --network=host -v /tmp/agent-temp-directory/:/tmp/agent-temp-directory -v /var/run/docker.sock:/var/run/docker.sock --name agent -tdi agent bash -c \"service ssh restart && export SEMAPHORE_AGENT_LOG_LEVEL=debug && nohup ./agent serve --port 30000 --auth-token-secret 'TzRVcspTmxhM9fUkdi1T/0kVXNETCi8UdZ8dLM8va4E' & sleep infinity\""
 
     pingable = nil
     until pingable
@@ -67,7 +67,7 @@ class ApiMode
     puts "Waiting for job to finish"
 
     Timeout.timeout(60 * 3) do
-      loop doc
+      loop do
         `curl -s -H "Authorization: Bearer #{$TOKEN}" --fail -k "https://0.0.0.0:30000/job_logs" | grep "job_finished"`
 
         if $?.exitstatus == 0
