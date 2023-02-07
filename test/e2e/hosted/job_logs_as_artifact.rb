@@ -12,7 +12,7 @@ start_job <<-JSON
     "executor": "shell",
     "env_vars": [
       { "name": "SEMAPHORE_JOB_ID", "value": "#{Base64.strict_encode64(ENV["SEMAPHORE_JOB_ID"])}" },
-      { "name": "SEMAPHORE_ORGNIZATION_URL", "value": "#{Base64.strict_encode64(ENV["SEMAPHORE_ORGNIZATION_URL"])}" },
+      { "name": "SEMAPHORE_ORGANIZATION_URL", "value": "#{Base64.strict_encode64(ENV["SEMAPHORE_ORGANIZATION_URL"])}" },
       { "name": "SEMAPHORE_ARTIFACT_TOKEN", "value": "#{Base64.strict_encode64(ENV["SEMAPHORE_ARTIFACT_TOKEN"])}" }
     ],
     "files": [],
