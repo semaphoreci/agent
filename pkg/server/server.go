@@ -17,6 +17,7 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
+	slices "github.com/semaphoreci/agent/pkg/slices"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -204,7 +205,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 		FileInjections:  []config.FileInjection{},
 		SelfHosted:      false,
 		RefreshTokenFn:  nil,
-		UploadJobLogs:   config.UploadJobLogsConditionWhenTrimmed,
+		UploadJobLogs:   s.resolveUploadJobsConfig(request),
 	})
 
 	if err != nil {
@@ -231,4 +232,26 @@ func (s *Server) Stop(w http.ResponseWriter, r *http.Request) {
 	go s.ActiveJob.Stop()
 
 	w.WriteHeader(200)
+}
+
+func (s *Server) resolveUploadJobsConfig(jobRequest *api.JobRequest) string {
+	value, err := jobRequest.FindEnvVar("SEMAPHORE_AGENT_UPLOAD_JOB_LOGS")
+
+	// We use config.UploadJobLogsConditionNever, by default.
+	if err != nil {
+		return config.UploadJobLogsConditionNever
+	}
+
+	// If the value specified is not a valid one, use the default.
+	if !slices.Contains(config.ValidUploadJobLogsCondition, value) {
+		log.Debug(
+			"The value '%s' is not acceptable as SEMAPHORE_AGENT_UPLOAD_JOB_LOGS - using '%s'",
+			value, config.UploadJobLogsConditionNever,
+		)
+
+		return config.UploadJobLogsConditionNever
+	}
+
+	// Otherwise, use the value specified by job definition.
+	return value
 }

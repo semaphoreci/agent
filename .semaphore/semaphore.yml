@@ -176,8 +176,10 @@ blocks:
             - env_var: TEST
               values:
                 - ssh_jump_points
-                - job_logs_as_artifact
-                - no_job_logs_as_artifact
+                - job_logs_as_artifact_always
+                - job_logs_as_artifact_never
+                - job_logs_as_artifact_not_trimmed
+                - job_logs_as_artifact_trimmed
 
   - name: "Self hosted E2E"
     dependencies: []

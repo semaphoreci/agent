@@ -108,6 +108,10 @@ type JobRequest struct {
 	Logger    Logger    `json:"logger" yaml:"logger"`
 }
 
+func (j *JobRequest) FindEnvVar(varName string) (string, error) {
+	return findEnvVar(j.EnvVars, varName)
+}
+
 func NewRequestFromJSON(content []byte) (*JobRequest, error) {
 	jobRequest := &JobRequest{}
 
@@ -185,7 +189,11 @@ func (c *ImagePullCredentials) FindFile(path string) (string, error) {
 }
 
 func (c *ImagePullCredentials) FindEnvVar(varName string) (string, error) {
-	for _, envVar := range c.EnvVars {
+	return findEnvVar(c.EnvVars, varName)
+}
+
+func findEnvVar(envVars []EnvVar, varName string) (string, error) {
+	for _, envVar := range envVars {
 		if envVar.Name == varName {
 			v, err := envVar.Decode()
 			if err != nil {

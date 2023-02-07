@@ -91,7 +91,7 @@ class ApiMode
     puts "========================="
     puts "Asserting Job Logs"
 
-    actual_log = `curl -s -H "Authorization: Bearer #{$TOKEN}" -k "https://0.0.0.0:30000/jobs/#{$JOB_ID}/log"`
+    actual_log = `curl -s -H "X-Client-Name: archivator" -H "Authorization: Bearer #{$TOKEN}" -k "https://0.0.0.0:30000/jobs/#{$JOB_ID}/log"`
 
     puts "-----------------------------------"
     puts actual_log

@@ -13,7 +13,8 @@ start_job <<-JSON
     "env_vars": [
       { "name": "SEMAPHORE_JOB_ID", "value": "#{Base64.strict_encode64(ENV["SEMAPHORE_JOB_ID"])}" },
       { "name": "SEMAPHORE_ORGANIZATION_URL", "value": "#{Base64.strict_encode64(ENV["SEMAPHORE_ORGANIZATION_URL"])}" },
-      { "name": "SEMAPHORE_ARTIFACT_TOKEN", "value": "#{Base64.strict_encode64(ENV["SEMAPHORE_ARTIFACT_TOKEN"])}" }
+      { "name": "SEMAPHORE_ARTIFACT_TOKEN", "value": "#{Base64.strict_encode64(ENV["SEMAPHORE_ARTIFACT_TOKEN"])}" },
+      { "name": "SEMAPHORE_AGENT_UPLOAD_JOB_LOGS", "value": "#{Base64.strict_encode64("never")}" },
     ],
     "files": [],
     "commands": [
@@ -65,4 +66,4 @@ assert_job_log <<-LOG
   {"event":"job_finished", "timestamp":"*", "result":"passed"}
 LOG
 
-assert_artifact_is_available
+assert_artifact_is_not_available

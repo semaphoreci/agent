@@ -20,6 +20,7 @@ import (
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	listener "github.com/semaphoreci/agent/pkg/listener"
 	server "github.com/semaphoreci/agent/pkg/server"
+	slices "github.com/semaphoreci/agent/pkg/slices"
 	log "github.com/sirupsen/logrus"
 	pflag "github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -227,24 +228,14 @@ func loadConfigFile(configFile string) {
 }
 
 func validateConfiguration() {
-	contains := func(list []string, item string) bool {
-		for _, x := range list {
-			if x == item {
-				return true
-			}
-		}
-
-		return false
-	}
-
 	for _, key := range viper.AllKeys() {
-		if !contains(config.ValidConfigKeys, key) {
+		if !slices.Contains(config.ValidConfigKeys, key) {
 			log.Fatalf("Unrecognized option '%s'. Exiting...", key)
 		}
 	}
 
 	uploadJobLogs := viper.GetString(config.UploadJobLogs)
-	if !contains(config.ValidUploadJobLogsCondition, uploadJobLogs) {
+	if !slices.Contains(config.ValidUploadJobLogsCondition, uploadJobLogs) {
 		log.Fatalf(
 			"Unsupported value '%s' for '%s'. Allowed values are: %v. Exiting...",
 			uploadJobLogs,
@@ -254,7 +245,7 @@ func validateConfiguration() {
 	}
 
 	imagePullPolicy := viper.GetString(config.KubernetesImagePullPolicy)
-	if !contains(config.ValidImagePullPolicies, imagePullPolicy) {
+	if !slices.Contains(config.ValidImagePullPolicies, imagePullPolicy) {
 		log.Fatalf(
 			"Unsupported value '%s' for '%s'. Allowed values are: %v. Exiting...",
 			imagePullPolicy,

@@ -86,20 +86,36 @@ def wait_for_agent_to_shutdown
 end
 
 def assert_artifact_is_available
-  system "artifact pull job agent/job_logs.txt -v"
-  if $?.exitstatus == 0
-    puts "agent/job_logs.txt exists!"
-  else
-    abort "agent/job_logs.txt does not exist"
+  puts "Checking if artifact is available"
+
+  # We give 20s for the artifact to appear here, to give the agent enough time
+  # to realize the "archivator" has reached out for the logs, and can close the logger.
+  Timeout.timeout(20) do
+    loop do
+      `artifact pull job agent/job_logs.txt`
+      if $?.exitstatus == 0
+        puts "sucess: agent/job_logs.txt exists!"
+        break
+      else
+        print "."
+        sleep 2
+      end
+    end
   end
 end
 
 def assert_artifact_is_not_available
-  system "artifact pull job agent/job_logs.txt -v"
+
+  # We sleep here to make sure the agent has enough time to realize
+  # the "archivator" has reached out for the logs, and can close the logger.
+  puts "Waiting 20s to check if artifact exists..."
+  sleep 20
+
+  `artifact pull job agent/job_logs.txt`
   if $?.exitstatus == 0
-    abort "agent/job_logs.txt exists, but shouldn't!"
+    abort "agent/job_logs.txt artifact exists, but shouldn't!"
   else
-    puts "agent/job_logs.txt does not exist"
+    puts "sucess: agent/job_logs.txt does not exist"
   end
 end
 
