@@ -2,7 +2,6 @@ package shell
 
 import (
 	"encoding/base64"
-	"flag"
 	"fmt"
 	"io"
 	"math/rand"
@@ -348,18 +347,12 @@ func (p *Process) writeCommandToFile(cmdFilePath, command string) error {
 }
 
 func (p *Process) readBufferSize() int {
-	if flag.Lookup("test.v") == nil {
-		return 100
-	}
-
 	// simulating the worst kind of baud rate
-	// random in size, and possibly very short
-
-	// The implementation needs to handle everything.
+	// random in size, and possibly very short.
 	rand.Seed(time.Now().UnixNano())
 
-	min := 1
-	max := 20
+	min := 64
+	max := 256
 
 	// #nosec
 	return rand.Intn(max-min) + min
@@ -402,7 +395,7 @@ func (p *Process) read() error {
 	}
 
 	p.inputBuffer = append(p.inputBuffer, buffer[0:n]...)
-	log.Debugf("reading data from shell. Input buffer: %#v", string(p.inputBuffer))
+	log.Debugf("reading data (%d bytes) from shell. Input buffer: %#v", n, string(p.inputBuffer))
 
 	return nil
 }
