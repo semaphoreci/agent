@@ -1,6 +1,7 @@
 package retry
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -38,4 +39,24 @@ func Test__GivesUpAfterMaxRetries(t *testing.T) {
 
 	assert.Equal(t, attempts, 5)
 	assert.NotNil(t, err)
+}
+
+func Test__GivesUpIfContextIsCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.TODO())
+
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		cancel()
+	}()
+
+	err := RetryWithConstantWaitAndContext(ctx, RetryOptions{
+		Task:                 "test",
+		MaxAttempts:          10,
+		DelayBetweenAttempts: 100 * time.Millisecond,
+		Fn: func() error {
+			return errors.New("bad error")
+		},
+	})
+
+	assert.ErrorContains(t, err, "context canceled")
 }
