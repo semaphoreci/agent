@@ -1,6 +1,7 @@
 package retry
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -16,11 +17,19 @@ type RetryOptions struct {
 }
 
 func RetryWithConstantWait(options RetryOptions) error {
+	return RetryWithConstantWaitAndContext(context.TODO(), options)
+}
+
+func RetryWithConstantWaitAndContext(ctx context.Context, options RetryOptions) error {
 	if options.Fn == nil {
 		return fmt.Errorf("options.Fn cannot be nil")
 	}
 
 	for attempt := 1; ; attempt++ {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
 		err := options.Fn()
 		if err == nil {
 			return nil

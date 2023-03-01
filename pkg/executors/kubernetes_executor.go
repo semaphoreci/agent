@@ -1,6 +1,7 @@
 package executors
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"math/rand"
@@ -25,6 +26,9 @@ type KubernetesExecutor struct {
 	imagePullSecret string
 	logger          *eventlogger.Logger
 	Shell           *shell.Shell
+
+	// If the executor is stopped before it even starts, we need to cancel it.
+	cancelFunc context.CancelFunc
 
 	// We need to keep track if the initial environment has already
 	// been exposed or not, because ExportEnvVars() gets called twice.
@@ -107,7 +111,10 @@ func (e *KubernetesExecutor) Start() int {
 		e.logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
-	err := e.k8sClient.WaitForPod(e.podName, func(msg string) {
+	ctx, cancel := context.WithCancel(context.TODO())
+	e.cancelFunc = cancel
+
+	err := e.k8sClient.WaitForPod(ctx, e.podName, func(msg string) {
 		e.logger.LogCommandOutput(msg)
 		log.Info(msg)
 	})
@@ -333,6 +340,10 @@ func (e *KubernetesExecutor) RunCommandWithOptions(options CommandOptions) int {
 
 func (e *KubernetesExecutor) Stop() int {
 	log.Debug("Starting the process killing procedure")
+
+	if e.cancelFunc != nil {
+		e.cancelFunc()
+	}
 
 	if e.Shell != nil {
 		err := e.Shell.Close()

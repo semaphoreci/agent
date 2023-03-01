@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"testing"
+	"time"
 
 	"github.com/semaphoreci/agent/pkg/api"
 	assert "github.com/stretchr/testify/assert"
@@ -413,7 +414,7 @@ func Test__WaitForPod(t *testing.T) {
 		})
 
 		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image"})
-		assert.NoError(t, client.WaitForPod(podName, func(s string) {}))
+		assert.NoError(t, client.WaitForPod(context.TODO(), podName, func(s string) {}))
 	})
 
 	t.Run("pod does not exist - error", func(t *testing.T) {
@@ -433,7 +434,35 @@ func Test__WaitForPod(t *testing.T) {
 			PodPollingAttempts: 2,
 		})
 
-		assert.Error(t, client.WaitForPod("somepodthatdoesnotexist", func(s string) {}))
+		assert.Error(t, client.WaitForPod(context.TODO(), "somepodthatdoesnotexist", func(s string) {}))
+	})
+
+	t.Run("pod does not exist and context is cancelled - error", func(t *testing.T) {
+		podName := "mypod"
+		clientset := newFakeClientset([]runtime.Object{
+			&corev1.Pod{
+				ObjectMeta: v1.ObjectMeta{Name: podName, Namespace: "default"},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{Name: "main", Image: "whatever"}},
+				},
+			},
+		})
+
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:          "default",
+			DefaultImage:       "default-image",
+			PodPollingAttempts: 120,
+		})
+
+		ctx, cancel := context.WithCancel(context.TODO())
+
+		// Wait a little bit before cancelling
+		go func() {
+			time.Sleep(time.Second)
+			cancel()
+		}()
+
+		assert.ErrorContains(t, client.WaitForPod(ctx, "somepodthatdoesnotexist", func(s string) {}), "context canceled")
 	})
 }
 
