@@ -354,8 +354,8 @@ func (c *KubernetesClient) convertEnvVars(envVarsFromSemaphore []api.EnvVar) []c
 	return k8sEnvVars
 }
 
-func (c *KubernetesClient) WaitForPod(name string, logFn func(string)) error {
-	return retry.RetryWithConstantWait(retry.RetryOptions{
+func (c *KubernetesClient) WaitForPod(ctx context.Context, name string, logFn func(string)) error {
+	return retry.RetryWithConstantWaitAndContext(ctx, retry.RetryOptions{
 		Task:                 "Waiting for pod to be ready",
 		MaxAttempts:          c.config.PollingAttempts(),
 		DelayBetweenAttempts: c.config.PollingInterval(),
