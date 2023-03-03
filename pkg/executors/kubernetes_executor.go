@@ -115,7 +115,7 @@ func (e *KubernetesExecutor) Start() int {
 	e.cancelFunc = cancel
 
 	err := e.k8sClient.WaitForPod(ctx, e.podName, func(msg string) {
-		e.logger.LogCommandOutput(msg)
+		e.logger.LogCommandOutput(msg + "\n")
 		log.Info(msg)
 	})
 
@@ -126,7 +126,8 @@ func (e *KubernetesExecutor) Start() int {
 		return exitCode
 	}
 
-	e.logger.LogCommandOutput("Starting a new bash session in the pod\n")
+	e.logger.LogCommandOutput("Pod is ready.\n")
+	e.logger.LogCommandOutput("Starting a new bash session in the pod...\n")
 
 	// #nosec
 	executable := "kubectl"
@@ -161,6 +162,7 @@ func (e *KubernetesExecutor) Start() int {
 		return exitCode
 	}
 
+	e.logger.LogCommandOutput("Shell session is ready.\n")
 	e.Shell = shell
 	return exitCode
 }

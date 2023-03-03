@@ -355,62 +355,121 @@ func (c *KubernetesClient) convertEnvVars(envVarsFromSemaphore []api.EnvVar) []c
 }
 
 func (c *KubernetesClient) WaitForPod(ctx context.Context, name string, logFn func(string)) error {
-	return retry.RetryWithConstantWaitAndContext(ctx, retry.RetryOptions{
+	var r findPodResult
+
+	err := retry.RetryWithConstantWaitAndContext(ctx, retry.RetryOptions{
 		Task:                 "Waiting for pod to be ready",
 		MaxAttempts:          c.config.PollingAttempts(),
 		DelayBetweenAttempts: c.config.PollingInterval(),
 		HideError:            true,
 		Fn: func() error {
-			_, err := c.findPod(name)
-			if err != nil {
-				logFn(fmt.Sprintf("Pod is not ready yet: %v\n", err))
-				return err
+			r = c.findPod(name)
+			if r.continueWaiting {
+				if r.err != nil {
+					logFn(r.err.Error())
+				}
+
+				return r.err
 			}
 
-			logFn("Pod is ready.\n")
 			return nil
 		},
 	})
+
+	// If we stopped the retrying,
+	// but still an error occurred, we need to report that
+	if r.err != nil {
+		return r.err
+	}
+
+	return err
 }
 
-func (c *KubernetesClient) findPod(name string) (*corev1.Pod, error) {
+type findPodResult struct {
+	continueWaiting bool
+	err             error
+}
+
+func (c *KubernetesClient) findPod(name string) findPodResult {
 	pod, err := c.clientset.CoreV1().
 		Pods(c.config.Namespace).
 		Get(context.Background(), name, v1.GetOptions{})
 
 	if err != nil {
-		return nil, err
+		return findPodResult{continueWaiting: true, err: err}
 	}
 
 	// If the pod already finished, something went wrong.
 	if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodSucceeded {
-		return nil, fmt.Errorf(
-			"pod '%s' already finished with status %s - reason: '%v', message: '%v', statuses: %v",
-			pod.Name,
-			pod.Status.Phase,
-			pod.Status.Reason,
-			pod.Status.Message,
-			c.getContainerStatuses(pod.Status.ContainerStatuses),
-		)
-	}
-
-	// if pod is pending, we need to wait
-	if pod.Status.Phase == corev1.PodPending {
-		return nil, fmt.Errorf("pod in pending state - statuses: %v", c.getContainerStatuses(pod.Status.ContainerStatuses))
+		return findPodResult{
+			continueWaiting: false,
+			err: fmt.Errorf(
+				"pod '%s' already finished with status %s - reason: '%v', message: '%v', statuses: %v",
+				pod.Name,
+				pod.Status.Phase,
+				pod.Status.Reason,
+				pod.Status.Message,
+				c.getContainerStatuses(pod.Status.ContainerStatuses),
+			),
+		}
 	}
 
 	// if one of the pod's containers isn't ready, we need to wait
 	for _, container := range pod.Status.ContainerStatuses {
+
+		// If the reason for a container to be in the waiting state
+		// is Kubernetes not being able to pull its image,
+		// we should not wait for the whole pod start timeout until the job fails.
+		if c.failedToPullImage(container.State.Waiting) {
+			return findPodResult{
+				continueWaiting: false,
+				err: fmt.Errorf(
+					"failed to pull image for '%s': %v",
+					container.Name,
+					c.getContainerStatuses(pod.Status.ContainerStatuses),
+				),
+			}
+		}
+
+		// If the container is just not ready yet, we wait.
 		if !container.Ready {
-			return nil, fmt.Errorf(
-				"container '%s' is not ready yet - statuses: %v",
-				container.Name,
-				c.getContainerStatuses(pod.Status.ContainerStatuses),
-			)
+			return findPodResult{
+				continueWaiting: true,
+				err: fmt.Errorf(
+					"container '%s' is not ready yet - statuses: %v",
+					container.Name,
+					c.getContainerStatuses(pod.Status.ContainerStatuses),
+				),
+			}
 		}
 	}
 
-	return pod, nil
+	// if we get here, all the containers are ready
+	// but the pod is still pending, so we need to wait too.
+	if pod.Status.Phase == corev1.PodPending {
+		return findPodResult{
+			continueWaiting: true,
+			err: fmt.Errorf(
+				"pod in pending state - statuses: %v",
+				c.getContainerStatuses(pod.Status.ContainerStatuses),
+			),
+		}
+	}
+
+	// If we get here, everything is ready, we can start the job.
+	return findPodResult{continueWaiting: false, err: nil}
+}
+
+func (c *KubernetesClient) failedToPullImage(state *corev1.ContainerStateWaiting) bool {
+	if state == nil {
+		return false
+	}
+
+	if state.Reason == "ErrImagePull" || state.Reason == "ImagePullBackOff" {
+		return true
+	}
+
+	return false
 }
 
 func (c *KubernetesClient) getContainerStatuses(statuses []corev1.ContainerStatus) []string {
