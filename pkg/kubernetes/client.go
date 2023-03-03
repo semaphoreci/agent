@@ -378,7 +378,7 @@ func (c *KubernetesClient) WaitForPod(ctx context.Context, name string, logFn fu
 
 	// If we stopped the retrying,
 	// but still an error occurred, we need to report that
-	if r.err != nil {
+	if !r.continueWaiting && r.err != nil {
 		return r.err
 	}
 
