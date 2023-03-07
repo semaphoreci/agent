@@ -5,6 +5,8 @@ AGENT_SSH_PORT_IN_TESTS=2222
 SECURITY_TOOLBOX_BRANCH ?= master
 SECURITY_TOOLBOX_TMP_DIR ?= /tmp/security-toolbox
 
+LATEST_VERSION=$(shell git tag | sort --version-sort | tail -n 1)
+
 check.prepare:
 	rm -rf $(SECURITY_TOOLBOX_TMP_DIR)
 	git clone git@github.com:renderedtext/security-toolbox.git $(SECURITY_TOOLBOX_TMP_DIR) && (cd $(SECURITY_TOOLBOX_TMP_DIR) && git checkout $(SECURITY_TOOLBOX_BRANCH) && cd -)
@@ -74,12 +76,11 @@ ecr.test.push:
 # Docker Release
 #
 docker.build:
-	$(MAKE) build
-	docker build -f Dockerfile.self_hosted -t semaphoreci/agent:latest .
+	docker build --build-arg AGENT_VERSION=$(LATEST_VERSION) -f Dockerfile.self_hosted -t semaphoreci/agent:latest .
 
 docker.push:
-	docker tag semaphoreci/agent:latest semaphoreci/agent:$$(git rev-parse HEAD)
-	docker push semaphoreci/agent:$$(git rev-parse HEAD)
+	docker tag semaphoreci/agent:latest semaphoreci/agent:$(LATEST_VERSION)
+	docker push semaphoreci/agent:$(LATEST_VERSION)
 	docker push semaphoreci/agent:latest
 
 release.major:
