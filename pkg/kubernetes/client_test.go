@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 func Test__CreateSecret(t *testing.T) {
 	t.Run("stores .env file in secret", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image"})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
 		secretName := "mysecret"
 
 		// create secret using job request
@@ -44,7 +45,7 @@ func Test__CreateSecret(t *testing.T) {
 
 	t.Run("stores files in secret, with base64-encoded keys", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image"})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
 		secretName := "mysecret"
 
 		// create secret using job request
@@ -89,7 +90,7 @@ func Test__CreateSecret(t *testing.T) {
 func Test__CreateImagePullSecret(t *testing.T) {
 	t.Run("bad image pull credentials -> error", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", ImagePullPolicy: "Never"})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
 		err := client.CreateImagePullSecret("badsecret", []api.ImagePullCredentials{
 			{
 				EnvVars: []api.EnvVar{
@@ -104,7 +105,7 @@ func Test__CreateImagePullSecret(t *testing.T) {
 
 	t.Run("good image pull credentials -> creates secret", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", ImagePullPolicy: "Never"})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
 		secretName := "mysecretname"
 
 		err := client.CreateImagePullSecret(secretName, []api.ImagePullCredentials{
@@ -134,7 +135,7 @@ func Test__CreateImagePullSecret(t *testing.T) {
 func Test__CreatePod(t *testing.T) {
 	t.Run("no containers and no default image specified -> error", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", ImagePullPolicy: "Never"})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -146,8 +147,15 @@ func Test__CreatePod(t *testing.T) {
 	})
 
 	t.Run("no containers specified in job uses default image", func(t *testing.T) {
-		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image", ImagePullPolicy: "Never"})
+		clientset := newFakeClientset([]runtime.Object{
+			podSpecConfigMap("default", "Never"),
+		})
+
+		client, err := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecConfigMap: "pod-spec"})
+		if !assert.NoError(t, err) {
+			return
+		}
+
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -195,8 +203,11 @@ func Test__CreatePod(t *testing.T) {
 	})
 
 	t.Run("1 container", func(t *testing.T) {
-		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image", ImagePullPolicy: "Always"})
+		clientset := newFakeClientset([]runtime.Object{
+			podSpecConfigMap("default", "Always"),
+		})
+
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecConfigMap: "pod-spec"})
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -230,8 +241,11 @@ func Test__CreatePod(t *testing.T) {
 	})
 
 	t.Run("container with env vars", func(t *testing.T) {
-		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image", ImagePullPolicy: "Always"})
+		clientset := newFakeClientset([]runtime.Object{
+			podSpecConfigMap("default", "Always"),
+		})
+
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecConfigMap: "pod-spec"})
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -269,8 +283,11 @@ func Test__CreatePod(t *testing.T) {
 	})
 
 	t.Run("multiple containers", func(t *testing.T) {
-		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image", ImagePullPolicy: "Always"})
+		clientset := newFakeClientset([]runtime.Object{
+			podSpecConfigMap("default", "Never"),
+		})
+
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecConfigMap: "pod-spec"})
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -312,11 +329,13 @@ func Test__CreatePod(t *testing.T) {
 	})
 
 	t.Run("no image pull secrets", func(t *testing.T) {
-		clientset := newFakeClientset([]runtime.Object{})
+		clientset := newFakeClientset([]runtime.Object{
+			podSpecConfigMap("default", "Never"),
+		})
+
 		client, _ := NewKubernetesClient(clientset, Config{
-			Namespace:       "default",
-			DefaultImage:    "default-image",
-			ImagePullPolicy: "Always",
+			Namespace:        "default",
+			PodSpecConfigMap: "pod-spec",
 		})
 
 		podName := "mypod"
@@ -333,13 +352,18 @@ func Test__CreatePod(t *testing.T) {
 	})
 
 	t.Run("with image pull secrets from config", func(t *testing.T) {
-		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{
-			Namespace:        "default",
-			DefaultImage:     "default-image",
-			ImagePullPolicy:  "Always",
-			ImagePullSecrets: []string{"secret-1"},
+		clientset := newFakeClientset([]runtime.Object{
+			podSpecConfigMapWithImagePullSecret("default", "secret-1"),
 		})
+
+		client, err := NewKubernetesClient(clientset, Config{
+			Namespace:        "default",
+			PodSpecConfigMap: "pod-spec",
+		})
+
+		if !assert.NoError(t, err) {
+			return
+		}
 
 		podName := "mypod"
 
@@ -355,11 +379,13 @@ func Test__CreatePod(t *testing.T) {
 	})
 
 	t.Run("with image pull secret - ephemeral", func(t *testing.T) {
-		clientset := newFakeClientset([]runtime.Object{})
+		clientset := newFakeClientset([]runtime.Object{
+			podSpecConfigMap("default", "Never"),
+		})
+
 		client, _ := NewKubernetesClient(clientset, Config{
-			Namespace:       "default",
-			DefaultImage:    "default-image",
-			ImagePullPolicy: "Always",
+			Namespace:        "default",
+			PodSpecConfigMap: "pod-spec",
 		})
 
 		podName := "mypod"
@@ -376,12 +402,13 @@ func Test__CreatePod(t *testing.T) {
 	})
 
 	t.Run("with image pull secret from config + ephemeral", func(t *testing.T) {
-		clientset := newFakeClientset([]runtime.Object{})
+		clientset := newFakeClientset([]runtime.Object{
+			podSpecConfigMapWithImagePullSecret("default", "secret-1"),
+		})
+
 		client, _ := NewKubernetesClient(clientset, Config{
 			Namespace:        "default",
-			DefaultImage:     "default-image",
-			ImagePullPolicy:  "Always",
-			ImagePullSecrets: []string{"secret-1"},
+			PodSpecConfigMap: "pod-spec",
 		})
 
 		podName := "mypod"
@@ -413,7 +440,7 @@ func Test__WaitForPod(t *testing.T) {
 			},
 		})
 
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image"})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
 		assert.NoError(t, client.WaitForPod(context.TODO(), podName, func(s string) {}))
 	})
 
@@ -430,7 +457,6 @@ func Test__WaitForPod(t *testing.T) {
 
 		client, _ := NewKubernetesClient(clientset, Config{
 			Namespace:          "default",
-			DefaultImage:       "default-image",
 			PodPollingAttempts: 2,
 		})
 
@@ -450,7 +476,6 @@ func Test__WaitForPod(t *testing.T) {
 
 		client, _ := NewKubernetesClient(clientset, Config{
 			Namespace:          "default",
-			DefaultImage:       "default-image",
 			PodPollingAttempts: 120,
 		})
 
@@ -477,7 +502,7 @@ func Test_DeletePod(t *testing.T) {
 		},
 	})
 
-	client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image"})
+	client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
 	assert.NoError(t, client.DeletePod(podName))
 
 	// pod does not exist anymore
@@ -498,7 +523,7 @@ func Test_DeleteSecret(t *testing.T) {
 		},
 	})
 
-	client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", DefaultImage: "default-image"})
+	client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
 	assert.NoError(t, client.DeleteSecret(secretName))
 
 	// secret does not exist anymore
@@ -511,4 +536,32 @@ func Test_DeleteSecret(t *testing.T) {
 
 func newFakeClientset(objects []runtime.Object) kubernetes.Interface {
 	return fake.NewSimpleClientset(objects...)
+}
+
+func podSpecConfigMap(namespace, pullPolicy string) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: v1.ObjectMeta{Name: "pod-spec", Namespace: namespace},
+		Data: map[string]string{
+			".podSpec": fmt.Sprintf(`
+        containers:
+          - image: default-image
+            imagePullPolicy: %s
+      `, pullPolicy),
+		},
+	}
+}
+
+func podSpecConfigMapWithImagePullSecret(namespace, secretName string) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: v1.ObjectMeta{Name: "pod-spec", Namespace: namespace},
+		Data: map[string]string{
+			".podSpec": fmt.Sprintf(`
+        imagePullSecrets:
+          - name: %s
+        containers:
+          - image: default-image
+            imagePullPolicy: Never
+      `, secretName),
+		},
+	}
 }

@@ -3,6 +3,7 @@ module github.com/semaphoreci/agent
 require (
 	github.com/cenkalti/backoff/v4 v4.2.0
 	github.com/creack/pty v1.1.18
+	github.com/ghodss/yaml v1.0.0
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0

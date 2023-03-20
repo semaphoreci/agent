@@ -47,9 +47,7 @@ type JobOptions struct {
 	FailOnMissingFiles               bool
 	SelfHosted                       bool
 	UseKubernetesExecutor            bool
-	KubernetesDefaultImage           string
-	KubernetesImagePullPolicy        string
-	KubernetesImagePullSecrets       []string
+	PodSpecConfigMap                 string
 	KubernetesPodStartTimeoutSeconds int
 	UploadJobLogs                    string
 	RefreshTokenFn                   func() (string, error)
@@ -121,9 +119,7 @@ func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOpti
 
 		return executors.NewKubernetesExecutor(request, logger, kubernetes.Config{
 			Namespace:          namespace,
-			DefaultImage:       jobOptions.KubernetesDefaultImage,
-			ImagePullPolicy:    jobOptions.KubernetesImagePullPolicy,
-			ImagePullSecrets:   jobOptions.KubernetesImagePullSecrets,
+			PodSpecConfigMap:   jobOptions.PodSpecConfigMap,
 			PodPollingAttempts: jobOptions.KubernetesPodStartTimeoutSeconds,
 			PodPollingInterval: time.Second,
 		})

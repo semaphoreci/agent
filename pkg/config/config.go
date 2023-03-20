@@ -3,26 +3,24 @@ package config
 import "os"
 
 const (
-	ConfigFile                 = "config-file"
-	Name                       = "name"
-	Endpoint                   = "endpoint"
-	Token                      = "token"
-	NoHTTPS                    = "no-https"
-	ShutdownHookPath           = "shutdown-hook-path"
-	PreJobHookPath             = "pre-job-hook-path"
-	DisconnectAfterJob         = "disconnect-after-job"
-	DisconnectAfterIdleTimeout = "disconnect-after-idle-timeout"
-	EnvVars                    = "env-vars"
-	Files                      = "files"
-	FailOnMissingFiles         = "fail-on-missing-files"
-	UploadJobLogs              = "upload-job-logs"
-	FailOnPreJobHookError      = "fail-on-pre-job-hook-error"
-	InterruptionGracePeriod    = "interruption-grace-period"
-	KubernetesExecutor         = "kubernetes-executor"
-	KubernetesDefaultImage     = "kubernetes-default-image"
-	KubernetesImagePullPolicy  = "kubernetes-image-pull-policy"
-	KubernetesImagePullSecrets = "kubernetes-image-pull-secrets"
-	KubernetesPodStartTimeout  = "kubernetes-pod-start-timeout"
+	ConfigFile                  = "config-file"
+	Name                        = "name"
+	Endpoint                    = "endpoint"
+	Token                       = "token"
+	NoHTTPS                     = "no-https"
+	ShutdownHookPath            = "shutdown-hook-path"
+	PreJobHookPath              = "pre-job-hook-path"
+	DisconnectAfterJob          = "disconnect-after-job"
+	DisconnectAfterIdleTimeout  = "disconnect-after-idle-timeout"
+	EnvVars                     = "env-vars"
+	Files                       = "files"
+	FailOnMissingFiles          = "fail-on-missing-files"
+	UploadJobLogs               = "upload-job-logs"
+	FailOnPreJobHookError       = "fail-on-pre-job-hook-error"
+	InterruptionGracePeriod     = "interruption-grace-period"
+	KubernetesExecutor          = "kubernetes-executor"
+	KubernetesPodSpecFromConfig = "kubernetes-pod-spec-from-config"
+	KubernetesPodStartTimeout   = "kubernetes-pod-start-timeout"
 )
 
 const DefaultKubernetesPodStartTimeout = 300
@@ -72,9 +70,6 @@ var ValidConfigKeys = []string{
 	FailOnPreJobHookError,
 	InterruptionGracePeriod,
 	KubernetesExecutor,
-	KubernetesDefaultImage,
-	KubernetesImagePullPolicy,
-	KubernetesImagePullSecrets,
 	KubernetesPodStartTimeout,
 }
 

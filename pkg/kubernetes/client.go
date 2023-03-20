@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 	"github.com/semaphoreci/agent/pkg/docker"
@@ -24,9 +25,7 @@ import (
 
 type Config struct {
 	Namespace          string
-	DefaultImage       string
-	ImagePullPolicy    string
-	ImagePullSecrets   []string
+	PodSpecConfigMap   string
 	PodPollingAttempts int
 	PodPollingInterval time.Duration
 }
@@ -58,6 +57,7 @@ func (c *Config) Validate() error {
 type KubernetesClient struct {
 	clientset kubernetes.Interface
 	config    Config
+	podSpec   *corev1.PodSpec
 }
 
 func NewKubernetesClient(clientset kubernetes.Interface, config Config) (*KubernetesClient, error) {
@@ -65,10 +65,17 @@ func NewKubernetesClient(clientset kubernetes.Interface, config Config) (*Kubern
 		return nil, fmt.Errorf("config is invalid: %v", err)
 	}
 
-	return &KubernetesClient{
+	c := &KubernetesClient{
 		clientset: clientset,
 		config:    config,
-	}, nil
+	}
+
+	err := c.Init()
+	if err != nil {
+		return nil, err
+	}
+
+	return c, nil
 }
 
 func NewInClusterClientset() (kubernetes.Interface, error) {
@@ -103,6 +110,37 @@ func NewClientsetFromConfig() (kubernetes.Interface, error) {
 	}
 
 	return clientset, nil
+}
+
+func (c *KubernetesClient) Init() error {
+	if c.config.PodSpecConfigMap == "" {
+		return nil
+	}
+
+	configMap, err := c.clientset.CoreV1().
+		ConfigMaps(c.config.Namespace).
+		Get(context.TODO(), c.config.PodSpecConfigMap, v1.GetOptions{})
+
+	if err != nil {
+		return fmt.Errorf("error finding configmap '%s': %v", c.config.PodSpecConfigMap, err)
+	}
+
+	podSpecRaw, exists := configMap.Data[".podSpec"]
+	if !exists {
+		return fmt.Errorf("required key '.podSpec' does not exist in configmap '%s'", c.config.PodSpecConfigMap)
+	}
+
+	// We use github.com/ghodss/yaml here
+	// because it can deserialise from YAML by using the json
+	// struct tags that are defined in the K8s API object structs.
+	var podSpec corev1.PodSpec
+	err = yaml.Unmarshal([]byte(podSpecRaw), &podSpec)
+	if err != nil {
+		return fmt.Errorf("error unmarshaling pod spec from configmap '%s': %v", c.config.PodSpecConfigMap, err)
+	}
+
+	c.podSpec = &podSpec
+	return nil
 }
 
 func (c *KubernetesClient) CreateSecret(name string, jobRequest *api.JobRequest) error {
@@ -262,9 +300,7 @@ func (c *KubernetesClient) imagePullSecrets(imagePullSecret string) []corev1.Loc
 	secrets := []corev1.LocalObjectReference{}
 
 	// Use the secrets previously created, and passed to the agent through its configuration.
-	for _, s := range c.config.ImagePullSecrets {
-		secrets = append(secrets, corev1.LocalObjectReference{Name: s})
-	}
+	secrets = append(secrets, c.podSpec.ImagePullSecrets...)
 
 	// Use the temporary secret created for the credentials sent in the job definition.
 	if imagePullSecret != "" {
@@ -274,70 +310,74 @@ func (c *KubernetesClient) imagePullSecrets(imagePullSecret string) []corev1.Loc
 	return secrets
 }
 
-func (c *KubernetesClient) containers(containers []api.Container) ([]corev1.Container, error) {
+func (c *KubernetesClient) containers(apiContainers []api.Container) ([]corev1.Container, error) {
 
 	// If the job specifies containers in the YAML, we use them.
-	if len(containers) > 0 {
-		return c.convertContainersFromSemaphore(containers), nil
+	if len(apiContainers) > 0 {
+		return c.convertContainersFromSemaphore(apiContainers), nil
 	}
 
 	// For jobs which do not specify containers, we require the default image to be specified.
-	if c.config.DefaultImage == "" {
+	if c.podSpec == nil || len(c.podSpec.Containers) == 0 || c.podSpec.Containers[0].Image == "" {
 		return []corev1.Container{}, fmt.Errorf("no default image specified")
 	}
 
-	return []corev1.Container{
-		{
-			Name:            "main",
-			Image:           c.config.DefaultImage,
-			ImagePullPolicy: corev1.PullPolicy(c.config.ImagePullPolicy),
-			VolumeMounts: []corev1.VolumeMount{
-				{
-					Name:      "environment",
-					ReadOnly:  true,
-					MountPath: "/tmp/injected",
-				},
-			},
-
-			// The k8s pod shouldn't finish, so we sleep infinitely to keep it up.
-			Command: []string{"bash", "-c", "sleep infinity"},
-		},
-	}, nil
+	// We copy the rest of the containers configured.
+	containers := []corev1.Container{c.buildMainContainer(nil)}
+	return append(containers, c.podSpec.Containers[1:]...), nil
 }
 
-func (c *KubernetesClient) convertContainersFromSemaphore(containers []api.Container) []corev1.Container {
-	main, rest := containers[0], containers[1:]
+func (c *KubernetesClient) buildMainContainer(mainContainerFromAPI *api.Container) corev1.Container {
+	mainContainer := c.podSpec.Containers[0]
+	mainContainer.Name = "main"
+
+	// We append the volume mount for the environment variables secret,
+	// to the list of volume mounts configured.
+	mainContainer.VolumeMounts = append(mainContainer.VolumeMounts, corev1.VolumeMount{
+		Name:      "environment",
+		ReadOnly:  true,
+		MountPath: "/tmp/injected",
+	})
+
+	// Override the image with the one specified in the job YAML.
+	if mainContainerFromAPI != nil {
+		mainContainer.Image = mainContainerFromAPI.Image
+	}
+
+	// Extend the env vars with the ones that come from the job YAML.
+	if mainContainerFromAPI != nil {
+		mainContainer.Env = append(mainContainer.Env, c.convertEnvVars(mainContainerFromAPI.EnvVars)...)
+	}
+
+	// We don't let people customize the command.
+	// since we need the pod to be up.
+	mainContainer.Command = []string{"bash", "-c", "sleep infinity"}
+	return mainContainer
+}
+
+func (c *KubernetesClient) convertContainersFromSemaphore(apiContainers []api.Container) []corev1.Container {
+	main, rest := apiContainers[0], apiContainers[1:]
 
 	// The main container needs to be up forever,
 	// so we 'sleep infinity' in its command.
-	k8sContainers := []corev1.Container{
-		{
-			Name:            main.Name,
-			Image:           main.Image,
-			Env:             c.convertEnvVars(main.EnvVars),
-			Command:         []string{"bash", "-c", "sleep infinity"},
-			ImagePullPolicy: corev1.PullPolicy(c.config.ImagePullPolicy),
-			VolumeMounts: []corev1.VolumeMount{
-				{
-					Name:      "environment",
-					ReadOnly:  true,
-					MountPath: "/tmp/injected",
-				},
-			},
-		},
-	}
+	k8sContainers := []corev1.Container{c.buildMainContainer(&main)}
 
 	// The rest of the containers will just follow whatever
 	// their images are already configured to do.
-	for _, container := range rest {
-		k8sContainers = append(k8sContainers, corev1.Container{
-			Name:  container.Name,
-			Image: container.Image,
-			Env:   c.convertEnvVars(container.EnvVars),
-		})
+	for i, container := range rest {
+		c := c.buildSidecarContainer(container, c.podSpec.Containers[i])
+		k8sContainers = append(k8sContainers, *c)
 	}
 
 	return k8sContainers
+}
+
+func (c *KubernetesClient) buildSidecarContainer(apiContainer api.Container, baseContainer corev1.Container) *corev1.Container {
+	new := baseContainer.DeepCopy()
+	new.Name = apiContainer.Name
+	new.Image = apiContainer.Image
+	new.Env = append(baseContainer.Env, c.convertEnvVars(apiContainer.EnvVars)...)
+	return new
 }
 
 func (c *KubernetesClient) convertEnvVars(envVarsFromSemaphore []api.EnvVar) []corev1.EnvVar {
