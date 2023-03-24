@@ -3,7 +3,7 @@ The Kubernetes executor creates a new Kubernetes pod to run every job it receive
 - [Pod start timeout](#pod-start-timeout)
 - [Specifying containers](#specifying-containers)
 - [Decorating the Kubernetes pod configuration](#decorating-the-kubernetes-pod-configuration)
-- [Configure the `imagePullPolicy`](#configure-the-imagepullpolicy)
+- [Configure the image pull policies](#configure-the-image-pull-policies)
 - [Use environment variables](#use-environment-variables)
 - [Use files](#use-files)
 - [Requests and limits](#requests-and-limits)
@@ -64,10 +64,10 @@ Each of the keys decorate a specific part of the pod created for the Semaphore j
 - The `sidecarContainers` key allows you to decorate the fields in the [Kubernetes container](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#container-v1-core) used as sidecars.
 - The `pod` key allows you to decorate the fields in the [Kubernetes pod](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.25/#pod-v1-core) created for the Semaphore job.
 
-> **Note**
+> **Note**<br/>
 > The `--kubernetes-pod-spec-decorator-from-config` parameter does not override what comes from the Semaphore YAML. It only decorates it. If you want to reject jobs that use untrusted images, use the [--kubernetes-allowed-images](#configure-the-allowed-images) parameter.
 
-## Configure the `imagePullPolicy`
+## Configure the image pull policies
 
 By default, no image pull policy is set on any of the containers in the pod. That means Kubernetes will use its default, which is `IfNotPresent`. You can use the `--kubernetes-pod-spec-decorator-from-config` parameter to specify them:
 
@@ -172,7 +172,8 @@ If the image being used to run the job is private, authentication is required to
 
 You can create a Semaphore secret containing the credentials to authenticate to your registry, and use it in your Semaphore YAML's [image_pull_secrets](https://docs.semaphoreci.com/ci-cd-environment/custom-ci-cd-environment-with-docker/#pulling-private-docker-images-from-dockerhub). When using this appproach, the Kubernetes executor will create a temporary Kubernetes secret to store the credentials, and use it to pull the images. When the job finishes, the Kubernetes will be deleted.
 
-Note: this is the only way to use ECR images, since ECR doesn't allow long-lived tokens for authentication.
+> **Note**<br/>
+> This is the only way to use ECR images, since ECR doesn't allow long-lived tokens for authentication.
 
 ### Use a manually created Kubernetes secret
 
