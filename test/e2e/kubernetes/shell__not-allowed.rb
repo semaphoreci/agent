@@ -42,7 +42,7 @@ assert_job_log <<-LOG
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"Creating Kubernetes resources for job..."}
   {"event":"cmd_output",   "timestamp":"*", "output":"Failed to create pod: error building pod spec: error building containers for pod spec: no containers specified in Semaphore YAML\\n"}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"Creating Kubernetes resources for job...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
+  {"event":"cmd_finished", "timestamp":"*", "directive":"Creating Kubernetes resources for job...","event":"cmd_finished","exit_code":1,"finished_at":"*","started_at":"*","timestamp":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Exporting SEMAPHORE_JOB_RESULT\\n"}
