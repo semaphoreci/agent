@@ -40,7 +40,7 @@ type Config struct {
 	AgentVersion                     string
 	AgentName                        string
 	KubernetesExecutor               bool
-	KubernetesPodSpecFromConfig      string
+	KubernetesPodSpec                string
 	KubernetesPodStartTimeoutSeconds int
 }
 

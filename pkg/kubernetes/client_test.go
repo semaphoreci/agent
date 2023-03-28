@@ -151,7 +151,7 @@ func Test__CreatePod(t *testing.T) {
 			podSpecConfigMap("default", "Never"),
 		})
 
-		client, err := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecConfigMap: "pod-spec"})
+		client, err := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecDecoratorConfigMap: "pod-spec"})
 		if !assert.NoError(t, err) {
 			return
 		}
@@ -207,7 +207,7 @@ func Test__CreatePod(t *testing.T) {
 			podSpecConfigMap("default", "Always"),
 		})
 
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecConfigMap: "pod-spec"})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecDecoratorConfigMap: "pod-spec"})
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -245,7 +245,7 @@ func Test__CreatePod(t *testing.T) {
 			podSpecConfigMap("default", "Always"),
 		})
 
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecConfigMap: "pod-spec"})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecDecoratorConfigMap: "pod-spec"})
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -287,7 +287,7 @@ func Test__CreatePod(t *testing.T) {
 			podSpecConfigMap("default", "Never"),
 		})
 
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecConfigMap: "pod-spec"})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecDecoratorConfigMap: "pod-spec"})
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -334,8 +334,8 @@ func Test__CreatePod(t *testing.T) {
 		})
 
 		client, _ := NewKubernetesClient(clientset, Config{
-			Namespace:        "default",
-			PodSpecConfigMap: "pod-spec",
+			Namespace:                 "default",
+			PodSpecDecoratorConfigMap: "pod-spec",
 		})
 
 		podName := "mypod"
@@ -357,8 +357,8 @@ func Test__CreatePod(t *testing.T) {
 		})
 
 		client, err := NewKubernetesClient(clientset, Config{
-			Namespace:        "default",
-			PodSpecConfigMap: "pod-spec",
+			Namespace:                 "default",
+			PodSpecDecoratorConfigMap: "pod-spec",
 		})
 
 		if !assert.NoError(t, err) {
@@ -384,8 +384,8 @@ func Test__CreatePod(t *testing.T) {
 		})
 
 		client, _ := NewKubernetesClient(clientset, Config{
-			Namespace:        "default",
-			PodSpecConfigMap: "pod-spec",
+			Namespace:                 "default",
+			PodSpecDecoratorConfigMap: "pod-spec",
 		})
 
 		podName := "mypod"
@@ -407,8 +407,8 @@ func Test__CreatePod(t *testing.T) {
 		})
 
 		client, _ := NewKubernetesClient(clientset, Config{
-			Namespace:        "default",
-			PodSpecConfigMap: "pod-spec",
+			Namespace:                 "default",
+			PodSpecDecoratorConfigMap: "pod-spec",
 		})
 
 		podName := "mypod"

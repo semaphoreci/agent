@@ -47,7 +47,7 @@ type JobOptions struct {
 	FailOnMissingFiles               bool
 	SelfHosted                       bool
 	UseKubernetesExecutor            bool
-	PodSpecConfigMap                 string
+	PodSpecDecoratorConfigMap        string
 	KubernetesPodStartTimeoutSeconds int
 	UploadJobLogs                    string
 	RefreshTokenFn                   func() (string, error)
@@ -118,10 +118,10 @@ func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOpti
 		}
 
 		return executors.NewKubernetesExecutor(request, logger, kubernetes.Config{
-			Namespace:          namespace,
-			PodSpecConfigMap:   jobOptions.PodSpecConfigMap,
-			PodPollingAttempts: jobOptions.KubernetesPodStartTimeoutSeconds,
-			PodPollingInterval: time.Second,
+			Namespace:                 namespace,
+			PodSpecDecoratorConfigMap: jobOptions.PodSpecDecoratorConfigMap,
+			PodPollingAttempts:        jobOptions.KubernetesPodStartTimeoutSeconds,
+			PodPollingInterval:        time.Second,
 		})
 	}
 

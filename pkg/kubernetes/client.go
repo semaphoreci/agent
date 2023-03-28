@@ -16,6 +16,7 @@ import (
 	"github.com/semaphoreci/agent/pkg/docker"
 	"github.com/semaphoreci/agent/pkg/retry"
 	"github.com/semaphoreci/agent/pkg/shell"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -24,10 +25,10 @@ import (
 )
 
 type Config struct {
-	Namespace          string
-	PodSpecConfigMap   string
-	PodPollingAttempts int
-	PodPollingInterval time.Duration
+	Namespace                 string
+	PodSpecDecoratorConfigMap string
+	PodPollingAttempts        int
+	PodPollingInterval        time.Duration
 }
 
 func (c *Config) PollingInterval() time.Duration {
@@ -55,9 +56,11 @@ func (c *Config) Validate() error {
 }
 
 type KubernetesClient struct {
-	clientset kubernetes.Interface
-	config    Config
-	podSpec   *corev1.PodSpec
+	clientset            kubernetes.Interface
+	config               Config
+	podSpec              *corev1.PodSpec
+	mainContainerSpec    *corev1.Container
+	sidecarContainerSpec *corev1.Container
 }
 
 func NewKubernetesClient(clientset kubernetes.Interface, config Config) (*KubernetesClient, error) {
@@ -113,33 +116,69 @@ func NewClientsetFromConfig() (kubernetes.Interface, error) {
 }
 
 func (c *KubernetesClient) Init() error {
-	if c.config.PodSpecConfigMap == "" {
+	if c.config.PodSpecDecoratorConfigMap == "" {
 		return nil
 	}
 
 	configMap, err := c.clientset.CoreV1().
 		ConfigMaps(c.config.Namespace).
-		Get(context.TODO(), c.config.PodSpecConfigMap, v1.GetOptions{})
+		Get(context.TODO(), c.config.PodSpecDecoratorConfigMap, v1.GetOptions{})
 
 	if err != nil {
-		return fmt.Errorf("error finding configmap '%s': %v", c.config.PodSpecConfigMap, err)
+		return fmt.Errorf("error finding configmap '%s': %v", c.config.PodSpecDecoratorConfigMap, err)
 	}
 
-	podSpecRaw, exists := configMap.Data[".podSpec"]
+	podSpecRaw, exists := configMap.Data["pod"]
 	if !exists {
-		return fmt.Errorf("required key '.podSpec' does not exist in configmap '%s'", c.config.PodSpecConfigMap)
+		log.Infof("No 'pod' key in '%s' - skipping pod decoration", c.config.PodSpecDecoratorConfigMap)
+		c.podSpec = nil
+	} else {
+		// We use github.com/ghodss/yaml here
+		// because it can deserialise from YAML by using the json
+		// struct tags that are defined in the K8s API object structs.
+		var podSpec corev1.PodSpec
+		err = yaml.Unmarshal([]byte(podSpecRaw), &podSpec)
+		if err != nil {
+			return fmt.Errorf("error unmarshaling pod spec from configmap '%s': %v", c.config.PodSpecDecoratorConfigMap, err)
+		}
+
+		c.podSpec = &podSpec
 	}
 
-	// We use github.com/ghodss/yaml here
-	// because it can deserialise from YAML by using the json
-	// struct tags that are defined in the K8s API object structs.
-	var podSpec corev1.PodSpec
-	err = yaml.Unmarshal([]byte(podSpecRaw), &podSpec)
-	if err != nil {
-		return fmt.Errorf("error unmarshaling pod spec from configmap '%s': %v", c.config.PodSpecConfigMap, err)
+	mainContainerSpecRaw, exists := configMap.Data["mainContainer"]
+	if !exists {
+		log.Infof("No 'mainContainer' key in '%s' - skipping main container decoration", c.config.PodSpecDecoratorConfigMap)
+		c.mainContainerSpec = nil
+	} else {
+		// We use github.com/ghodss/yaml here
+		// because it can deserialise from YAML by using the json
+		// struct tags that are defined in the K8s API object structs.
+		var mainContainer corev1.Container
+		err = yaml.Unmarshal([]byte(mainContainerSpecRaw), &mainContainer)
+		if err != nil {
+			return fmt.Errorf("error unmarshaling main container spec from configmap '%s': %v", c.config.PodSpecDecoratorConfigMap, err)
+		}
+
+		c.mainContainerSpec = &mainContainer
 	}
 
-	c.podSpec = &podSpec
+	sidecarContainerSpecRaw, exists := configMap.Data["sidecarContainers"]
+	if !exists {
+		log.Infof("No 'mainContainer' key in '%s' - skipping main container decoration", c.config.PodSpecDecoratorConfigMap)
+		c.sidecarContainerSpec = nil
+	} else {
+		// We use github.com/ghodss/yaml here
+		// because it can deserialise from YAML by using the json
+		// struct tags that are defined in the K8s API object structs.
+		var sidecarContainer corev1.Container
+		err = yaml.Unmarshal([]byte(sidecarContainerSpecRaw), &sidecarContainer)
+		if err != nil {
+			return fmt.Errorf("error unmarshaling main container spec from configmap '%s': %v", c.config.PodSpecDecoratorConfigMap, err)
+		}
+
+		c.sidecarContainerSpec = &sidecarContainer
+	}
+
 	return nil
 }
 
@@ -311,25 +350,25 @@ func (c *KubernetesClient) imagePullSecrets(imagePullSecret string) []corev1.Loc
 }
 
 func (c *KubernetesClient) containers(apiContainers []api.Container) ([]corev1.Container, error) {
-
-	// If the job specifies containers in the YAML, we use them.
 	if len(apiContainers) > 0 {
 		return c.convertContainersFromSemaphore(apiContainers), nil
 	}
 
-	// For jobs which do not specify containers, we require the default image to be specified.
-	if c.podSpec == nil || len(c.podSpec.Containers) == 0 || c.podSpec.Containers[0].Image == "" {
-		return []corev1.Container{}, fmt.Errorf("no default image specified")
-	}
-
-	// We copy the rest of the containers configured.
-	containers := []corev1.Container{c.buildMainContainer(nil)}
-	return append(containers, c.podSpec.Containers[1:]...), nil
+	return []corev1.Container{}, fmt.Errorf("no containers specified in Semaphore YAML")
 }
 
 func (c *KubernetesClient) buildMainContainer(mainContainerFromAPI *api.Container) corev1.Container {
-	mainContainer := c.podSpec.Containers[0]
+	var mainContainer *corev1.Container
+	if c.mainContainerSpec != nil {
+		mainContainer = c.mainContainerSpec.DeepCopy()
+	} else {
+		mainContainer = &corev1.Container{}
+	}
+
 	mainContainer.Name = "main"
+	mainContainer.Image = mainContainerFromAPI.Image
+	mainContainer.Env = append(mainContainer.Env, c.convertEnvVars(mainContainerFromAPI.EnvVars)...)
+	mainContainer.Command = []string{"bash", "-c", "sleep infinity"}
 
 	// We append the volume mount for the environment variables secret,
 	// to the list of volume mounts configured.
@@ -339,20 +378,7 @@ func (c *KubernetesClient) buildMainContainer(mainContainerFromAPI *api.Containe
 		MountPath: "/tmp/injected",
 	})
 
-	// Override the image with the one specified in the job YAML.
-	if mainContainerFromAPI != nil {
-		mainContainer.Image = mainContainerFromAPI.Image
-	}
-
-	// Extend the env vars with the ones that come from the job YAML.
-	if mainContainerFromAPI != nil {
-		mainContainer.Env = append(mainContainer.Env, c.convertEnvVars(mainContainerFromAPI.EnvVars)...)
-	}
-
-	// We don't let people customize the command.
-	// since we need the pod to be up.
-	mainContainer.Command = []string{"bash", "-c", "sleep infinity"}
-	return mainContainer
+	return *mainContainer
 }
 
 func (c *KubernetesClient) convertContainersFromSemaphore(apiContainers []api.Container) []corev1.Container {
@@ -364,20 +390,26 @@ func (c *KubernetesClient) convertContainersFromSemaphore(apiContainers []api.Co
 
 	// The rest of the containers will just follow whatever
 	// their images are already configured to do.
-	for i, container := range rest {
-		c := c.buildSidecarContainer(container, c.podSpec.Containers[i])
+	for _, container := range rest {
+		c := c.buildSidecarContainer(container)
 		k8sContainers = append(k8sContainers, *c)
 	}
 
 	return k8sContainers
 }
 
-func (c *KubernetesClient) buildSidecarContainer(apiContainer api.Container, baseContainer corev1.Container) *corev1.Container {
-	new := baseContainer.DeepCopy()
-	new.Name = apiContainer.Name
-	new.Image = apiContainer.Image
-	new.Env = append(baseContainer.Env, c.convertEnvVars(apiContainer.EnvVars)...)
-	return new
+func (c *KubernetesClient) buildSidecarContainer(apiContainer api.Container) *corev1.Container {
+	var sidecarContainer *corev1.Container
+	if c.sidecarContainerSpec != nil {
+		sidecarContainer = c.sidecarContainerSpec.DeepCopy()
+	} else {
+		sidecarContainer = &corev1.Container{}
+	}
+
+	sidecarContainer.Name = apiContainer.Name
+	sidecarContainer.Image = apiContainer.Image
+	sidecarContainer.Env = append(sidecarContainer.Env, c.convertEnvVars(apiContainer.EnvVars)...)
+	return sidecarContainer
 }
 
 func (c *KubernetesClient) convertEnvVars(envVarsFromSemaphore []api.EnvVar) []corev1.EnvVar {

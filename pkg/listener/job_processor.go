@@ -39,7 +39,7 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		FailOnPreJobHookError:            config.FailOnPreJobHookError,
 		ExitOnShutdown:                   config.ExitOnShutdown,
 		KubernetesExecutor:               config.KubernetesExecutor,
-		KubernetesPodSpecFromConfig:      config.KubernetesPodSpecFromConfig,
+		KubernetesPodSpec:                config.KubernetesPodSpec,
 		KubernetesPodStartTimeoutSeconds: config.KubernetesPodStartTimeoutSeconds,
 	}
 
@@ -79,7 +79,7 @@ type JobProcessor struct {
 	FailOnPreJobHookError            bool
 	ExitOnShutdown                   bool
 	KubernetesExecutor               bool
-	KubernetesPodSpecFromConfig      string
+	KubernetesPodSpec                string
 	KubernetesPodStartTimeoutSeconds int
 }
 
@@ -174,7 +174,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 		FailOnMissingFiles:               p.FailOnMissingFiles,
 		SelfHosted:                       true,
 		UseKubernetesExecutor:            p.KubernetesExecutor,
-		PodSpecConfigMap:                 p.KubernetesPodSpecFromConfig,
+		PodSpecDecoratorConfigMap:        p.KubernetesPodSpec,
 		KubernetesPodStartTimeoutSeconds: p.KubernetesPodStartTimeoutSeconds,
 		UploadJobLogs:                    p.UploadJobLogs,
 		RefreshTokenFn: func() (string, error) {
