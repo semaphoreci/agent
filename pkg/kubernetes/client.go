@@ -115,6 +115,9 @@ func NewClientsetFromConfig() (kubernetes.Interface, error) {
 	return clientset, nil
 }
 
+// We use github.com/ghodss/yaml here
+// because it can deserialise from YAML by using the json
+// struct tags that are defined in the K8s API object structs.
 func (c *KubernetesClient) Init() error {
 	if c.config.PodSpecDecoratorConfigMap == "" {
 		return nil
@@ -133,9 +136,6 @@ func (c *KubernetesClient) Init() error {
 		log.Infof("No 'pod' key in '%s' - skipping pod decoration", c.config.PodSpecDecoratorConfigMap)
 		c.podSpec = nil
 	} else {
-		// We use github.com/ghodss/yaml here
-		// because it can deserialise from YAML by using the json
-		// struct tags that are defined in the K8s API object structs.
 		var podSpec corev1.PodSpec
 		err = yaml.Unmarshal([]byte(podSpecRaw), &podSpec)
 		if err != nil {
@@ -150,9 +150,6 @@ func (c *KubernetesClient) Init() error {
 		log.Infof("No 'mainContainer' key in '%s' - skipping main container decoration", c.config.PodSpecDecoratorConfigMap)
 		c.mainContainerSpec = nil
 	} else {
-		// We use github.com/ghodss/yaml here
-		// because it can deserialise from YAML by using the json
-		// struct tags that are defined in the K8s API object structs.
 		var mainContainer corev1.Container
 		err = yaml.Unmarshal([]byte(mainContainerSpecRaw), &mainContainer)
 		if err != nil {
@@ -167,9 +164,6 @@ func (c *KubernetesClient) Init() error {
 		log.Infof("No 'mainContainer' key in '%s' - skipping main container decoration", c.config.PodSpecDecoratorConfigMap)
 		c.sidecarContainerSpec = nil
 	} else {
-		// We use github.com/ghodss/yaml here
-		// because it can deserialise from YAML by using the json
-		// struct tags that are defined in the K8s API object structs.
 		var sidecarContainer corev1.Container
 		err = yaml.Unmarshal([]byte(sidecarContainerSpecRaw), &sidecarContainer)
 		if err != nil {
@@ -307,24 +301,27 @@ func (c *KubernetesClient) podSpecFromJobRequest(podName string, envSecretName s
 		return nil, fmt.Errorf("error building containers for pod spec: %v", err)
 	}
 
-	spec := corev1.PodSpec{
-		Containers:       containers,
-		ImagePullSecrets: c.imagePullSecrets(imagePullSecret),
-		RestartPolicy:    corev1.RestartPolicyNever,
-		Volumes: []corev1.Volume{
-			{
-				Name: "environment",
-				VolumeSource: corev1.VolumeSource{
-					Secret: &corev1.SecretVolumeSource{
-						SecretName: envSecretName,
-					},
-				},
-			},
-		},
+	var spec *corev1.PodSpec
+	if c.podSpec != nil {
+		spec = c.podSpec.DeepCopy()
+	} else {
+		spec = &corev1.PodSpec{}
 	}
 
+	spec.Containers = containers
+	spec.ImagePullSecrets = append(spec.ImagePullSecrets, c.imagePullSecrets(imagePullSecret)...)
+	spec.RestartPolicy = corev1.RestartPolicyNever
+	spec.Volumes = append(spec.Volumes, corev1.Volume{
+		Name: "environment",
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: envSecretName,
+			},
+		},
+	})
+
 	return &corev1.Pod{
-		Spec: spec,
+		Spec: *spec,
 		ObjectMeta: v1.ObjectMeta{
 			Namespace: c.config.Namespace,
 			Name:      podName,
@@ -337,9 +334,6 @@ func (c *KubernetesClient) podSpecFromJobRequest(podName string, envSecretName s
 
 func (c *KubernetesClient) imagePullSecrets(imagePullSecret string) []corev1.LocalObjectReference {
 	secrets := []corev1.LocalObjectReference{}
-
-	// Use the secrets previously created, and passed to the agent through its configuration.
-	secrets = append(secrets, c.podSpec.ImagePullSecrets...)
 
 	// Use the temporary secret created for the credentials sent in the job definition.
 	if imagePullSecret != "" {
