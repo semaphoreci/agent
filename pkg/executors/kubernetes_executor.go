@@ -59,13 +59,25 @@ func NewKubernetesExecutor(jobRequest *api.JobRequest, logger *eventlogger.Logge
 }
 
 func (e *KubernetesExecutor) Prepare() int {
+	commandStartedAt := int(time.Now().Unix())
+	directive := "Creating Kubernetes resources for job..."
+	exitCode := 0
+
+	e.logger.LogCommandStarted(directive)
+
+	defer func() {
+		commandFinishedAt := int(time.Now().Unix())
+		e.logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
+	}()
+
 	e.podName = e.randomPodName()
 	e.envSecretName = fmt.Sprintf("%s-secret", e.podName)
 
 	err := e.k8sClient.CreateSecret(e.envSecretName, e.jobRequest)
 	if err != nil {
 		log.Errorf("Error creating secret '%s': %v", e.envSecretName, err)
-		return 1
+		exitCode = 1
+		return exitCode
 	}
 
 	// If image pull credentials are specified in the YAML,
@@ -75,14 +87,17 @@ func (e *KubernetesExecutor) Prepare() int {
 		err = e.k8sClient.CreateImagePullSecret(e.imagePullSecret, e.jobRequest.Compose.ImagePullCredentials)
 		if err != nil {
 			log.Errorf("Error creating image pull credentials '%s': %v", e.envSecretName, err)
-			return 1
+			exitCode = 1
+			return exitCode
 		}
 	}
 
 	err = e.k8sClient.CreatePod(e.podName, e.envSecretName, e.imagePullSecret, e.jobRequest)
 	if err != nil {
-		log.Errorf("Error creating pod: %v", err)
-		return 1
+		log.Errorf("Failed to create pod: %v", err)
+		e.logger.LogCommandOutput(fmt.Sprintf("Failed to create pod: %v\n", err))
+		exitCode = 1
+		return exitCode
 	}
 
 	return 0

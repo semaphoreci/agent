@@ -72,6 +72,7 @@ var ValidConfigKeys = []string{
 	FailOnPreJobHookError,
 	InterruptionGracePeriod,
 	KubernetesExecutor,
+	KubernetesPodSpec,
 	KubernetesPodStartTimeout,
 }
 

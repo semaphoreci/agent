@@ -40,9 +40,9 @@ wait_for_job_to_finish
 assert_job_log <<-LOG
   {"event":"job_started",  "timestamp":"*"}
 
-  {"event":"cmd_started",  "timestamp":"*", "directive":"Constructing pod spec..."}
-  {"event":"cmd_output",   "timestamp":"*", "output":"Kubernetes executor requires containers to be specified."}
-  {"event":"cmd_finished", "timestamp":"*", "directive":"Constructing pod spec...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
+  {"event":"cmd_started",  "timestamp":"*", "directive":"Creating Kubernetes resources for job..."}
+  {"event":"cmd_output",   "timestamp":"*", "output":"Failed to create pod: error building pod spec: error building containers for pod spec: no containers specified in Semaphore YAML"}
+  {"event":"cmd_finished", "timestamp":"*", "directive":"Creating Kubernetes resources for job...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Exporting SEMAPHORE_JOB_RESULT\\n"}
