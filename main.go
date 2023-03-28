@@ -108,6 +108,7 @@ func getLogFilePath() string {
 func RunListener(httpClient *http.Client, logfile io.Writer) {
 	configFile := pflag.String(config.ConfigFile, "", "Config file")
 	_ = pflag.String(config.Name, "", "Name to use for the agent. If not set, a default random one is used.")
+	_ = pflag.String(config.NameFromEnv, "", "Specify name to use for the agent, using an environment variable. If --name and --name-from-env are empty, a random one is generated.")
 	_ = pflag.String(config.Endpoint, "", "Endpoint where agents are registered")
 	_ = pflag.String(config.Token, "", "Registration token")
 	_ = pflag.Bool(config.NoHTTPS, false, "Use http for communication")
@@ -242,15 +243,29 @@ func validateConfiguration() {
 }
 
 func getAgentName() string {
+	// --name configuration parameter was specified.
 	agentName := viper.GetString(config.Name)
 	if agentName != "" {
-		if len(agentName) < 8 || len(agentName) > 64 {
-			log.Fatalf("The agent name should have between 8 and 64 characters. '%s' has %d.", agentName, len(agentName))
+		if len(agentName) < 8 || len(agentName) > 80 {
+			log.Fatalf("The agent name should have between 8 and 80 characters. '%s' has %d.", agentName, len(agentName))
 		}
 
 		return agentName
 	}
 
+	// --name-from-env configuration parameter was passed.
+	// We need to fetch the actual name from the environment variable.
+	envVarName := viper.GetString(config.NameFromEnv)
+	if envVarName != "" {
+		agentName := os.Getenv(envVarName)
+		if len(agentName) < 8 || len(agentName) > 80 {
+			log.Fatalf("The agent name should have between 8 and 80 characters. '%s' has %d.", agentName, len(agentName))
+		}
+
+		return agentName
+	}
+
+	// No name was specified - we generate a random one.
 	log.Infof("Agent name was not assigned - using a random one.")
 	randomName, err := randomName()
 	if err != nil {
