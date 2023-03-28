@@ -161,13 +161,13 @@ func (c *KubernetesClient) Init() error {
 
 	sidecarContainerSpecRaw, exists := configMap.Data["sidecarContainers"]
 	if !exists {
-		log.Infof("No 'mainContainer' key in '%s' - skipping main container decoration", c.config.PodSpecDecoratorConfigMap)
+		log.Infof("No 'sidecarContainers' key in '%s' - skipping sidecar containers decoration", c.config.PodSpecDecoratorConfigMap)
 		c.sidecarContainerSpec = nil
 	} else {
 		var sidecarContainer corev1.Container
 		err = yaml.Unmarshal([]byte(sidecarContainerSpecRaw), &sidecarContainer)
 		if err != nil {
-			return fmt.Errorf("error unmarshaling main container spec from configmap '%s': %v", c.config.PodSpecDecoratorConfigMap, err)
+			return fmt.Errorf("error unmarshaling sidecar containers spec from configmap '%s': %v", c.config.PodSpecDecoratorConfigMap, err)
 		}
 
 		c.sidecarContainerSpec = &sidecarContainer
