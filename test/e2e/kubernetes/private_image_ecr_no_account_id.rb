@@ -10,8 +10,7 @@ $AGENT_CONFIG = {
   "env-vars" => [],
   "files" => [],
   "fail-on-missing-files" => false,
-  "kubernetes-executor" => true,
-  "kubernetes-image-pull-policy" => "IfNotPresent"
+  "kubernetes-executor" => true
 }
 
 require_relative '../../e2e'
