@@ -292,13 +292,13 @@ func Test__CreatePod(t *testing.T) {
 		if assert.Len(t, pod.Spec.Containers, 1) {
 			assert.Equal(t, pod.Spec.Containers[0].Name, "main")
 			assert.Equal(t, pod.Spec.Containers[0].Image, "custom-image")
-			assert.Equal(t, pod.Spec.Containers[0].ImagePullPolicy, corev1.PullAlways)
+			assert.Equal(t, pod.Spec.Containers[0].ImagePullPolicy, corev1.PullPolicy(""))
 			assert.Equal(t, pod.Spec.Containers[0].Command, []string{"bash", "-c", "sleep infinity"})
 			assert.Equal(t, pod.Spec.Containers[0].VolumeMounts, []corev1.VolumeMount{{Name: "environment", ReadOnly: true, MountPath: "/tmp/injected"}})
 			assert.Equal(t, pod.Spec.Containers[0].Env, []corev1.EnvVar{
-				{Name: "A", Value: "AAA"},
 				{Name: "FOO_1", Value: "BAR_1"},
 				{Name: "FOO_2", Value: "BAR_2"},
+				{Name: "A", Value: "AAA"},
 			})
 		}
 	})
