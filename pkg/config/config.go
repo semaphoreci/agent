@@ -21,6 +21,7 @@ const (
 	InterruptionGracePeriod    = "interruption-grace-period"
 	KubernetesExecutor         = "kubernetes-executor"
 	KubernetesPodSpec          = "kubernetes-pod-spec"
+	KubernetesAllowedImages    = "kubernetes-allowed-images"
 	KubernetesPodStartTimeout  = "kubernetes-pod-start-timeout"
 )
 
@@ -73,6 +74,7 @@ var ValidConfigKeys = []string{
 	InterruptionGracePeriod,
 	KubernetesExecutor,
 	KubernetesPodSpec,
+	KubernetesAllowedImages,
 	KubernetesPodStartTimeout,
 }
 
