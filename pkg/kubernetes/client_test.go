@@ -10,6 +10,7 @@ import (
 	"github.com/semaphoreci/agent/pkg/api"
 	assert "github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -146,9 +147,41 @@ func Test__CreatePod(t *testing.T) {
 		}), "no containers specified in Semaphore YAML")
 	})
 
+	t.Run("containers and no pod spec", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{})
+		client, err := NewKubernetesClient(clientset, Config{Namespace: "default"})
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		podName := "mypod"
+		envSecretName := "mysecret"
+
+		// create pod using job request
+		assert.NoError(t, client.CreatePod(podName, envSecretName, "", &api.JobRequest{
+			Compose: api.Compose{Containers: []api.Container{{Name: "main", Image: "my-image"}}},
+		}))
+
+		pod, err := clientset.CoreV1().
+			Pods("default").
+			Get(context.Background(), podName, v1.GetOptions{})
+
+		assert.NoError(t, err)
+
+		// assert pod spec containers
+		if assert.Len(t, pod.Spec.Containers, 1) {
+			assert.Equal(t, pod.Spec.Containers[0].Name, "main")
+			assert.Equal(t, pod.Spec.Containers[0].Image, "my-image")
+			assert.Equal(t, pod.Spec.Containers[0].ImagePullPolicy, corev1.PullPolicy(""))
+			assert.Equal(t, pod.Spec.Containers[0].Command, []string{"bash", "-c", "sleep infinity"})
+			assert.Empty(t, pod.Spec.Containers[0].Env)
+			assert.Equal(t, pod.Spec.Containers[0].VolumeMounts, []corev1.VolumeMount{{Name: "environment", ReadOnly: true, MountPath: "/tmp/injected"}})
+		}
+	})
+
 	t.Run("1 container", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{
-			podSpecConfigMap("default", "Always"),
+			podSpecWithImagePullPolicy("default", "Always"),
 		})
 
 		client, err := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecDecoratorConfigMap: "pod-spec"})
@@ -189,10 +222,46 @@ func Test__CreatePod(t *testing.T) {
 	})
 
 	t.Run("container with env vars", func(t *testing.T) {
-		clientset := newFakeClientset([]runtime.Object{
-			podSpecConfigMap("default", "Always"),
-		})
+		clientset := newFakeClientset([]runtime.Object{})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
+		podName := "mypod"
+		envSecretName := "mysecret"
 
+		// create pod using job request
+		assert.NoError(t, client.CreatePod(podName, envSecretName, "", &api.JobRequest{
+			Compose: api.Compose{
+				Containers: []api.Container{
+					{
+						Name:  "main",
+						Image: "custom-image",
+						EnvVars: []api.EnvVar{
+							{
+								Name:  "A",
+								Value: base64.StdEncoding.EncodeToString([]byte("AAA")),
+							},
+						},
+					},
+				},
+			},
+		}))
+
+		pod, err := clientset.CoreV1().
+			Pods("default").
+			Get(context.Background(), podName, v1.GetOptions{})
+
+		assert.NoError(t, err)
+		if assert.Len(t, pod.Spec.Containers, 1) {
+			assert.Equal(t, pod.Spec.Containers[0].Name, "main")
+			assert.Equal(t, pod.Spec.Containers[0].Image, "custom-image")
+			assert.Equal(t, pod.Spec.Containers[0].ImagePullPolicy, corev1.PullPolicy(""))
+			assert.Equal(t, pod.Spec.Containers[0].Command, []string{"bash", "-c", "sleep infinity"})
+			assert.Equal(t, pod.Spec.Containers[0].Env, []corev1.EnvVar{{Name: "A", Value: "AAA"}})
+			assert.Equal(t, pod.Spec.Containers[0].VolumeMounts, []corev1.VolumeMount{{Name: "environment", ReadOnly: true, MountPath: "/tmp/injected"}})
+		}
+	})
+
+	t.Run("container with env vars + pod spec with env", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{podSpecWithEnv("default")})
 		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecDecoratorConfigMap: "pod-spec"})
 		podName := "mypod"
 		envSecretName := "mysecret"
@@ -225,17 +294,18 @@ func Test__CreatePod(t *testing.T) {
 			assert.Equal(t, pod.Spec.Containers[0].Image, "custom-image")
 			assert.Equal(t, pod.Spec.Containers[0].ImagePullPolicy, corev1.PullAlways)
 			assert.Equal(t, pod.Spec.Containers[0].Command, []string{"bash", "-c", "sleep infinity"})
-			assert.Equal(t, pod.Spec.Containers[0].Env, []corev1.EnvVar{{Name: "A", Value: "AAA"}})
 			assert.Equal(t, pod.Spec.Containers[0].VolumeMounts, []corev1.VolumeMount{{Name: "environment", ReadOnly: true, MountPath: "/tmp/injected"}})
+			assert.Equal(t, pod.Spec.Containers[0].Env, []corev1.EnvVar{
+				{Name: "A", Value: "AAA"},
+				{Name: "FOO_1", Value: "BAR_1"},
+				{Name: "FOO_2", Value: "BAR_2"},
+			})
 		}
 	})
 
 	t.Run("multiple containers", func(t *testing.T) {
-		clientset := newFakeClientset([]runtime.Object{
-			podSpecConfigMap("default", "Never"),
-		})
-
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecDecoratorConfigMap: "pod-spec"})
+		clientset := newFakeClientset([]runtime.Object{})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -277,15 +347,8 @@ func Test__CreatePod(t *testing.T) {
 	})
 
 	t.Run("no image pull secrets", func(t *testing.T) {
-		clientset := newFakeClientset([]runtime.Object{
-			podSpecConfigMap("default", "Never"),
-		})
-
-		client, _ := NewKubernetesClient(clientset, Config{
-			Namespace:                 "default",
-			PodSpecDecoratorConfigMap: "pod-spec",
-		})
-
+		clientset := newFakeClientset([]runtime.Object{})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
 		podName := "mypod"
 
 		// create pod using job request
@@ -308,9 +371,9 @@ func Test__CreatePod(t *testing.T) {
 		assert.Len(t, pod.Spec.ImagePullSecrets, 0)
 	})
 
-	t.Run("with image pull secrets from config", func(t *testing.T) {
+	t.Run("with image pull secrets from pod spec", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{
-			podSpecConfigMapWithImagePullSecret("default", "secret-1"),
+			podSpecWithImagePullSecret("default", "secret-1"),
 		})
 
 		client, err := NewKubernetesClient(clientset, Config{
@@ -344,16 +407,9 @@ func Test__CreatePod(t *testing.T) {
 		assert.Equal(t, pod.Spec.ImagePullSecrets, []corev1.LocalObjectReference{{Name: "secret-1"}})
 	})
 
-	t.Run("with image pull secret - ephemeral", func(t *testing.T) {
-		clientset := newFakeClientset([]runtime.Object{
-			podSpecConfigMap("default", "Never"),
-		})
-
-		client, _ := NewKubernetesClient(clientset, Config{
-			Namespace:                 "default",
-			PodSpecDecoratorConfigMap: "pod-spec",
-		})
-
+	t.Run("with image pull secret from YAML", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{})
+		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
 		podName := "mypod"
 
 		// create pod using job request
@@ -376,9 +432,9 @@ func Test__CreatePod(t *testing.T) {
 		assert.Equal(t, pod.Spec.ImagePullSecrets, []corev1.LocalObjectReference{{Name: "my-image-pull-secret"}})
 	})
 
-	t.Run("with image pull secret from config + ephemeral", func(t *testing.T) {
+	t.Run("with image pull secret from pod spec and from YAML", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{
-			podSpecConfigMapWithImagePullSecret("default", "secret-1"),
+			podSpecWithImagePullSecret("default", "secret-1"),
 		})
 
 		client, _ := NewKubernetesClient(clientset, Config{
@@ -409,6 +465,76 @@ func Test__CreatePod(t *testing.T) {
 			{Name: "secret-1"},
 			{Name: "my-image-pull-secret"},
 		})
+	})
+
+	t.Run("with resources", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{podSpecWithResources("default")})
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:                 "default",
+			PodSpecDecoratorConfigMap: "pod-spec",
+		})
+
+		podName := "mypod"
+
+		// create pod using job request
+		assert.NoError(t, client.CreatePod(podName, "myenvsecret", "my-image-pull-secret", &api.JobRequest{
+			Compose: api.Compose{
+				Containers: []api.Container{
+					{
+						Name:  "main",
+						Image: "custom-image",
+					},
+					{
+						Name:  "db",
+						Image: "postgres",
+					},
+					{
+						Name:  "cache",
+						Image: "redis",
+					},
+				},
+			},
+		}))
+
+		pod, err := clientset.CoreV1().
+			Pods("default").
+			Get(context.Background(), podName, v1.GetOptions{})
+
+		assert.NoError(t, err)
+		if assert.Len(t, pod.Spec.Containers, 3) {
+			assert.Equal(t, pod.Spec.Containers[0].Resources, corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceMemory: resource.MustParse("200Mi"),
+					corev1.ResourceCPU:    resource.MustParse("200m"),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceMemory: resource.MustParse("100Mi"),
+					corev1.ResourceCPU:    resource.MustParse("100m"),
+				},
+			})
+
+			assert.Equal(t, pod.Spec.Containers[1].Resources, corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceMemory: resource.MustParse("100Mi"),
+					corev1.ResourceCPU:    resource.MustParse("100m"),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceMemory: resource.MustParse("50Mi"),
+					corev1.ResourceCPU:    resource.MustParse("50m"),
+				},
+			})
+
+			assert.Equal(t, pod.Spec.Containers[2].Resources, corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					corev1.ResourceMemory: resource.MustParse("100Mi"),
+					corev1.ResourceCPU:    resource.MustParse("100m"),
+				},
+				Requests: corev1.ResourceList{
+					corev1.ResourceMemory: resource.MustParse("50Mi"),
+					corev1.ResourceCPU:    resource.MustParse("50m"),
+				},
+			})
+		}
 	})
 }
 
@@ -522,7 +648,22 @@ func newFakeClientset(objects []runtime.Object) kubernetes.Interface {
 	return fake.NewSimpleClientset(objects...)
 }
 
-func podSpecConfigMap(namespace, pullPolicy string) *corev1.ConfigMap {
+func podSpecWithEnv(namespace string) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: v1.ObjectMeta{Name: "pod-spec", Namespace: namespace},
+		Data: map[string]string{
+			"mainContainer": `
+        env:
+          - name: FOO_1
+            value: BAR_1
+          - name: FOO_2
+            value: BAR_2
+      `,
+		},
+	}
+}
+
+func podSpecWithImagePullPolicy(namespace, pullPolicy string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: v1.ObjectMeta{Name: "pod-spec", Namespace: namespace},
 		Data: map[string]string{
@@ -533,7 +674,7 @@ func podSpecConfigMap(namespace, pullPolicy string) *corev1.ConfigMap {
 	}
 }
 
-func podSpecConfigMapWithImagePullSecret(namespace, secretName string) *corev1.ConfigMap {
+func podSpecWithImagePullSecret(namespace, secretName string) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: v1.ObjectMeta{Name: "pod-spec", Namespace: namespace},
 		Data: map[string]string{
@@ -544,6 +685,32 @@ func podSpecConfigMapWithImagePullSecret(namespace, secretName string) *corev1.C
         imagePullSecrets:
           - name: %s
       `, secretName),
+		},
+	}
+}
+
+func podSpecWithResources(namespace string) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: v1.ObjectMeta{Name: "pod-spec", Namespace: namespace},
+		Data: map[string]string{
+			"mainContainer": `
+        resources:
+          limits:
+            cpu: 200m
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+      `,
+			"sidecarContainers": `
+        resources:
+          limits:
+            cpu: 100m
+            memory: 100Mi
+          requests:
+            cpu: 50m
+            memory: 50Mi
+       `,
 		},
 	}
 }
