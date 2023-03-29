@@ -73,11 +73,6 @@ func NewKubernetesClient(clientset kubernetes.Interface, config Config) (*Kubern
 		config:    config,
 	}
 
-	err := c.Init()
-	if err != nil {
-		return nil, err
-	}
-
 	return c, nil
 }
 
@@ -118,7 +113,7 @@ func NewClientsetFromConfig() (kubernetes.Interface, error) {
 // We use github.com/ghodss/yaml here
 // because it can deserialise from YAML by using the json
 // struct tags that are defined in the K8s API object structs.
-func (c *KubernetesClient) Init() error {
+func (c *KubernetesClient) LoadPodSpec() error {
 	if c.config.PodSpecDecoratorConfigMap == "" {
 		return nil
 	}
