@@ -36,6 +36,10 @@ func (v *ImageValidator) Validate(containers []api.Container) error {
 }
 
 func (v *ImageValidator) validateImage(image string) error {
+	if len(v.Expressions) == 0 {
+		return nil
+	}
+
 	for _, expression := range v.Expressions {
 		if expression.MatchString(image) {
 			return nil
