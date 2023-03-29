@@ -14,6 +14,7 @@ import (
 	"github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
+	"github.com/semaphoreci/agent/pkg/kubernetes"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
 	"github.com/semaphoreci/agent/pkg/random"
 	"github.com/semaphoreci/agent/pkg/retry"
@@ -22,6 +23,11 @@ import (
 )
 
 func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, config Config) (*JobProcessor, error) {
+	imageValidator, err := kubernetes.NewImageValidator(config.KubernetesAllowedImages)
+	if err != nil {
+		return nil, err
+	}
+
 	p := &JobProcessor{
 		HTTPClient:                       httpClient,
 		APIClient:                        apiClient,
@@ -40,6 +46,7 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		ExitOnShutdown:                   config.ExitOnShutdown,
 		KubernetesExecutor:               config.KubernetesExecutor,
 		KubernetesPodSpec:                config.KubernetesPodSpec,
+		KubernetesImageValidator:         imageValidator,
 		KubernetesPodStartTimeoutSeconds: config.KubernetesPodStartTimeoutSeconds,
 	}
 
@@ -80,6 +87,7 @@ type JobProcessor struct {
 	ExitOnShutdown                   bool
 	KubernetesExecutor               bool
 	KubernetesPodSpec                string
+	KubernetesImageValidator         *kubernetes.ImageValidator
 	KubernetesPodStartTimeoutSeconds int
 }
 
@@ -176,6 +184,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 		UseKubernetesExecutor:            p.KubernetesExecutor,
 		PodSpecDecoratorConfigMap:        p.KubernetesPodSpec,
 		KubernetesPodStartTimeoutSeconds: p.KubernetesPodStartTimeoutSeconds,
+		KubernetesImageValidator:         p.KubernetesImageValidator,
 		UploadJobLogs:                    p.UploadJobLogs,
 		RefreshTokenFn: func() (string, error) {
 			return p.APIClient.RefreshToken()

@@ -41,6 +41,7 @@ type Config struct {
 	AgentName                        string
 	KubernetesExecutor               bool
 	KubernetesPodSpec                string
+	KubernetesAllowedImages          []string
 	KubernetesPodStartTimeoutSeconds int
 }
 

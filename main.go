@@ -123,7 +123,8 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	_ = pflag.String(config.UploadJobLogs, config.UploadJobLogsConditionNever, "When should the agent upload the job logs as a job artifact. Default is never.")
 	_ = pflag.Bool(config.FailOnPreJobHookError, false, "Fail job if pre-job hook fails")
 	_ = pflag.Bool(config.KubernetesExecutor, false, "Use Kubernetes executor")
-	_ = pflag.String(config.KubernetesPodSpec, "", "Use a Kubernetes configmap to decorate the pod created to run the Semaphore job.")
+	_ = pflag.String(config.KubernetesPodSpec, "", "Use a Kubernetes configmap to decorate the pod created to run the Semaphore job")
+	_ = pflag.StringSlice(config.KubernetesAllowedImages, []string{}, "List of regexes for allowed images to use for the Kubernetes executor")
 	_ = pflag.Int(
 		config.KubernetesPodStartTimeout,
 		config.DefaultKubernetesPodStartTimeout,
@@ -200,6 +201,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		ExitOnShutdown:                   true,
 		KubernetesExecutor:               viper.GetBool(config.KubernetesExecutor),
 		KubernetesPodSpec:                viper.GetString(config.KubernetesPodSpec),
+		KubernetesAllowedImages:          viper.GetStringSlice(config.KubernetesAllowedImages),
 		KubernetesPodStartTimeoutSeconds: viper.GetInt(config.KubernetesPodStartTimeout),
 	}
 

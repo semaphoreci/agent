@@ -26,6 +26,7 @@ import (
 
 type Config struct {
 	Namespace                 string
+	ImageValidator            *ImageValidator
 	PodSpecDecoratorConfigMap string
 	PodPollingAttempts        int
 	PodPollingInterval        time.Duration
@@ -340,6 +341,10 @@ func (c *KubernetesClient) imagePullSecrets(imagePullSecret string) []corev1.Loc
 
 func (c *KubernetesClient) containers(apiContainers []api.Container) ([]corev1.Container, error) {
 	if len(apiContainers) > 0 {
+		if err := c.config.ImageValidator.Validate(apiContainers); err != nil {
+			return []corev1.Container{}, fmt.Errorf("error validating images: %v", err)
+		}
+
 		return c.convertContainersFromSemaphore(apiContainers), nil
 	}
 
