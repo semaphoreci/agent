@@ -20,9 +20,7 @@ const (
 	FailOnPreJobHookError      = "fail-on-pre-job-hook-error"
 	InterruptionGracePeriod    = "interruption-grace-period"
 	KubernetesExecutor         = "kubernetes-executor"
-	KubernetesDefaultImage     = "kubernetes-default-image"
-	KubernetesImagePullPolicy  = "kubernetes-image-pull-policy"
-	KubernetesImagePullSecrets = "kubernetes-image-pull-secrets"
+	KubernetesPodSpec          = "kubernetes-pod-spec"
 	KubernetesPodStartTimeout  = "kubernetes-pod-start-timeout"
 )
 
@@ -74,9 +72,7 @@ var ValidConfigKeys = []string{
 	FailOnPreJobHookError,
 	InterruptionGracePeriod,
 	KubernetesExecutor,
-	KubernetesDefaultImage,
-	KubernetesImagePullPolicy,
-	KubernetesImagePullSecrets,
+	KubernetesPodSpec,
 	KubernetesPodStartTimeout,
 }
 

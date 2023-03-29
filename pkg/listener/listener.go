@@ -40,9 +40,7 @@ type Config struct {
 	AgentVersion                     string
 	AgentName                        string
 	KubernetesExecutor               bool
-	KubernetesDefaultImage           string
-	KubernetesImagePullPolicy        string
-	KubernetesImagePullSecrets       []string
+	KubernetesPodSpec                string
 	KubernetesPodStartTimeoutSeconds int
 }
 

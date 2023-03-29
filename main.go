@@ -123,9 +123,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	_ = pflag.String(config.UploadJobLogs, config.UploadJobLogsConditionNever, "When should the agent upload the job logs as a job artifact. Default is never.")
 	_ = pflag.Bool(config.FailOnPreJobHookError, false, "Fail job if pre-job hook fails")
 	_ = pflag.Bool(config.KubernetesExecutor, false, "Use Kubernetes executor")
-	_ = pflag.String(config.KubernetesDefaultImage, "", "Default image used for jobs that do not specify images, when using kubernetes executor")
-	_ = pflag.String(config.KubernetesImagePullPolicy, config.ImagePullPolicyNever, "Image pull policy to use for Kubernetes executor. Default is never.")
-	_ = pflag.StringSlice(config.KubernetesImagePullSecrets, []string{}, "Kubernetes secrets to use to pull images.")
+	_ = pflag.String(config.KubernetesPodSpec, "", "Use a Kubernetes configmap to decorate the pod created to run the Semaphore job.")
 	_ = pflag.Int(
 		config.KubernetesPodStartTimeout,
 		config.DefaultKubernetesPodStartTimeout,
@@ -201,9 +199,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		AgentVersion:                     VERSION,
 		ExitOnShutdown:                   true,
 		KubernetesExecutor:               viper.GetBool(config.KubernetesExecutor),
-		KubernetesDefaultImage:           viper.GetString(config.KubernetesDefaultImage),
-		KubernetesImagePullPolicy:        viper.GetString(config.KubernetesImagePullPolicy),
-		KubernetesImagePullSecrets:       viper.GetStringSlice(config.KubernetesImagePullSecrets),
+		KubernetesPodSpec:                viper.GetString(config.KubernetesPodSpec),
 		KubernetesPodStartTimeoutSeconds: viper.GetInt(config.KubernetesPodStartTimeout),
 	}
 
@@ -242,16 +238,6 @@ func validateConfiguration() {
 			uploadJobLogs,
 			config.UploadJobLogs,
 			config.ValidUploadJobLogsCondition,
-		)
-	}
-
-	imagePullPolicy := viper.GetString(config.KubernetesImagePullPolicy)
-	if !slices.Contains(config.ValidImagePullPolicies, imagePullPolicy) {
-		log.Fatalf(
-			"Unsupported value '%s' for '%s'. Allowed values are: %v. Exiting...",
-			imagePullPolicy,
-			config.KubernetesImagePullPolicy,
-			config.ValidImagePullPolicies,
 		)
 	}
 }
