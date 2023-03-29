@@ -137,6 +137,7 @@ func Test__CreatePod(t *testing.T) {
 	t.Run("no containers from YAML -> error", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
 		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
+		_ = client.LoadPodSpec()
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -154,6 +155,7 @@ func Test__CreatePod(t *testing.T) {
 			return
 		}
 
+		_ = client.LoadPodSpec()
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -189,6 +191,7 @@ func Test__CreatePod(t *testing.T) {
 			return
 		}
 
+		_ = client.LoadPodSpec()
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -224,6 +227,7 @@ func Test__CreatePod(t *testing.T) {
 	t.Run("container with env vars", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
 		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
+		_ = client.LoadPodSpec()
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -263,6 +267,7 @@ func Test__CreatePod(t *testing.T) {
 	t.Run("container with env vars + pod spec with env", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{podSpecWithEnv("default")})
 		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecDecoratorConfigMap: "pod-spec"})
+		_ = client.LoadPodSpec()
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -306,6 +311,7 @@ func Test__CreatePod(t *testing.T) {
 	t.Run("multiple containers", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
 		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
+		_ = client.LoadPodSpec()
 		podName := "mypod"
 		envSecretName := "mysecret"
 
@@ -349,6 +355,7 @@ func Test__CreatePod(t *testing.T) {
 	t.Run("no image pull secrets", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
 		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
+		_ = client.LoadPodSpec()
 		podName := "mypod"
 
 		// create pod using job request
@@ -385,6 +392,7 @@ func Test__CreatePod(t *testing.T) {
 			return
 		}
 
+		_ = client.LoadPodSpec()
 		podName := "mypod"
 
 		// create pod using job request
@@ -410,6 +418,7 @@ func Test__CreatePod(t *testing.T) {
 	t.Run("with image pull secret from YAML", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
 		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
+		_ = client.LoadPodSpec()
 		podName := "mypod"
 
 		// create pod using job request
@@ -442,6 +451,7 @@ func Test__CreatePod(t *testing.T) {
 			PodSpecDecoratorConfigMap: "pod-spec",
 		})
 
+		_ = client.LoadPodSpec()
 		podName := "mypod"
 
 		// create pod using job request
@@ -474,6 +484,7 @@ func Test__CreatePod(t *testing.T) {
 			PodSpecDecoratorConfigMap: "pod-spec",
 		})
 
+		_ = client.LoadPodSpec()
 		podName := "mypod"
 
 		// create pod using job request
