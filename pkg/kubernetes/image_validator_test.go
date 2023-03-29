@@ -8,6 +8,11 @@ import (
 )
 
 func Test__ImageValidator(t *testing.T) {
+	t.Run("bad expression => error creating validator", func(t *testing.T) {
+		_, err := NewImageValidator([]string{"(.*)\\((.*)\\) ?(? U)"})
+		assert.Error(t, err)
+	})
+
 	t.Run("no expressions => no restrictions", func(t *testing.T) {
 		imageValidator, err := NewImageValidator([]string{})
 		assert.NoError(t, err)

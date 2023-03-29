@@ -136,7 +136,12 @@ func Test__CreateImagePullSecret(t *testing.T) {
 func Test__CreatePod(t *testing.T) {
 	t.Run("no containers from YAML -> error", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
+		imageValidator, _ := NewImageValidator([]string{})
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:      "default",
+			ImageValidator: imageValidator,
+		})
+
 		_ = client.LoadPodSpec()
 		podName := "mypod"
 		envSecretName := "mysecret"
@@ -150,7 +155,12 @@ func Test__CreatePod(t *testing.T) {
 
 	t.Run("containers and no pod spec", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
-		client, err := NewKubernetesClient(clientset, Config{Namespace: "default"})
+		imageValidator, _ := NewImageValidator([]string{})
+		client, err := NewKubernetesClient(clientset, Config{
+			Namespace:      "default",
+			ImageValidator: imageValidator,
+		})
+
 		if !assert.NoError(t, err) {
 			return
 		}
@@ -186,7 +196,13 @@ func Test__CreatePod(t *testing.T) {
 			podSpecWithImagePullPolicy("default", "Always"),
 		})
 
-		client, err := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecDecoratorConfigMap: "pod-spec"})
+		imageValidator, _ := NewImageValidator([]string{})
+		client, err := NewKubernetesClient(clientset, Config{
+			Namespace:                 "default",
+			PodSpecDecoratorConfigMap: "pod-spec",
+			ImageValidator:            imageValidator,
+		})
+
 		if !assert.NoError(t, err) {
 			return
 		}
@@ -226,7 +242,12 @@ func Test__CreatePod(t *testing.T) {
 
 	t.Run("container with env vars", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
+		imageValidator, _ := NewImageValidator([]string{})
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:      "default",
+			ImageValidator: imageValidator,
+		})
+
 		_ = client.LoadPodSpec()
 		podName := "mypod"
 		envSecretName := "mysecret"
@@ -266,7 +287,13 @@ func Test__CreatePod(t *testing.T) {
 
 	t.Run("container with env vars + pod spec with env", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{podSpecWithEnv("default")})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default", PodSpecDecoratorConfigMap: "pod-spec"})
+		imageValidator, _ := NewImageValidator([]string{})
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:                 "default",
+			PodSpecDecoratorConfigMap: "pod-spec",
+			ImageValidator:            imageValidator,
+		})
+
 		_ = client.LoadPodSpec()
 		podName := "mypod"
 		envSecretName := "mysecret"
@@ -310,7 +337,12 @@ func Test__CreatePod(t *testing.T) {
 
 	t.Run("multiple containers", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
+		imageValidator, _ := NewImageValidator([]string{})
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:      "default",
+			ImageValidator: imageValidator,
+		})
+
 		_ = client.LoadPodSpec()
 		podName := "mypod"
 		envSecretName := "mysecret"
@@ -354,7 +386,12 @@ func Test__CreatePod(t *testing.T) {
 
 	t.Run("no image pull secrets", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
+		imageValidator, _ := NewImageValidator([]string{})
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:      "default",
+			ImageValidator: imageValidator,
+		})
+
 		_ = client.LoadPodSpec()
 		podName := "mypod"
 
@@ -383,9 +420,11 @@ func Test__CreatePod(t *testing.T) {
 			podSpecWithImagePullSecret("default", "secret-1"),
 		})
 
+		imageValidator, _ := NewImageValidator([]string{})
 		client, err := NewKubernetesClient(clientset, Config{
 			Namespace:                 "default",
 			PodSpecDecoratorConfigMap: "pod-spec",
+			ImageValidator:            imageValidator,
 		})
 
 		if !assert.NoError(t, err) {
@@ -417,7 +456,12 @@ func Test__CreatePod(t *testing.T) {
 
 	t.Run("with image pull secret from YAML", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
-		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
+		imageValidator, _ := NewImageValidator([]string{})
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:      "default",
+			ImageValidator: imageValidator,
+		})
+
 		_ = client.LoadPodSpec()
 		podName := "mypod"
 
@@ -446,9 +490,11 @@ func Test__CreatePod(t *testing.T) {
 			podSpecWithImagePullSecret("default", "secret-1"),
 		})
 
+		imageValidator, _ := NewImageValidator([]string{})
 		client, _ := NewKubernetesClient(clientset, Config{
 			Namespace:                 "default",
 			PodSpecDecoratorConfigMap: "pod-spec",
+			ImageValidator:            imageValidator,
 		})
 
 		_ = client.LoadPodSpec()
@@ -479,9 +525,11 @@ func Test__CreatePod(t *testing.T) {
 
 	t.Run("with resources", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{podSpecWithResources("default")})
+		imageValidator, _ := NewImageValidator([]string{})
 		client, _ := NewKubernetesClient(clientset, Config{
 			Namespace:                 "default",
 			PodSpecDecoratorConfigMap: "pod-spec",
+			ImageValidator:            imageValidator,
 		})
 
 		_ = client.LoadPodSpec()

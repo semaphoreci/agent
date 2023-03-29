@@ -18,6 +18,7 @@ import (
 	"github.com/semaphoreci/agent/pkg/config"
 	"github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
+	"github.com/semaphoreci/agent/pkg/kubernetes"
 	listener "github.com/semaphoreci/agent/pkg/listener"
 	server "github.com/semaphoreci/agent/pkg/server"
 	slices "github.com/semaphoreci/agent/pkg/slices"
@@ -201,7 +202,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		ExitOnShutdown:                   true,
 		KubernetesExecutor:               viper.GetBool(config.KubernetesExecutor),
 		KubernetesPodSpec:                viper.GetString(config.KubernetesPodSpec),
-		KubernetesAllowedImages:          viper.GetStringSlice(config.KubernetesAllowedImages),
+		KubernetesImageValidator:         createImageValidator(viper.GetStringSlice(config.KubernetesAllowedImages)),
 		KubernetesPodStartTimeoutSeconds: viper.GetInt(config.KubernetesPodStartTimeout),
 	}
 
@@ -213,6 +214,15 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	}()
 
 	select {}
+}
+
+func createImageValidator(expressions []string) *kubernetes.ImageValidator {
+	imageValidator, err := kubernetes.NewImageValidator(expressions)
+	if err != nil {
+		log.Panicf("Error creating image validator: %v", err)
+	}
+
+	return imageValidator
 }
 
 func loadConfigFile(configFile string) {

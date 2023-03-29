@@ -23,11 +23,6 @@ import (
 )
 
 func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, config Config) (*JobProcessor, error) {
-	imageValidator, err := kubernetes.NewImageValidator(config.KubernetesAllowedImages)
-	if err != nil {
-		return nil, err
-	}
-
 	p := &JobProcessor{
 		HTTPClient:                       httpClient,
 		APIClient:                        apiClient,
@@ -46,7 +41,7 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		ExitOnShutdown:                   config.ExitOnShutdown,
 		KubernetesExecutor:               config.KubernetesExecutor,
 		KubernetesPodSpec:                config.KubernetesPodSpec,
-		KubernetesImageValidator:         imageValidator,
+		KubernetesImageValidator:         config.KubernetesImageValidator,
 		KubernetesPodStartTimeoutSeconds: config.KubernetesPodStartTimeoutSeconds,
 	}
 
