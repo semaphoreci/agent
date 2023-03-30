@@ -5,6 +5,7 @@ import "os"
 const (
 	ConfigFile                 = "config-file"
 	Name                       = "name"
+	NameFromEnv                = "name-from-env"
 	Endpoint                   = "endpoint"
 	Token                      = "token"
 	NoHTTPS                    = "no-https"
@@ -19,9 +20,8 @@ const (
 	FailOnPreJobHookError      = "fail-on-pre-job-hook-error"
 	InterruptionGracePeriod    = "interruption-grace-period"
 	KubernetesExecutor         = "kubernetes-executor"
-	KubernetesDefaultImage     = "kubernetes-default-image"
-	KubernetesImagePullPolicy  = "kubernetes-image-pull-policy"
-	KubernetesImagePullSecrets = "kubernetes-image-pull-secrets"
+	KubernetesPodSpec          = "kubernetes-pod-spec"
+	KubernetesAllowedImages    = "kubernetes-allowed-images"
 	KubernetesPodStartTimeout  = "kubernetes-pod-start-timeout"
 )
 
@@ -58,6 +58,7 @@ var ValidUploadJobLogsCondition = []string{
 var ValidConfigKeys = []string{
 	ConfigFile,
 	Name,
+	NameFromEnv,
 	Endpoint,
 	Token,
 	NoHTTPS,
@@ -72,9 +73,8 @@ var ValidConfigKeys = []string{
 	FailOnPreJobHookError,
 	InterruptionGracePeriod,
 	KubernetesExecutor,
-	KubernetesDefaultImage,
-	KubernetesImagePullPolicy,
-	KubernetesImagePullSecrets,
+	KubernetesPodSpec,
+	KubernetesAllowedImages,
 	KubernetesPodStartTimeout,
 }
 

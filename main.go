@@ -18,6 +18,7 @@ import (
 	"github.com/semaphoreci/agent/pkg/config"
 	"github.com/semaphoreci/agent/pkg/eventlogger"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
+	"github.com/semaphoreci/agent/pkg/kubernetes"
 	listener "github.com/semaphoreci/agent/pkg/listener"
 	server "github.com/semaphoreci/agent/pkg/server"
 	slices "github.com/semaphoreci/agent/pkg/slices"
@@ -108,6 +109,7 @@ func getLogFilePath() string {
 func RunListener(httpClient *http.Client, logfile io.Writer) {
 	configFile := pflag.String(config.ConfigFile, "", "Config file")
 	_ = pflag.String(config.Name, "", "Name to use for the agent. If not set, a default random one is used.")
+	_ = pflag.String(config.NameFromEnv, "", "Specify name to use for the agent, using an environment variable. If --name and --name-from-env are empty, a random one is generated.")
 	_ = pflag.String(config.Endpoint, "", "Endpoint where agents are registered")
 	_ = pflag.String(config.Token, "", "Registration token")
 	_ = pflag.Bool(config.NoHTTPS, false, "Use http for communication")
@@ -122,9 +124,8 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	_ = pflag.String(config.UploadJobLogs, config.UploadJobLogsConditionNever, "When should the agent upload the job logs as a job artifact. Default is never.")
 	_ = pflag.Bool(config.FailOnPreJobHookError, false, "Fail job if pre-job hook fails")
 	_ = pflag.Bool(config.KubernetesExecutor, false, "Use Kubernetes executor")
-	_ = pflag.String(config.KubernetesDefaultImage, "", "Default image used for jobs that do not specify images, when using kubernetes executor")
-	_ = pflag.String(config.KubernetesImagePullPolicy, config.ImagePullPolicyNever, "Image pull policy to use for Kubernetes executor. Default is never.")
-	_ = pflag.StringSlice(config.KubernetesImagePullSecrets, []string{}, "Kubernetes secrets to use to pull images.")
+	_ = pflag.String(config.KubernetesPodSpec, "", "Use a Kubernetes configmap to decorate the pod created to run the Semaphore job")
+	_ = pflag.StringSlice(config.KubernetesAllowedImages, []string{}, "List of regexes for allowed images to use for the Kubernetes executor")
 	_ = pflag.Int(
 		config.KubernetesPodStartTimeout,
 		config.DefaultKubernetesPodStartTimeout,
@@ -200,9 +201,8 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		AgentVersion:                     VERSION,
 		ExitOnShutdown:                   true,
 		KubernetesExecutor:               viper.GetBool(config.KubernetesExecutor),
-		KubernetesDefaultImage:           viper.GetString(config.KubernetesDefaultImage),
-		KubernetesImagePullPolicy:        viper.GetString(config.KubernetesImagePullPolicy),
-		KubernetesImagePullSecrets:       viper.GetStringSlice(config.KubernetesImagePullSecrets),
+		KubernetesPodSpec:                viper.GetString(config.KubernetesPodSpec),
+		KubernetesImageValidator:         createImageValidator(viper.GetStringSlice(config.KubernetesAllowedImages)),
 		KubernetesPodStartTimeoutSeconds: viper.GetInt(config.KubernetesPodStartTimeout),
 	}
 
@@ -214,6 +214,15 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	}()
 
 	select {}
+}
+
+func createImageValidator(expressions []string) *kubernetes.ImageValidator {
+	imageValidator, err := kubernetes.NewImageValidator(expressions)
+	if err != nil {
+		log.Panicf("Error creating image validator: %v", err)
+	}
+
+	return imageValidator
 }
 
 func loadConfigFile(configFile string) {
@@ -243,28 +252,32 @@ func validateConfiguration() {
 			config.ValidUploadJobLogsCondition,
 		)
 	}
-
-	imagePullPolicy := viper.GetString(config.KubernetesImagePullPolicy)
-	if !slices.Contains(config.ValidImagePullPolicies, imagePullPolicy) {
-		log.Fatalf(
-			"Unsupported value '%s' for '%s'. Allowed values are: %v. Exiting...",
-			imagePullPolicy,
-			config.KubernetesImagePullPolicy,
-			config.ValidImagePullPolicies,
-		)
-	}
 }
 
 func getAgentName() string {
+	// --name configuration parameter was specified.
 	agentName := viper.GetString(config.Name)
 	if agentName != "" {
-		if len(agentName) < 8 || len(agentName) > 64 {
-			log.Fatalf("The agent name should have between 8 and 64 characters. '%s' has %d.", agentName, len(agentName))
+		if len(agentName) < 8 || len(agentName) > 80 {
+			log.Fatalf("The agent name should have between 8 and 80 characters. '%s' has %d.", agentName, len(agentName))
 		}
 
 		return agentName
 	}
 
+	// --name-from-env configuration parameter was passed.
+	// We need to fetch the actual name from the environment variable.
+	envVarName := viper.GetString(config.NameFromEnv)
+	if envVarName != "" {
+		agentName := os.Getenv(envVarName)
+		if len(agentName) < 8 || len(agentName) > 80 {
+			log.Fatalf("The agent name should have between 8 and 80 characters. '%s' has %d.", agentName, len(agentName))
+		}
+
+		return agentName
+	}
+
+	// No name was specified - we generate a random one.
 	log.Infof("Agent name was not assigned - using a random one.")
 	randomName, err := randomName()
 	if err != nil {

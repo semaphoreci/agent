@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/semaphoreci/agent/pkg/config"
+	"github.com/semaphoreci/agent/pkg/kubernetes"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
 	osinfo "github.com/semaphoreci/agent/pkg/osinfo"
 	"github.com/semaphoreci/agent/pkg/retry"
@@ -40,9 +41,8 @@ type Config struct {
 	AgentVersion                     string
 	AgentName                        string
 	KubernetesExecutor               bool
-	KubernetesDefaultImage           string
-	KubernetesImagePullPolicy        string
-	KubernetesImagePullSecrets       []string
+	KubernetesPodSpec                string
+	KubernetesImageValidator         *kubernetes.ImageValidator
 	KubernetesPodStartTimeoutSeconds int
 }
 

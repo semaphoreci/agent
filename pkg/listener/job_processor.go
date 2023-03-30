@@ -14,6 +14,7 @@ import (
 	"github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
+	"github.com/semaphoreci/agent/pkg/kubernetes"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
 	"github.com/semaphoreci/agent/pkg/random"
 	"github.com/semaphoreci/agent/pkg/retry"
@@ -39,9 +40,8 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		FailOnPreJobHookError:            config.FailOnPreJobHookError,
 		ExitOnShutdown:                   config.ExitOnShutdown,
 		KubernetesExecutor:               config.KubernetesExecutor,
-		KubernetesDefaultImage:           config.KubernetesDefaultImage,
-		KubernetesImagePullPolicy:        config.KubernetesImagePullPolicy,
-		KubernetesImagePullSecrets:       config.KubernetesImagePullSecrets,
+		KubernetesPodSpec:                config.KubernetesPodSpec,
+		KubernetesImageValidator:         config.KubernetesImageValidator,
 		KubernetesPodStartTimeoutSeconds: config.KubernetesPodStartTimeoutSeconds,
 	}
 
@@ -81,9 +81,8 @@ type JobProcessor struct {
 	FailOnPreJobHookError            bool
 	ExitOnShutdown                   bool
 	KubernetesExecutor               bool
-	KubernetesDefaultImage           string
-	KubernetesImagePullPolicy        string
-	KubernetesImagePullSecrets       []string
+	KubernetesPodSpec                string
+	KubernetesImageValidator         *kubernetes.ImageValidator
 	KubernetesPodStartTimeoutSeconds int
 }
 
@@ -178,10 +177,9 @@ func (p *JobProcessor) RunJob(jobID string) {
 		FailOnMissingFiles:               p.FailOnMissingFiles,
 		SelfHosted:                       true,
 		UseKubernetesExecutor:            p.KubernetesExecutor,
-		KubernetesDefaultImage:           p.KubernetesDefaultImage,
-		KubernetesImagePullPolicy:        p.KubernetesImagePullPolicy,
-		KubernetesImagePullSecrets:       p.KubernetesImagePullSecrets,
+		PodSpecDecoratorConfigMap:        p.KubernetesPodSpec,
 		KubernetesPodStartTimeoutSeconds: p.KubernetesPodStartTimeoutSeconds,
+		KubernetesImageValidator:         p.KubernetesImageValidator,
 		UploadJobLogs:                    p.UploadJobLogs,
 		RefreshTokenFn: func() (string, error) {
 			return p.APIClient.RefreshToken()
