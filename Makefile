@@ -23,6 +23,13 @@ check.deps: check.prepare
 		registry.semaphoreci.com/ruby:2.7 \
 		bash -c 'cd /app && $(SECURITY_TOOLBOX_TMP_DIR)/dependencies --language go -d'
 
+check.docker: check.prepare
+	docker run -it -v $$(pwd):/app \
+		-v $(SECURITY_TOOLBOX_TMP_DIR):$(SECURITY_TOOLBOX_TMP_DIR) \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		registry.semaphoreci.com/ruby:2.7 \
+		bash -c 'cd /app && $(SECURITY_TOOLBOX_TMP_DIR)/docker -d --image semaphoreci/agent:latest --skip-files Dockerfile.ecr,Dockerfile.test,test/hub_reference/Dockerfile,Dockerfile.empty_ubuntu'
+
 lint:
 	revive -formatter friendly -config lint.toml ./...
 

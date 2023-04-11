@@ -8,44 +8,26 @@ ARG USER_GID=$USER_UID
 
 # Create the user
 RUN groupadd --gid $USER_GID $USERNAME && \
-  useradd --uid $USER_UID --gid $USER_GID -m $USERNAME && \
-  apt-get update && \
-  apt-get install -y sudo && \
-  echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME && \
-  chmod 0440 /etc/sudoers.d/$USERNAME
+  useradd --uid $USER_UID --gid $USER_GID -m $USERNAME
 
-# Make it the default user
-USER $USERNAME
-
-RUN sudo apt-get update -y
-RUN sudo apt-get install -y ca-certificates curl git jq
-RUN sudo update-ca-certificates
+RUN apt-get update -y && apt-get install -y ca-certificates curl
+RUN update-ca-certificates
 
 # kubectl is required to be present in the container running the agent
-RUN sudo curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-RUN sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-
-# Install Semaphore toolbox
-RUN curl -sL https://github.com/semaphoreci/toolbox/releases/latest/download/self-hosted-linux.tar -o /home/semaphore/toolbox.tar && \
-  tar -xf /home/semaphore/toolbox.tar -C /home/semaphore && \
-  mv /home/semaphore/toolbox /home/semaphore/.toolbox && \
-  /home/semaphore/.toolbox/install-toolbox && \
-  echo 'source /home/semaphore/.toolbox/toolbox' >> /home/semaphore/.bash_profile && \
-  rm /home/semaphore/toolbox.tar
-
-# Make sure GitHub keys are in the image
-RUN mkdir -p /home/semaphore/.ssh && \
-  curl -sL https://api.github.com/meta | jq -r '.ssh_keys[]' | sed 's/^/github.com /' | tee -a /home/semaphore/.ssh/known_hosts
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+RUN install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
 # Install Semaphore agent
-RUN sudo mkdir -p /opt/semaphore && \
-  sudo curl -L https://github.com/semaphoreci/agent/releases/download/${AGENT_VERSION}/agent_Linux_x86_64.tar.gz -o /opt/semaphore/agent.tar.gz && \
-  sudo tar -xf /opt/semaphore/agent.tar.gz -C /opt/semaphore && \
-  sudo rm /opt/semaphore/agent.tar.gz && \
-  sudo rm /opt/semaphore/README.md && \
-  sudo rm /opt/semaphore/install.sh && \
-  sudo chown ${USER_UID}:${USER_GID} /opt/semaphore
+RUN mkdir -p /opt/semaphore && \
+  curl -L https://github.com/semaphoreci/agent/releases/download/${AGENT_VERSION}/agent_Linux_x86_64.tar.gz -o /opt/semaphore/agent.tar.gz && \
+  tar -xf /opt/semaphore/agent.tar.gz -C /opt/semaphore && \
+  rm /opt/semaphore/agent.tar.gz && \
+  rm /opt/semaphore/README.md && \
+  rm /opt/semaphore/install.sh && \
+  chown ${USER_UID}:${USER_GID} /opt/semaphore
 
+USER $USERNAME
 WORKDIR /home/semaphore
+HEALTHCHECK NONE
 
 CMD ["/opt/semaphore/agent", "start", "--config-file", "/opt/semaphore/semaphore-agent.yml"]
