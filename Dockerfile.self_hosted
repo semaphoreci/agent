@@ -1,12 +1,33 @@
 FROM ubuntu:20.04
 
-RUN apt-get update -qy
-RUN apt-get install -y ca-certificates openssh-client
+ARG AGENT_VERSION
+
+ARG USERNAME=semaphore
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+
+# Create the user
+RUN groupadd --gid $USER_GID $USERNAME && \
+  useradd --uid $USER_UID --gid $USER_GID -m $USERNAME
+
+RUN apt-get update -y && apt-get install -y ca-certificates curl
 RUN update-ca-certificates
 
-ADD build/agent /app/agent
-RUN chmod +x /app/agent
+# kubectl is required to be present in the container running the agent
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+RUN install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
-WORKDIR /app
+# Install Semaphore agent
+RUN mkdir -p /opt/semaphore && \
+  curl -L https://github.com/semaphoreci/agent/releases/download/${AGENT_VERSION}/agent_Linux_x86_64.tar.gz -o /opt/semaphore/agent.tar.gz && \
+  tar -xf /opt/semaphore/agent.tar.gz -C /opt/semaphore && \
+  rm /opt/semaphore/agent.tar.gz && \
+  rm /opt/semaphore/README.md && \
+  rm /opt/semaphore/install.sh && \
+  chown ${USER_UID}:${USER_GID} /opt/semaphore
 
-CMD /app/agent start --endpoint $ENDPOINT --token $TOKEN
+USER $USERNAME
+WORKDIR /home/semaphore
+HEALTHCHECK NONE
+
+CMD ["/opt/semaphore/agent", "start", "--config-file", "/opt/semaphore/semaphore-agent.yml"]
