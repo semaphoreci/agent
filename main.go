@@ -123,6 +123,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	_ = pflag.Bool(config.FailOnMissingFiles, false, "Fail job if files specified using --files are missing")
 	_ = pflag.String(config.UploadJobLogs, config.UploadJobLogsConditionNever, "When should the agent upload the job logs as a job artifact. Default is never.")
 	_ = pflag.Bool(config.FailOnPreJobHookError, false, "Fail job if pre-job hook fails")
+	_ = pflag.Bool(config.SourcePreJobHook, false, "Execute pre-job hook in the current shell (using 'source <script>') instead of in a new shell (using 'bash <script>')")
 	_ = pflag.Bool(config.KubernetesExecutor, false, "Use Kubernetes executor")
 	_ = pflag.String(config.KubernetesPodSpec, "", "Use a Kubernetes configmap to decorate the pod created to run the Semaphore job")
 	_ = pflag.StringSlice(config.KubernetesAllowedImages, []string{}, "List of regexes for allowed images to use for the Kubernetes executor")
@@ -198,6 +199,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		FailOnMissingFiles:               viper.GetBool(config.FailOnMissingFiles),
 		UploadJobLogs:                    viper.GetString(config.UploadJobLogs),
 		FailOnPreJobHookError:            viper.GetBool(config.FailOnPreJobHookError),
+		SourcePreJobHook:                 viper.GetBool(config.SourcePreJobHook),
 		AgentVersion:                     VERSION,
 		ExitOnShutdown:                   true,
 		KubernetesExecutor:               viper.GetBool(config.KubernetesExecutor),

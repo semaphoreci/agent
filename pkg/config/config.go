@@ -18,6 +18,7 @@ const (
 	FailOnMissingFiles         = "fail-on-missing-files"
 	UploadJobLogs              = "upload-job-logs"
 	FailOnPreJobHookError      = "fail-on-pre-job-hook-error"
+	SourcePreJobHook           = "source-pre-job-hook"
 	InterruptionGracePeriod    = "interruption-grace-period"
 	KubernetesExecutor         = "kubernetes-executor"
 	KubernetesPodSpec          = "kubernetes-pod-spec"
@@ -71,6 +72,7 @@ var ValidConfigKeys = []string{
 	FailOnMissingFiles,
 	UploadJobLogs,
 	FailOnPreJobHookError,
+	SourcePreJobHook,
 	InterruptionGracePeriod,
 	KubernetesExecutor,
 	KubernetesPodSpec,
