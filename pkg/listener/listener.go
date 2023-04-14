@@ -37,6 +37,7 @@ type Config struct {
 	FailOnMissingFiles               bool
 	UploadJobLogs                    string
 	FailOnPreJobHookError            bool
+	SourcePreJobHook                 bool
 	ExitOnShutdown                   bool
 	AgentVersion                     string
 	AgentName                        string

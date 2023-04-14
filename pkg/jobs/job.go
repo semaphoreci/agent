@@ -148,6 +148,7 @@ type RunOptions struct {
 	FileInjections        []config.FileInjection
 	PreJobHookPath        string
 	FailOnPreJobHookError bool
+	SourcePreJobHook      bool
 	OnJobFinished         func(selfhostedapi.JobResult)
 	CallbackRetryAttempts int
 }
@@ -173,6 +174,16 @@ func (o *RunOptions) GetPreJobHookCommand() string {
 	 */
 	if runtime.GOOS == "windows" {
 		return o.PreJobHookPath
+	}
+
+	/*
+	 * This executes the pre-job hook without opening a new shell.
+	 * That means that changes to the environment performed in the hook
+	 * (current directory, environment variables, export commands)
+	 * will be visible by the next job commands.
+	 */
+	if o.SourcePreJobHook {
+		return fmt.Sprintf("source %s", o.PreJobHookPath)
 	}
 
 	return fmt.Sprintf("bash %s", o.PreJobHookPath)
