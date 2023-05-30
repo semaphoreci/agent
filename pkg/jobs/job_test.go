@@ -1073,6 +1073,76 @@ func Test__UsePreJobHook(t *testing.T) {
 	os.Remove(hook)
 }
 
+func Test__UsePostJobHook(t *testing.T) {
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		EnvVars: []api.EnvVar{},
+		Commands: []api.Command{
+			{Directive: testsupport.Output("hello")},
+		},
+		EpilogueAlwaysCommands: []api.Command{
+			{Directive: testsupport.Output("On EpilogueAlways")},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+		},
+	}
+
+	job, err := NewJobWithOptions(&JobOptions{Request: request, Client: http.DefaultClient, Logger: testLogger})
+	assert.Nil(t, err)
+
+	hook, _ := testsupport.TempFileWithExtension()
+	_ = ioutil.WriteFile(hook, []byte(testsupport.Output("hello from post-job hook")), 0777)
+
+	job.RunWithOptions(RunOptions{
+		EnvVars:               []config.HostEnvVar{},
+		FileInjections:        []config.FileInjection{},
+		PostJobHookPath:       hook,
+		OnJobFinished:         nil,
+		CallbackRetryAttempts: 1,
+	})
+
+	assert.True(t, job.Finished)
+
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
+	assert.Nil(t, err)
+
+	testsupport.AssertSimplifiedJobLogs(t, simplifiedEvents, []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", testsupport.Output("hello")),
+		"hello",
+		"Exit Code: 0",
+
+		"directive: Exporting environment variables",
+		"Exporting SEMAPHORE_JOB_RESULT\n",
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", testsupport.Output("On EpilogueAlways")),
+		"On EpilogueAlways",
+		"Exit Code: 0",
+
+		"directive: Running the post-job hook configured in the agent",
+		"*** IGNORE SINGLE LINE ***", // we are using a temp file, it's hard to assert its path, just ignore it
+		"hello from post-job hook",
+		"Exit Code: 0",
+
+		"job_finished: passed",
+	})
+
+	os.Remove(hook)
+}
+
 func Test__PreJobHookHasAccessToEnvVars(t *testing.T) {
 	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
 	request := &api.JobRequest{
@@ -1139,6 +1209,79 @@ func Test__PreJobHookHasAccessToEnvVars(t *testing.T) {
 
 		"directive: Exporting environment variables",
 		"Exporting SEMAPHORE_JOB_RESULT\n",
+		"Exit Code: 0",
+
+		"job_finished: passed",
+	})
+
+	os.Remove(hook)
+}
+
+func Test__PostJobHookHasAccessToEnvVars(t *testing.T) {
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		EnvVars: []api.EnvVar{
+			{Name: "A", Value: base64.StdEncoding.EncodeToString([]byte("VALUE_A"))},
+			{Name: "B", Value: base64.StdEncoding.EncodeToString([]byte("VALUE_B"))},
+		},
+		Commands: []api.Command{
+			{Directive: testsupport.Output("hello")},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+		},
+	}
+
+	job, err := NewJobWithOptions(&JobOptions{Request: request, Client: http.DefaultClient, Logger: testLogger})
+	assert.Nil(t, err)
+
+	hook, _ := testsupport.TempFileWithExtension()
+	hookContent := []string{
+		testsupport.EchoEnvVar("A"),
+		testsupport.Output(" - "),
+		testsupport.EchoEnvVar("B"),
+	}
+
+	_ = ioutil.WriteFile(hook, []byte(strings.Join(hookContent, "\n")), 0777)
+	job.RunWithOptions(RunOptions{
+		EnvVars:               []config.HostEnvVar{},
+		FileInjections:        []config.FileInjection{},
+		PostJobHookPath:       hook,
+		OnJobFinished:         nil,
+		CallbackRetryAttempts: 1,
+	})
+
+	assert.True(t, job.Finished)
+
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
+	assert.Nil(t, err)
+
+	testsupport.AssertSimplifiedJobLogs(t, simplifiedEvents, []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exporting A\n",
+		"Exporting B\n",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", testsupport.Output("hello")),
+		"hello",
+		"Exit Code: 0",
+
+		"directive: Exporting environment variables",
+		"Exporting SEMAPHORE_JOB_RESULT\n",
+		"Exit Code: 0",
+
+		"directive: Running the post-job hook configured in the agent",
+		"*** IGNORE SINGLE LINE ***", // we are using a temp file, it's hard to assert its path, just ignore it
+		"VALUE_A - VALUE_B",
 		"Exit Code: 0",
 
 		"job_finished: passed",

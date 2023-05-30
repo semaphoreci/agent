@@ -147,6 +147,7 @@ type RunOptions struct {
 	EnvVars               []config.HostEnvVar
 	FileInjections        []config.FileInjection
 	PreJobHookPath        string
+	PostJobHookPath       string
 	FailOnPreJobHookError bool
 	SourcePreJobHook      bool
 	OnJobFinished         func(selfhostedapi.JobResult)
@@ -189,11 +190,26 @@ func (o *RunOptions) GetPreJobHookCommand() string {
 	return fmt.Sprintf("bash %s", o.PreJobHookPath)
 }
 
+func (o *RunOptions) GetPostJobHookCommand() string {
+
+	/*
+	 * If we are dealing with PowerShell, we make sure to just call the script directly,
+	 * without creating a new powershell process. If we did, people would need to set
+	 * $ErrorActionPreference to "STOP" in order for errors to propagate properly.
+	 */
+	if runtime.GOOS == "windows" {
+		return o.PostJobHookPath
+	}
+
+	return fmt.Sprintf("bash %s", o.PostJobHookPath)
+}
+
 func (job *Job) Run() {
 	job.RunWithOptions(RunOptions{
 		EnvVars:               []config.HostEnvVar{},
 		FileInjections:        []config.FileInjection{},
 		PreJobHookPath:        "",
+		PostJobHookPath:       "",
 		OnJobFinished:         nil,
 		CallbackRetryAttempts: 60,
 	})
@@ -222,6 +238,10 @@ func (job *Job) RunWithOptions(options RunOptions) {
 			job.handleEpilogues(result)
 		}
 	}
+
+	// The post-job hook executes after the job's commands finished,
+	// so they do not influence the job's result, just like the epilogues.
+	job.runPostJobHook(options)
 
 	result, err := job.Teardown(result, options.CallbackRetryAttempts)
 	if err != nil {
@@ -320,6 +340,27 @@ func (job *Job) runPreJobHook(options RunOptions) bool {
 
 	log.Error("Error executing pre-job hook - proceeding")
 	return true
+}
+
+func (job *Job) runPostJobHook(options RunOptions) {
+	if options.PostJobHookPath == "" {
+		log.Info("No post-job hook configured.")
+		return
+	}
+
+	log.Infof("Executing post-job hook at %s", options.PostJobHookPath)
+	exitCode := job.Executor.RunCommandWithOptions(executors.CommandOptions{
+		Command: options.GetPostJobHookCommand(),
+		Silent:  false,
+		Alias:   "Running the post-job hook configured in the agent",
+	})
+
+	if exitCode == 0 {
+		log.Info("Post-job hook executed successfully.")
+		return
+	}
+
+	log.Errorf("Error executing post-job hook - hook return exit code %d", exitCode)
 }
 
 func (job *Job) handleEpilogues(result string) {
