@@ -11,6 +11,7 @@ const (
 	NoHTTPS                    = "no-https"
 	ShutdownHookPath           = "shutdown-hook-path"
 	PreJobHookPath             = "pre-job-hook-path"
+	PostJobHookPath            = "post-job-hook-path"
 	DisconnectAfterJob         = "disconnect-after-job"
 	DisconnectAfterIdleTimeout = "disconnect-after-idle-timeout"
 	EnvVars                    = "env-vars"
@@ -65,6 +66,7 @@ var ValidConfigKeys = []string{
 	NoHTTPS,
 	ShutdownHookPath,
 	PreJobHookPath,
+	PostJobHookPath,
 	DisconnectAfterJob,
 	DisconnectAfterIdleTimeout,
 	EnvVars,

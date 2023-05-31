@@ -29,6 +29,7 @@ type Config struct {
 	Scheme                           string
 	ShutdownHookPath                 string
 	PreJobHookPath                   string
+	PostJobHookPath                  string
 	DisconnectAfterJob               bool
 	DisconnectAfterIdleSeconds       int
 	InterruptionGracePeriod          int

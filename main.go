@@ -115,6 +115,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	_ = pflag.Bool(config.NoHTTPS, false, "Use http for communication")
 	_ = pflag.String(config.ShutdownHookPath, "", "Shutdown hook path")
 	_ = pflag.String(config.PreJobHookPath, "", "Pre-job hook path")
+	_ = pflag.String(config.PostJobHookPath, "", "Post-job hook path")
 	_ = pflag.Bool(config.DisconnectAfterJob, false, "Disconnect after job")
 	_ = pflag.Int(config.DisconnectAfterIdleTimeout, 0, "Disconnect after idle timeout, in seconds")
 	_ = pflag.Int(config.InterruptionGracePeriod, 0, "The grace period, in seconds, to wait after receiving an interrupt signal")
@@ -191,6 +192,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		Scheme:                           scheme,
 		ShutdownHookPath:                 viper.GetString(config.ShutdownHookPath),
 		PreJobHookPath:                   viper.GetString(config.PreJobHookPath),
+		PostJobHookPath:                  viper.GetString(config.PostJobHookPath),
 		DisconnectAfterJob:               viper.GetBool(config.DisconnectAfterJob),
 		DisconnectAfterIdleSeconds:       viper.GetInt(config.DisconnectAfterIdleTimeout),
 		InterruptionGracePeriod:          viper.GetInt(config.InterruptionGracePeriod),
