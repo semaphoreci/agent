@@ -22,44 +22,42 @@ import (
 )
 
 type Server struct {
-	Host    string
-	Port    int
-	State   string
-	Version string
-
-	TLSKeyPath  string
-	TLSCertPath string
-
-	JwtSecret []byte
-
-	Logfile io.Writer
-
-	ActiveJob *jobs.Job
-	router    *mux.Router
-
+	State      string
+	Logfile    io.Writer
+	ActiveJob  *jobs.Job
+	router     *mux.Router
 	HTTPClient *http.Client
+	Config     ServerConfig
+}
+
+type ServerConfig struct {
+	Host           string
+	Port           int
+	TLSCertPath    string
+	TLSKeyPath     string
+	Version        string
+	LogFile        io.Writer
+	JWTSecret      []byte
+	HTTPClient     *http.Client
+	PreJobHookPath string
+	FileInjections []config.FileInjection
 }
 
 const ServerStateWaitingForJob = "waiting-for-job"
 const ServerStateJobReceived = "job-received"
 
-func NewServer(host string, port int, tlsCertPath, tlsKeyPath, version string, logfile io.Writer, jwtSecret []byte, httpClient *http.Client) *Server {
+func NewServer(config ServerConfig) *Server {
 	router := mux.NewRouter().StrictSlash(true)
 
 	server := &Server{
-		Host:        host,
-		Port:        port,
-		State:       ServerStateWaitingForJob,
-		TLSKeyPath:  tlsKeyPath,
-		TLSCertPath: tlsCertPath,
-		JwtSecret:   jwtSecret,
-		Logfile:     logfile,
-		router:      router,
-		Version:     version,
-		HTTPClient:  httpClient,
+		Config:     config,
+		State:      ServerStateWaitingForJob,
+		Logfile:    config.LogFile,
+		router:     router,
+		HTTPClient: config.HTTPClient,
 	}
 
-	jwtMiddleware := CreateJwtMiddleware(jwtSecret)
+	jwtMiddleware := CreateJwtMiddleware(config.JWTSecret)
 
 	// The path to check if agent is running
 	router.HandleFunc("/is_alive", server.isAlive).Methods("GET")
@@ -82,16 +80,16 @@ func NewServer(host string, port int, tlsCertPath, tlsKeyPath, version string, l
 }
 
 func (s *Server) Serve() {
-	address := fmt.Sprintf("%s:%d", s.Host, s.Port)
+	address := fmt.Sprintf("%s:%d", s.Config.Host, s.Config.Port)
 
-	log.Infof("Agent %s listening on https://%s\n", s.Version, address)
+	log.Infof("Agent %s listening on https://%s\n", s.Config.Version, address)
 
 	loggedRouter := handlers.LoggingHandler(s.Logfile, s.router)
 
 	log.Fatal(http.ListenAndServeTLS(
 		address,
-		s.TLSCertPath,
-		s.TLSKeyPath,
+		s.Config.TLSCertPath,
+		s.Config.TLSKeyPath,
 		loggedRouter,
 	))
 }
@@ -101,7 +99,7 @@ func (s *Server) Status(w http.ResponseWriter, r *http.Request) {
 	m := make(map[string]interface{})
 
 	m["state"] = s.State
-	m["version"] = s.Version
+	m["version"] = s.Config.Version
 
 	jsonString, _ := json.Marshal(m)
 
@@ -160,7 +158,7 @@ func (s *Server) AgentLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
-	log.Infof("New job arrived. Agent version %s.", s.Version)
+	log.Infof("New job arrived. Agent version %s.", s.Config.Version)
 
 	log.Debug("Reading content of the request")
 	body, err := ioutil.ReadAll(r.Body)
@@ -202,7 +200,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 		Request:         request,
 		Client:          s.HTTPClient,
 		ExposeKvmDevice: true,
-		FileInjections:  []config.FileInjection{},
+		FileInjections:  s.Config.FileInjections,
 		SelfHosted:      false,
 		RefreshTokenFn:  nil,
 		UploadJobLogs:   s.resolveUploadJobsConfig(request),
@@ -220,7 +218,13 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 	s.ActiveJob = job
 
 	log.Debug("Starting job execution")
-	go s.ActiveJob.Run()
+	go s.ActiveJob.RunWithOptions(jobs.RunOptions{
+		EnvVars:               []config.HostEnvVar{},
+		PreJobHookPath:        s.Config.PreJobHookPath,
+		PostJobHookPath:       "",
+		OnJobFinished:         nil,
+		CallbackRetryAttempts: 60,
+	})
 
 	log.Debugf("Setting state to '%s'", ServerStateJobReceived)
 	s.State = ServerStateJobReceived

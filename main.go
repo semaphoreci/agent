@@ -173,7 +173,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		log.Fatalf("Error parsing --env-vars: %v", err)
 	}
 
-	fileInjections, err := ParseFiles()
+	fileInjections, err := ParseFiles(viper.GetStringSlice(config.Files))
 	if err != nil {
 		log.Fatalf("Error parsing --files: %v", err)
 	}
@@ -308,9 +308,9 @@ func ParseEnvVars() ([]config.HostEnvVar, error) {
 	return vars, nil
 }
 
-func ParseFiles() ([]config.FileInjection, error) {
+func ParseFiles(files []string) ([]config.FileInjection, error) {
 	fileInjections := []config.FileInjection{}
-	for _, file := range viper.GetStringSlice(config.Files) {
+	for _, file := range files {
 		hostPathAndDestination := strings.Split(file, ":")
 		if len(hostPathAndDestination) != 2 {
 			return nil, fmt.Errorf("%s is not a valid file injection", file)
@@ -334,6 +334,8 @@ func RunServer(httpClient *http.Client, logfile io.Writer) {
 	statsdHost := pflag.String("statsd-host", "", "Metrics Host")
 	statsdPort := pflag.String("statsd-port", "", "Metrics port")
 	statsdNamespace := pflag.String("statsd-namespace", "agent.prod", "The prefix to be added to every StatsD metric")
+	preJobHookPath := pflag.String(config.PreJobHookPath, "", "The path to a pre-job hook script")
+	files := pflag.StringSlice(config.Files, []string{}, "Inject files into container, when using docker compose executor")
 
 	pflag.Parse()
 
@@ -349,16 +351,23 @@ func RunServer(httpClient *http.Client, logfile io.Writer) {
 		}
 	}
 
-	server.NewServer(
-		*host,
-		*port,
-		*tlsCertPath,
-		*tlsKeyPath,
-		VERSION,
-		logfile,
-		[]byte(*authTokenSecret),
-		httpClient,
-	).Serve()
+	fileInjections, err := ParseFiles(*files)
+	if err != nil {
+		log.Fatalf("Error parsing --files: %v", err)
+	}
+
+	server.NewServer(server.ServerConfig{
+		Host:           *host,
+		Port:           *port,
+		TLSCertPath:    *tlsCertPath,
+		TLSKeyPath:     *tlsKeyPath,
+		Version:        VERSION,
+		LogFile:        logfile,
+		JWTSecret:      []byte(*authTokenSecret),
+		HTTPClient:     httpClient,
+		PreJobHookPath: *preJobHookPath,
+		FileInjections: fileInjections,
+	}).Serve()
 }
 
 func RunSingleJob(httpClient *http.Client) {

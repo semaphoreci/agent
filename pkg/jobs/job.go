@@ -145,7 +145,6 @@ func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOpti
 
 type RunOptions struct {
 	EnvVars               []config.HostEnvVar
-	FileInjections        []config.FileInjection
 	PreJobHookPath        string
 	PostJobHookPath       string
 	FailOnPreJobHookError bool
@@ -207,7 +206,6 @@ func (o *RunOptions) GetPostJobHookCommand() string {
 func (job *Job) Run() {
 	job.RunWithOptions(RunOptions{
 		EnvVars:               []config.HostEnvVar{},
-		FileInjections:        []config.FileInjection{},
 		PreJobHookPath:        "",
 		PostJobHookPath:       "",
 		OnJobFinished:         nil,

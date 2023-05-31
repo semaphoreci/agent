@@ -1033,7 +1033,6 @@ func Test__UsePreJobHook(t *testing.T) {
 
 	job.RunWithOptions(RunOptions{
 		EnvVars:               []config.HostEnvVar{},
-		FileInjections:        []config.FileInjection{},
 		PreJobHookPath:        hook,
 		OnJobFinished:         nil,
 		CallbackRetryAttempts: 1,
@@ -1100,7 +1099,6 @@ func Test__UsePostJobHook(t *testing.T) {
 
 	job.RunWithOptions(RunOptions{
 		EnvVars:               []config.HostEnvVar{},
-		FileInjections:        []config.FileInjection{},
 		PostJobHookPath:       hook,
 		OnJobFinished:         nil,
 		CallbackRetryAttempts: 1,
@@ -1175,7 +1173,6 @@ func Test__PreJobHookHasAccessToEnvVars(t *testing.T) {
 	_ = ioutil.WriteFile(hook, []byte(strings.Join(hookContent, "\n")), 0777)
 	job.RunWithOptions(RunOptions{
 		EnvVars:               []config.HostEnvVar{},
-		FileInjections:        []config.FileInjection{},
 		PreJobHookPath:        hook,
 		OnJobFinished:         nil,
 		CallbackRetryAttempts: 1,
@@ -1249,7 +1246,6 @@ func Test__PostJobHookHasAccessToEnvVars(t *testing.T) {
 	_ = ioutil.WriteFile(hook, []byte(strings.Join(hookContent, "\n")), 0777)
 	job.RunWithOptions(RunOptions{
 		EnvVars:               []config.HostEnvVar{},
-		FileInjections:        []config.FileInjection{},
 		PostJobHookPath:       hook,
 		OnJobFinished:         nil,
 		CallbackRetryAttempts: 1,
@@ -1314,7 +1310,6 @@ func Test__UsePreJobHookAndFailOnError(t *testing.T) {
 
 	job.RunWithOptions(RunOptions{
 		EnvVars:               []config.HostEnvVar{},
-		FileInjections:        []config.FileInjection{},
 		PreJobHookPath:        hook,
 		FailOnPreJobHookError: true,
 		OnJobFinished:         nil,
