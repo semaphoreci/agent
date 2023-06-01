@@ -221,6 +221,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 	go s.ActiveJob.RunWithOptions(jobs.RunOptions{
 		EnvVars:               []config.HostEnvVar{},
 		PreJobHookPath:        s.Config.PreJobHookPath,
+		FailOnPreJobHookError: true, // cloud jobs should always fail if the pre-job hook fails
 		PostJobHookPath:       "",
 		OnJobFinished:         nil,
 		CallbackRetryAttempts: 60,
