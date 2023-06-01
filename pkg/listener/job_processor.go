@@ -206,7 +206,6 @@ func (p *JobProcessor) RunJob(jobID string) {
 		FailOnPreJobHookError: p.FailOnPreJobHookError,
 		SourcePreJobHook:      p.SourcePreJobHook,
 		CallbackRetryAttempts: p.CallbackRetryAttempts,
-		FileInjections:        p.FileInjections,
 		OnJobFinished:         p.JobFinished,
 	})
 }
