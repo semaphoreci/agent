@@ -27,6 +27,7 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		HTTPClient:                       httpClient,
 		APIClient:                        apiClient,
 		LastSuccessfulSync:               time.Now(),
+		forceSyncCh:                      make(chan bool),
 		State:                            selfhostedapi.AgentStateWaitingForJobs,
 		DisconnectRetryAttempts:          100,
 		GetJobRetryAttempts:              config.GetJobRetryLimit,
@@ -68,6 +69,7 @@ type JobProcessor struct {
 	InterruptedAt      int64
 	ShutdownReason     ShutdownReason
 	mutex              sync.Mutex
+	forceSyncCh        chan (bool)
 
 	// Job processor config
 	DisconnectRetryAttempts          int
@@ -100,15 +102,21 @@ func (p *JobProcessor) SyncLoop() {
 			break
 		}
 
-		p.Sync()
+		nextSyncInterval := p.Sync()
+		log.Infof("Waiting %v for next sync...", nextSyncInterval)
 
-		delay, _ := random.DurationInRange(3000, 6000)
-		log.Infof("Waiting %v for next sync...", delay)
-		time.Sleep(*delay)
+		// Here, we wait for the delay sent in the API to pass
+		// or we immediately sync if a state change was detected.
+		select {
+		case <-p.forceSyncCh:
+			log.Infof("Forcing sync due to state change")
+		case <-time.After(*nextSyncInterval):
+			log.Infof("Delay requested by API expired")
+		}
 	}
 }
 
-func (p *JobProcessor) Sync() {
+func (p *JobProcessor) Sync() *time.Duration {
 	request := &selfhostedapi.SyncRequest{
 		State:         p.State,
 		JobID:         p.CurrentJobID,
@@ -119,11 +127,22 @@ func (p *JobProcessor) Sync() {
 	response, err := p.APIClient.Sync(request)
 	if err != nil {
 		p.HandleSyncError(err)
-		return
+		delay, _ := random.DurationInRange(3000, 6000)
+		return delay
 	}
 
 	p.LastSuccessfulSync = time.Now()
 	p.ProcessSyncResponse(response)
+
+	var nextSyncAt time.Duration
+	if response.NextSyncAt > 0 {
+		nextSyncAt = time.Until(time.UnixMilli(response.NextSyncAt))
+	} else {
+		d, _ := random.DurationInRange(3000, 6000)
+		nextSyncAt = *d
+	}
+
+	return &nextSyncAt
 }
 
 func (p *JobProcessor) HandleSyncError(err error) {
@@ -245,12 +264,14 @@ func (p *JobProcessor) StopJob(jobID string) {
 	p.State = selfhostedapi.AgentStateStoppingJob
 
 	p.CurrentJob.Stop()
+	p.forceSyncCh <- true
 }
 
 func (p *JobProcessor) JobFinished(result selfhostedapi.JobResult) {
 	p.mutex.Lock()
 	p.State = selfhostedapi.AgentStateFinishedJob
 	p.CurrentJobResult = result
+	p.forceSyncCh <- true
 	p.mutex.Unlock()
 }
 
@@ -271,6 +292,7 @@ func (p *JobProcessor) SetupInterruptHandler() {
 		// When we receive an interruption signal
 		// we tell the API about it, and let it tell the agent when to shut down.
 		p.InterruptedAt = time.Now().Unix()
+		p.forceSyncCh <- true
 	}()
 }
 
