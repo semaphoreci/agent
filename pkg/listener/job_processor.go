@@ -106,17 +106,17 @@ func (p *JobProcessor) SyncLoop() {
 		log.Infof("Waiting %v for next sync...", nextSyncInterval)
 
 		// Here, we wait for the delay sent in the API to pass
-		// or we immediately sync if a state change was detected.
+		// or we sync again before the delay has passed, if needed.
 		select {
 		case <-p.forceSyncCh:
 			log.Debug("Forcing sync due to state change")
-		case <-time.After(*nextSyncInterval):
+		case <-time.After(nextSyncInterval):
 			log.Debug("Delay requested by API expired")
 		}
 	}
 }
 
-func (p *JobProcessor) Sync() *time.Duration {
+func (p *JobProcessor) Sync() time.Duration {
 	request := &selfhostedapi.SyncRequest{
 		State:         p.State,
 		JobID:         p.CurrentJobID,
@@ -128,21 +128,32 @@ func (p *JobProcessor) Sync() *time.Duration {
 	if err != nil {
 		p.HandleSyncError(err)
 		delay, _ := random.DurationInRange(3000, 6000)
-		return delay
+		return *delay
 	}
 
 	p.LastSuccessfulSync = time.Now()
 	p.ProcessSyncResponse(response)
+	return p.findNextSyncInterval(response)
+}
 
-	var nextSyncAt time.Duration
-	if response.NextSyncAt > 0 {
-		nextSyncAt = time.Until(time.UnixMilli(response.NextSyncAt))
-	} else {
-		d, _ := random.DurationInRange(3000, 6000)
-		nextSyncAt = *d
+func (p *JobProcessor) findNextSyncInterval(response *selfhostedapi.SyncResponse) time.Duration {
+	if response.NextSyncAt != "" {
+		nextSyncAt, err := time.Parse(time.RFC3339Nano, response.NextSyncAt)
+		if err != nil {
+			log.Errorf("Error parsing next sync at '%s': %v - using default interval", response.NextSyncAt, err)
+			return p.defaultSyncInterval()
+		}
+
+		return time.Until(nextSyncAt)
 	}
 
-	return &nextSyncAt
+	log.Debugf("No next_sync_at field on sync response - using default interval", response.NextSyncAt)
+	return p.defaultSyncInterval()
+}
+
+func (p *JobProcessor) defaultSyncInterval() time.Duration {
+	d, _ := random.DurationInRange(3000, 6000)
+	return *d
 }
 
 func (p *JobProcessor) HandleSyncError(err error) {
