@@ -127,8 +127,7 @@ func (p *JobProcessor) Sync() time.Duration {
 	response, err := p.APIClient.Sync(request)
 	if err != nil {
 		p.HandleSyncError(err)
-		delay, _ := random.DurationInRange(3000, 6000)
-		return *delay
+		return p.defaultSyncInterval()
 	}
 
 	p.LastSuccessfulSync = time.Now()
@@ -147,7 +146,7 @@ func (p *JobProcessor) findNextSyncInterval(response *selfhostedapi.SyncResponse
 		return time.Until(nextSyncAt)
 	}
 
-	log.Debugf("No next_sync_at field on sync response - using default interval", response.NextSyncAt)
+	log.Debug("No next_sync_at field on sync response - using default interval")
 	return p.defaultSyncInterval()
 }
 
