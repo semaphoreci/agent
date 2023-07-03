@@ -109,9 +109,9 @@ func (p *JobProcessor) SyncLoop() {
 		// or we immediately sync if a state change was detected.
 		select {
 		case <-p.forceSyncCh:
-			log.Infof("Forcing sync due to state change")
+			log.Debug("Forcing sync due to state change")
 		case <-time.After(*nextSyncInterval):
-			log.Infof("Delay requested by API expired")
+			log.Debug("Delay requested by API expired")
 		}
 	}
 }
@@ -264,7 +264,6 @@ func (p *JobProcessor) StopJob(jobID string) {
 	p.State = selfhostedapi.AgentStateStoppingJob
 
 	p.CurrentJob.Stop()
-	p.forceSyncCh <- true
 }
 
 func (p *JobProcessor) JobFinished(result selfhostedapi.JobResult) {
