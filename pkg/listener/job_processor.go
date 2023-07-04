@@ -27,6 +27,7 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		HTTPClient:                       httpClient,
 		APIClient:                        apiClient,
 		LastSuccessfulSync:               time.Now(),
+		forceSyncCh:                      make(chan bool),
 		State:                            selfhostedapi.AgentStateWaitingForJobs,
 		DisconnectRetryAttempts:          100,
 		GetJobRetryAttempts:              config.GetJobRetryLimit,
@@ -68,6 +69,7 @@ type JobProcessor struct {
 	InterruptedAt      int64
 	ShutdownReason     ShutdownReason
 	mutex              sync.Mutex
+	forceSyncCh        chan (bool)
 
 	// Job processor config
 	DisconnectRetryAttempts          int
@@ -100,15 +102,21 @@ func (p *JobProcessor) SyncLoop() {
 			break
 		}
 
-		p.Sync()
+		nextSyncInterval := p.Sync()
+		log.Infof("Waiting %v for next sync...", nextSyncInterval)
 
-		delay, _ := random.DurationInRange(3000, 6000)
-		log.Infof("Waiting %v for next sync...", delay)
-		time.Sleep(*delay)
+		// Here, we wait for the delay sent in the API to pass
+		// or we sync again before the delay has passed, if needed.
+		select {
+		case <-p.forceSyncCh:
+			log.Debug("Forcing sync due to state change")
+		case <-time.After(nextSyncInterval):
+			log.Debug("Delay requested by API expired")
+		}
 	}
 }
 
-func (p *JobProcessor) Sync() {
+func (p *JobProcessor) Sync() time.Duration {
 	request := &selfhostedapi.SyncRequest{
 		State:         p.State,
 		JobID:         p.CurrentJobID,
@@ -119,11 +127,26 @@ func (p *JobProcessor) Sync() {
 	response, err := p.APIClient.Sync(request)
 	if err != nil {
 		p.HandleSyncError(err)
-		return
+		return p.defaultSyncInterval()
 	}
 
 	p.LastSuccessfulSync = time.Now()
 	p.ProcessSyncResponse(response)
+	return p.findNextSyncInterval(response)
+}
+
+func (p *JobProcessor) findNextSyncInterval(response *selfhostedapi.SyncResponse) time.Duration {
+	if response.NextSyncAfter > 0 {
+		return time.Duration(response.NextSyncAfter) * time.Millisecond
+	}
+
+	log.Debug("No next_sync_at field on sync response - using default interval")
+	return p.defaultSyncInterval()
+}
+
+func (p *JobProcessor) defaultSyncInterval() time.Duration {
+	d, _ := random.DurationInRange(3000, 6000)
+	return *d
 }
 
 func (p *JobProcessor) HandleSyncError(err error) {
@@ -251,6 +274,7 @@ func (p *JobProcessor) JobFinished(result selfhostedapi.JobResult) {
 	p.mutex.Lock()
 	p.State = selfhostedapi.AgentStateFinishedJob
 	p.CurrentJobResult = result
+	p.forceSyncCh <- true
 	p.mutex.Unlock()
 }
 
@@ -271,6 +295,7 @@ func (p *JobProcessor) SetupInterruptHandler() {
 		// When we receive an interruption signal
 		// we tell the API about it, and let it tell the agent when to shut down.
 		p.InterruptedAt = time.Now().Unix()
+		p.forceSyncCh <- true
 	}()
 }
 
