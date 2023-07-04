@@ -22,4 +22,4 @@ blocks:
         - name: Sem Agent
           commands:
             - export GITHUB_TOKEN=$ACCESS_TOKEN
-            - curl -sL https://git.io/goreleaser | bash -s -- --rm-dist
+            - curl -sL https://git.io/goreleaser | bash -s -- --clean
