@@ -136,14 +136,8 @@ func (p *JobProcessor) Sync() time.Duration {
 }
 
 func (p *JobProcessor) findNextSyncInterval(response *selfhostedapi.SyncResponse) time.Duration {
-	if response.NextSyncAt != "" {
-		nextSyncAt, err := time.Parse(time.RFC3339Nano, response.NextSyncAt)
-		if err != nil {
-			log.Errorf("Error parsing next sync at '%s': %v - using default interval", response.NextSyncAt, err)
-			return p.defaultSyncInterval()
-		}
-
-		return time.Until(nextSyncAt)
+	if response.NextSyncAfter > 0 {
+		return time.Duration(response.NextSyncAfter) * time.Millisecond
 	}
 
 	log.Debug("No next_sync_at field on sync response - using default interval")

@@ -140,8 +140,8 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 	fmt.Printf("[HUB MOCK] Received sync request: %v\n", request)
 
 	syncResponse := selfhostedapi.SyncResponse{
-		Action:     selfhostedapi.AgentActionContinue,
-		NextSyncAt: time.Now().Add(5 * time.Second).Format(time.RFC3339Nano),
+		Action:        selfhostedapi.AgentActionContinue,
+		NextSyncAfter: 1000,
 	}
 
 	switch request.State {

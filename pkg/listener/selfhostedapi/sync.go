@@ -47,7 +47,7 @@ type SyncResponse struct {
 	Action         AgentAction    `json:"action"`
 	JobID          string         `json:"job_id"`
 	ShutdownReason ShutdownReason `json:"shutdown_reason"`
-	NextSyncAt     string         `json:"next_sync_at"`
+	NextSyncAfter  int            `json:"next_sync_after"`
 }
 
 func (a *API) SyncPath() string {
