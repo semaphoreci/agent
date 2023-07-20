@@ -375,8 +375,6 @@ func (e *KubernetesExecutor) Stop() int {
 		err := e.Shell.Close()
 		if err != nil {
 			log.Errorf("Process killing procedure returned an error %+v\n", err)
-
-			return 0
 		}
 	}
 
