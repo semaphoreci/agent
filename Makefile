@@ -79,6 +79,10 @@ ecr.test.push:
 	docker tag agent-testing:latest $(AWS_ECR_REGISTRY)/agent-testing:latest
 	docker push $(AWS_ECR_REGISTRY)/agent-testing:latest
 
+# Helpful when developing and testing locally
+docker.build.dev:
+	docker build -f Dockerfile.dev -t semaphoreci/agent:dev .
+
 #
 # Docker Release
 #

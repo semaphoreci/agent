@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"time"
@@ -78,7 +77,7 @@ func (e *KubernetesExecutor) Prepare() int {
 		return exitCode
 	}
 
-	e.podName = e.randomPodName()
+	e.podName = fmt.Sprintf("semaphore-job-%s", e.jobRequest.JobID)
 	e.envSecretName = fmt.Sprintf("%s-secret", e.podName)
 	err = e.k8sClient.CreateSecret(e.envSecretName, e.jobRequest)
 	if err != nil {
@@ -110,17 +109,6 @@ func (e *KubernetesExecutor) Prepare() int {
 	}
 
 	return 0
-}
-
-func (e *KubernetesExecutor) randomPodName() string {
-	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
-
-	b := make([]rune, 12)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-
-	return string(b)
 }
 
 func (e *KubernetesExecutor) Start() int {

@@ -166,7 +166,7 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 
 		if m.JobRequest != nil {
 			syncResponse.Action = selfhostedapi.AgentActionRunJob
-			syncResponse.JobID = m.JobRequest.ID
+			syncResponse.JobID = m.JobRequest.JobID
 		}
 
 	case selfhostedapi.AgentStateRunningJob:
@@ -176,13 +176,13 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 			gracePeriodEnd := time.Unix(request.InterruptedAt, 0).Add(time.Duration(m.RegisterRequest.InterruptionGracePeriod) * time.Second)
 			if time.Now().After(gracePeriodEnd) {
 				syncResponse.Action = selfhostedapi.AgentActionStopJob
-				syncResponse.JobID = m.JobRequest.ID
+				syncResponse.JobID = m.JobRequest.JobID
 			}
 		}
 
 		if m.ShouldShutdown {
 			syncResponse.Action = selfhostedapi.AgentActionStopJob
-			syncResponse.JobID = m.JobRequest.ID
+			syncResponse.JobID = m.JobRequest.JobID
 		}
 
 	case selfhostedapi.AgentStateFinishedJob:

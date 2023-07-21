@@ -214,7 +214,7 @@ func (job *Job) Run() {
 }
 
 func (job *Job) RunWithOptions(options RunOptions) {
-	log.Infof("Running job %s", job.Request.ID)
+	log.Infof("Running job %s", job.Request.JobID)
 	executorRunning := false
 	result := JobFailed
 
