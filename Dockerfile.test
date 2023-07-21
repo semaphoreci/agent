@@ -4,6 +4,8 @@ RUN apt-get update && \
   apt-get install curl -y && \
   curl -sSL https://get.docker.com/ | sh && \
   apt-get install -y ssh && \
+  # pin pyyaml to 5.3.1 until https://github.com/yaml/pyyaml/issues/724 is fixed
+  pip install pyyaml==5.3.1 && \
   pip install docker-compose awscli
 
 # By default, sshd runs on port 22, we need it to run on port 2222
