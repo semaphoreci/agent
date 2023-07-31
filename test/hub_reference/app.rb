@@ -57,7 +57,7 @@ post "/api/v1/self_hosted_agents/sync" do
               elsif $jobs.size > 0
                 job = $jobs.shift
 
-                {"action" => "run-job", "job_id" => job["id"]}
+                {"action" => "run-job", "job_id" => job["job_id"]}
               else
                 {"action" => "continue"}
               end
@@ -140,13 +140,13 @@ end
 
 post "/private/schedule_job" do
   job = JSON.parse(@json_request)
-  puts "[PRIVATE] Scheduling job #{job["id"]}"
+  puts "[PRIVATE] Scheduling job #{job["job_id"]}"
 
-  puts "Scheduled job #{job["id"]}"
+  puts "Scheduled job #{job["job_id"]}"
 
   $jobs << job
-  $payloads[job["id"]] = job
-  $job_states[job["id"]] = "running"
+  $payloads[job["job_id"]] = job
+  $job_states[job["job_id"]] = "running"
 end
 
 post "/private/schedule_stop/:id" do

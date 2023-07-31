@@ -92,7 +92,7 @@ func (p *PublicKey) Decode() ([]byte, error) {
 }
 
 type JobRequest struct {
-	JobID         string      `json:"job_id" yaml:"id"`
+	JobID         string      `json:"job_id" yaml:"job_id"`
 	Executor      string      `json:"executor" yaml:"executor"`
 	Compose       Compose     `json:"compose" yaml:"compose"`
 	Commands      []Command   `json:"commands" yaml:"commands"`
