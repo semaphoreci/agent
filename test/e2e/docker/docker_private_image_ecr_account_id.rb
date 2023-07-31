@@ -7,7 +7,7 @@ aws_account_id = ENV['AWS_ACCOUNT_ID']
 
 start_job <<-JSON
   {
-    "id": "#{$JOB_ID}",
+    "job_id": "#{$JOB_ID}",
 
     "executor": "dockercompose",
 
