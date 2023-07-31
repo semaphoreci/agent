@@ -37,7 +37,7 @@ x0JN8v1olTN3a1HZmo/hb3lhZS1reyfyyZr9Eg6ezHEG5ssquXIYSGfbloA2uS5B
 
 start_job <<-JSON
   {
-    "id": "#{$JOB_ID}",
+    "job_id": "#{$JOB_ID}",
 
     "ssh_public_keys": [
       "#{public_key}"

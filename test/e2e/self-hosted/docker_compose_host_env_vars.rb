@@ -21,7 +21,7 @@ require_relative '../../e2e'
 
 start_job <<-JSON
   {
-    "id": "#{$JOB_ID}",
+    "job_id": "#{$JOB_ID}",
 
     "executor": "dockercompose",
 

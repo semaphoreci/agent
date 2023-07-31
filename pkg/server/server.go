@@ -182,7 +182,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.State != ServerStateWaitingForJob {
-		if s.ActiveJob != nil && s.ActiveJob.Request.ID == request.ID {
+		if s.ActiveJob != nil && s.ActiveJob.Request.JobID == request.JobID {
 			// idempotent call
 			fmt.Fprint(w, `{"message": "ok"}`)
 			return

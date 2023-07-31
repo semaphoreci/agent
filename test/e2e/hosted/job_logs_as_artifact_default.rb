@@ -8,7 +8,7 @@ require_relative '../../e2e'
 # to the job, so that it can upload the job logs as an artifact after the job is done.
 start_job <<-JSON
   {
-    "id": "#{ENV["SEMAPHORE_JOB_ID"]}",
+    "job_id": "#{ENV["SEMAPHORE_JOB_ID"]}",
     "executor": "shell",
     "env_vars": [
       { "name": "SEMAPHORE_JOB_ID", "value": "#{Base64.strict_encode64(ENV["SEMAPHORE_JOB_ID"])}" },

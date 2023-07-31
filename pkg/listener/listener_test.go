@@ -268,7 +268,7 @@ func Test__ShutdownAfterJobFinished(t *testing.T) {
 	assert.Nil(t, err)
 
 	hubMockServer.AssignJob(&api.JobRequest{
-		ID: "Test__ShutdownAfterJobFinished",
+		JobID: "Test__ShutdownAfterJobFinished",
 		Commands: []api.Command{
 			{Directive: testsupport.Output("hello world")},
 		},
@@ -383,7 +383,7 @@ func Test__ShutdownAfterInterruptionNoGracePeriod(t *testing.T) {
 
 	// assigns job that sleeps for 60s
 	hubMockServer.AssignJob(&api.JobRequest{
-		ID: "Test__ShutdownAfterJobFinished",
+		JobID: "Test__ShutdownAfterJobFinished",
 		Commands: []api.Command{
 			{Directive: "sleep 60"},
 		},
@@ -441,7 +441,7 @@ func Test__ShutdownAfterInterruptionWithGracePeriod(t *testing.T) {
 
 	// assigns job that sleeps for 10s
 	hubMockServer.AssignJob(&api.JobRequest{
-		ID: "Test__ShutdownAfterJobFinished",
+		JobID: "Test__ShutdownAfterJobFinished",
 		Commands: []api.Command{
 			{Directive: "sleep 15"},
 		},
@@ -531,7 +531,7 @@ func Test__ShutdownFromUpstreamWhileRunningJob(t *testing.T) {
 	assert.Nil(t, err)
 
 	hubMockServer.AssignJob(&api.JobRequest{
-		ID: "Test__ShutdownFromUpstreamWhileRunningJob",
+		JobID: "Test__ShutdownFromUpstreamWhileRunningJob",
 		Commands: []api.Command{
 			{Directive: "sleep 300"},
 		},
@@ -585,7 +585,7 @@ func Test__HostEnvVarsAreExposedToJob(t *testing.T) {
 	assert.Nil(t, err)
 
 	hubMockServer.AssignJob(&api.JobRequest{
-		ID: "Test__HostEnvVarsAreExposedToJob",
+		JobID: "Test__HostEnvVarsAreExposedToJob",
 		Commands: []api.Command{
 			{Directive: testsupport.Output("On regular commands")},
 			{Directive: testsupport.EchoEnvVar("IMPORTANT_HOST_VAR_A")},
@@ -718,7 +718,7 @@ func Test__LogTokenIsRefreshed(t *testing.T) {
 	assert.False(t, hubMockServer.TokenIsRefreshed)
 
 	hubMockServer.AssignJob(&api.JobRequest{
-		ID: "Test__LogTokenIsRefreshed",
+		JobID: "Test__LogTokenIsRefreshed",
 		Commands: []api.Command{
 			{Directive: testsupport.Output("hello")},
 		},
@@ -796,7 +796,7 @@ func Test__GetJobIsRetried(t *testing.T) {
 	assert.Nil(t, err)
 
 	hubMockServer.AssignJob(&api.JobRequest{
-		ID: "Test__GetJobIsRetried",
+		JobID: "Test__GetJobIsRetried",
 		Commands: []api.Command{
 			{Directive: testsupport.Output("hello")},
 		},
@@ -848,7 +848,7 @@ func Test__ReportsFailedToFetchJob(t *testing.T) {
 	assert.Nil(t, err)
 
 	hubMockServer.AssignJob(&api.JobRequest{
-		ID:       "Test__ReportsFailedToFetchJob",
+		JobID:    "Test__ReportsFailedToFetchJob",
 		Commands: []api.Command{},
 		Callbacks: api.Callbacks{
 			Finished:         "https://httpbin.org/status/200",
@@ -897,7 +897,7 @@ func Test__ReportsFailedToConstructJob(t *testing.T) {
 	assert.Nil(t, err)
 
 	hubMockServer.AssignJob(&api.JobRequest{
-		ID:       "Test__ReportsFailedToConstructJob",
+		JobID:    "Test__ReportsFailedToConstructJob",
 		Executor: "doesnotexist",
 		Commands: []api.Command{},
 		Callbacks: api.Callbacks{
