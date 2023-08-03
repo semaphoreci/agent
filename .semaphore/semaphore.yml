@@ -48,6 +48,10 @@ blocks:
         - name: Check code
           commands:
             - make check.static
+        - name: Check docker
+          commands:
+            - make docker.build
+            - make check.docker
 
   - name: "Tests"
     dependencies: []
