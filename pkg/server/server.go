@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	handlers "github.com/gorilla/handlers"
 	mux "github.com/gorilla/mux"
@@ -86,12 +87,19 @@ func (s *Server) Serve() {
 
 	loggedRouter := handlers.LoggingHandler(s.Logfile, s.router)
 
-	log.Fatal(http.ListenAndServeTLS(
-		address,
-		s.Config.TLSCertPath,
-		s.Config.TLSKeyPath,
-		loggedRouter,
-	))
+	server := &http.Server{
+		Addr:              address,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		IdleTimeout:       30 * time.Second,
+		Handler:           loggedRouter,
+	}
+
+	err := server.ListenAndServeTLS(s.Config.TLSCertPath, s.Config.TLSKeyPath)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (s *Server) Status(w http.ResponseWriter, r *http.Request) {
