@@ -48,7 +48,7 @@ func Test__RunJobDoesNotAcceptMultipleJobs(t *testing.T) {
 
 	wg.Wait()
 
-	// Assert that only 1 request got a 200, and everything else got a 422.
+	// Assert that only 1 request gets a 200, and all the other ones get a 422.
 	assert.Equal(t, 1, countCodes(codes, http.StatusOK))
 	assert.Equal(t, totalReq-1, countCodes(codes, http.StatusUnprocessableEntity))
 }
@@ -78,7 +78,7 @@ func Test__RunJobAcceptsSameJobAgain(t *testing.T) {
 	}
 
 	// Run a bunch of requests concurrently,
-	// with a the same job ID, keeping track of their responses.
+	// with the same job ID, keeping track of their responses.
 	var totalReq = 20
 	var wg sync.WaitGroup
 	codes := make([]int, totalReq)
@@ -101,9 +101,9 @@ func Test__RunJobAcceptsSameJobAgain(t *testing.T) {
 
 	wg.Wait()
 
-	// Assert that only all request got a 200,
+	// Assert that all requests get a 200,
 	// but only one of them, receive a "ok" message.
-	// The other ones receives a "job is already running" one.
+	// The other ones receives a "job is already running" message.
 	assert.Equal(t, totalReq, countCodes(codes, http.StatusOK))
 	assert.Equal(t, 1, countBodies(bodies, "ok"))
 	assert.Equal(t, totalReq-1, countBodies(bodies, "job is already running"))
