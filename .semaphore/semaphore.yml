@@ -48,6 +48,10 @@ blocks:
         - name: Check code
           commands:
             - make check.static
+      epilogue:
+        always:
+          commands:
+            - 'if [ -f results.xml ]; then test-results publish --name="Security checks" results.xml; fi'
 
   - name: "Tests"
     dependencies: []
@@ -265,6 +269,13 @@ blocks:
                 - private_image_ecr_no_account_id
                 - private_image_ecr_with_account_id
                 - private_image_generic
+
+after_pipeline:
+  task:
+    jobs:
+      - name: Submit Reports
+        commands:
+          - test-results gen-pipeline-report
 
 promotions:
   - name: Release
