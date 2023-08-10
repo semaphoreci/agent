@@ -42,6 +42,10 @@ type ServerConfig struct {
 	HTTPClient     *http.Client
 	PreJobHookPath string
 	FileInjections []config.FileInjection
+
+	// A way to execute some code before handling a POST /jobs request.
+	// Currently, only used to make tests that assert race condition scenarios more reproducible.
+	BeforeRunJobFn func()
 }
 
 const ServerStateWaitingForJob = "waiting-for-job"
@@ -167,6 +171,10 @@ func (s *Server) AgentLogs(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 	log.Infof("New job arrived. Agent version %s.", s.Config.Version)
+
+	if s.Config.BeforeRunJobFn != nil {
+		s.Config.BeforeRunJobFn()
+	}
 
 	log.Debug("Reading content of the request")
 	body, err := ioutil.ReadAll(r.Body)

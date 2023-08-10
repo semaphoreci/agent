@@ -20,6 +20,10 @@ func Test__RunJobDoesNotAcceptMultipleJobs(t *testing.T) {
 	testServer := NewServer(ServerConfig{
 		HTTPClient: http.DefaultClient,
 		JWTSecret:  []byte(dummyKey),
+
+		// We intentionally make our server slower
+		// to make these tests more reliable.
+		BeforeRunJobFn: func() { time.Sleep(100 * time.Millisecond) },
 	})
 
 	token, err := generateToken(dummyKey)
