@@ -24,7 +24,6 @@ import (
 )
 
 type Server struct {
-	State      string
 	Logfile    io.Writer
 	ActiveJob  *jobs.Job
 	router     *mux.Router
@@ -59,7 +58,6 @@ func NewServer(config ServerConfig) *Server {
 
 	server := &Server{
 		Config:     config,
-		State:      ServerStateWaitingForJob,
 		Logfile:    config.LogFile,
 		router:     router,
 		HTTPClient: config.HTTPClient,
@@ -113,7 +111,12 @@ func (s *Server) Status(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(200)
 	m := make(map[string]interface{})
 
-	m["state"] = s.State
+	state := ServerStateWaitingForJob
+	if s.ActiveJob != nil {
+		state = ServerStateJobReceived
+	}
+
+	m["state"] = state
 	m["version"] = s.Config.Version
 
 	jsonString, _ := json.Marshal(m)

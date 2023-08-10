@@ -15,6 +15,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func Test__ServerStatus(t *testing.T) {
+	dummyKey := "dummykey"
+	testServer := NewServer(ServerConfig{
+		HTTPClient: http.DefaultClient,
+		JWTSecret:  []byte(dummyKey),
+	})
+
+	token, err := generateToken(dummyKey)
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	// no job yet
+	assert.Equal(t, ServerStateWaitingForJob, getAgentStatus(t, testServer, token))
+
+	// run job and assert state changes
+	code, _ := postJob(t, testServer, nil, token, 0)
+	assert.Equal(t, http.StatusOK, code)
+	assert.Equal(t, ServerStateJobReceived, getAgentStatus(t, testServer, token))
+}
+
 func Test__RunJobDoesNotAcceptMultipleJobs(t *testing.T) {
 	dummyKey := "dummykey"
 	testServer := NewServer(ServerConfig{
@@ -41,7 +62,7 @@ func Test__RunJobDoesNotAcceptMultipleJobs(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			code, _ := makeRequest(t, testServer, nil, token, i)
+			code, _ := postJob(t, testServer, nil, token, i)
 			codes[i] = code
 		}(i)
 	}
@@ -87,7 +108,7 @@ func Test__RunJobAcceptsSameJobAgain(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			code, b := makeRequest(t, testServer, request, token, i)
+			code, b := postJob(t, testServer, request, token, i)
 			body := map[string]string{}
 			err := json.Unmarshal(b.Bytes(), &body)
 			if !assert.NoError(t, err) {
@@ -109,7 +130,22 @@ func Test__RunJobAcceptsSameJobAgain(t *testing.T) {
 	assert.Equal(t, totalReq-1, countBodies(bodies, "job is already running"))
 }
 
-func makeRequest(t *testing.T, testServer *Server, jobReq *api.JobRequest, token string, i int) (int, *bytes.Buffer) {
+func getAgentStatus(t *testing.T, testServer *Server, token string) string {
+	req, _ := http.NewRequest("GET", "/status", nil)
+	req.Header.Add("Authorization", "Token "+token)
+	rr := httptest.NewRecorder()
+	testServer.router.ServeHTTP(rr, req)
+
+	resp := map[string]string{}
+	err := json.Unmarshal(rr.Body.Bytes(), &resp)
+	if err != nil {
+		return ""
+	}
+
+	return resp["state"]
+}
+
+func postJob(t *testing.T, testServer *Server, jobReq *api.JobRequest, token string, i int) (int, *bytes.Buffer) {
 	jobRequest := jobReq
 	if jobRequest == nil {
 		jobRequest = &api.JobRequest{
