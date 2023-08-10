@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	handlers "github.com/gorilla/handlers"
@@ -29,6 +30,8 @@ type Server struct {
 	router     *mux.Router
 	HTTPClient *http.Client
 	Config     ServerConfig
+
+	activeJobLock sync.Mutex
 }
 
 type ServerConfig struct {
@@ -170,6 +173,9 @@ func (s *Server) AgentLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
+	s.activeJobLock.Lock()
+	defer s.activeJobLock.Unlock()
+
 	log.Infof("New job arrived. Agent version %s.", s.Config.Version)
 
 	if s.Config.BeforeRunJobFn != nil {
@@ -197,21 +203,23 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.State != ServerStateWaitingForJob {
-		if s.ActiveJob != nil && s.ActiveJob.Request.JobID == request.JobID {
-			// idempotent call
+	// If there's an active job already, we check if the IDs match.
+	// If they do, we return a 200, but don't do anything.
+	// If they don't, we return a 422, since only one job should be return at a time.
+	if s.ActiveJob != nil {
+		if s.ActiveJob.Request.JobID == request.JobID {
+			log.Infof("Job %s is already running - no need to run again", s.ActiveJob.Request.JobID)
 			fmt.Fprint(w, `{"message": "ok"}`)
 			return
 		}
 
-		log.Warn("A job is already running, returning 422")
-
+		log.Warnf("Another job %s is already running - rejecting %s", s.ActiveJob.Request.JobID, request.JobID)
 		w.WriteHeader(422)
 		fmt.Fprintf(w, `{"message": "a job is already running"}`)
 		return
 	}
 
-	log.Debug("Creating new job")
+	log.Infof("Creating new job for %s", request.JobID)
 	job, err := jobs.NewJobWithOptions(&jobs.JobOptions{
 		Request:         request,
 		Client:          s.HTTPClient,
@@ -243,9 +251,6 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 		OnJobFinished:         nil,
 		CallbackRetryAttempts: 60,
 	})
-
-	log.Debugf("Setting state to '%s'", ServerStateJobReceived)
-	s.State = ServerStateJobReceived
 
 	fmt.Fprint(w, `{"message": "ok"}`)
 }
