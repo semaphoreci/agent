@@ -30,7 +30,7 @@ func Test__RunJobDoesNotAcceptMultipleJobs(t *testing.T) {
 	// Run a bunch of requests concurrently,
 	// with a different job ID for each request,
 	// keeping track of their responses.
-	var totalReq int = 20
+	var totalReq = 20
 	var wg sync.WaitGroup
 	codes := make([]int, totalReq)
 	for i := 0; i < totalReq; i++ {
