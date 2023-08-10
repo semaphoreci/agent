@@ -12,7 +12,7 @@ func TempFileWithExtension() (string, error) {
 		return "", err
 	}
 
-	tmpFile.Close()
+	_ = tmpFile.Close()
 	return tmpFile.Name(), nil
 }
 

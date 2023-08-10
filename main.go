@@ -403,6 +403,8 @@ const nameLength = 15
 
 func randomName() (string, error) {
 	buffer := make([]byte, nameLength)
+
+	// #nosec
 	_, err := rand.Read(buffer)
 
 	if err != nil {
