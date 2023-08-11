@@ -51,7 +51,7 @@ class ApiMode
 
     Timeout.timeout(60 * 2) do
       loop do
-        `curl -s -H "Authorization: Bearer #{$TOKEN}" --fail -k "https://0.0.0.0:30000/job_logs" | grep "#{cmd}"`
+        `curl -s -H "Authorization: Bearer #{$TOKEN}" --fail -k "https://0.0.0.0:30000/jobs/#{$JOB_ID}/log" | grep "#{cmd}"`
 
         if $?.exitstatus == 0
           break
