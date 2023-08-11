@@ -133,6 +133,26 @@ func (s *Server) isAlive(w http.ResponseWriter, r *http.Request) {
 func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain")
 
+	jobID := mux.Vars(r)["job_id"]
+
+	// If no jobs have been received yet, we have no logs.
+	if s.ActiveJob == nil {
+		log.Warnf("Attempt to fetch logs for '%s' before any job is received", jobID)
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, `{"message": "job %s is not running"}`, jobID)
+		return
+	}
+
+	// Here, we know that a job was scheduled.
+	// We need to ensure the ID in the request matches the one executing.
+	runningJobID := s.ActiveJob.Request.JobID
+	if runningJobID != jobID {
+		log.Warnf("Attempt to fetch logs for '%s', but job '%s' is the one running", jobID, runningJobID)
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprintf(w, `{"message": "job %s is not running"}`, jobID)
+		return
+	}
+
 	startFromLine, err := strconv.Atoi(r.URL.Query().Get("start_from"))
 	if err != nil {
 		startFromLine = 0
