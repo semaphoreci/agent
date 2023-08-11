@@ -70,14 +70,11 @@ func NewServer(config ServerConfig) *Server {
 
 	router.HandleFunc("/status", jwtMiddleware(server.Status)).Methods("GET")
 	router.HandleFunc("/jobs", jwtMiddleware(server.Run)).Methods("POST")
+	router.HandleFunc("/jobs/{job_id}/log", jwtMiddleware(server.JobLogs)).Methods("GET")
 
 	// The path /stop is the new standard, /jobs/terminate is here to support the legacy system.
 	router.HandleFunc("/stop", jwtMiddleware(server.Stop)).Methods("POST")
 	router.HandleFunc("/jobs/terminate", jwtMiddleware(server.Stop)).Methods("POST")
-
-	// The path /jobs/{job_id}/log is here to support the legacy systems.
-	router.HandleFunc("/job_logs", jwtMiddleware(server.JobLogs)).Methods("GET")
-	router.HandleFunc("/jobs/{job_id}/log", jwtMiddleware(server.JobLogs)).Methods("GET")
 
 	// Agent Logs
 	router.HandleFunc("/agent_logs", jwtMiddleware(server.AgentLogs)).Methods("GET")
