@@ -208,7 +208,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 
 	// If there's an active job already, we check if the IDs match.
 	// If they do, we return a 200, but don't do anything (idempotency).
-	// If they don't, we return a 422, since only one job should be return at a time.
+	// If they don't, we return a 422, since only one job should be run at a time.
 	if s.ActiveJob != nil {
 		if s.ActiveJob.Request.JobID == request.JobID {
 			log.Infof("Job %s is already running - no need to run again", s.ActiveJob.Request.JobID)
