@@ -70,14 +70,11 @@ func NewServer(config ServerConfig) *Server {
 
 	router.HandleFunc("/status", jwtMiddleware(server.Status)).Methods("GET")
 	router.HandleFunc("/jobs", jwtMiddleware(server.Run)).Methods("POST")
+	router.HandleFunc("/jobs/{job_id}/log", jwtMiddleware(server.JobLogs)).Methods("GET")
 
 	// The path /stop is the new standard, /jobs/terminate is here to support the legacy system.
 	router.HandleFunc("/stop", jwtMiddleware(server.Stop)).Methods("POST")
 	router.HandleFunc("/jobs/terminate", jwtMiddleware(server.Stop)).Methods("POST")
-
-	// The path /jobs/{job_id}/log is here to support the legacy systems.
-	router.HandleFunc("/job_logs", jwtMiddleware(server.JobLogs)).Methods("GET")
-	router.HandleFunc("/jobs/{job_id}/log", jwtMiddleware(server.JobLogs)).Methods("GET")
 
 	// Agent Logs
 	router.HandleFunc("/agent_logs", jwtMiddleware(server.AgentLogs)).Methods("GET")
@@ -132,6 +129,26 @@ func (s *Server) isAlive(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain")
+
+	jobID := mux.Vars(r)["job_id"]
+
+	// If no jobs have been received yet, we have no logs.
+	if s.ActiveJob == nil {
+		log.Warnf("Attempt to fetch logs for '%s' before any job is received", jobID)
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, `{"message": "job %s is not running"}`, jobID)
+		return
+	}
+
+	// Here, we know that a job was scheduled.
+	// We need to ensure the ID in the request matches the one executing.
+	runningJobID := s.ActiveJob.Request.JobID
+	if runningJobID != jobID {
+		log.Warnf("Attempt to fetch logs for '%s', but job '%s' is the one running", jobID, runningJobID)
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprintf(w, `{"message": "job %s is not running"}`, jobID)
+		return
+	}
 
 	startFromLine, err := strconv.Atoi(r.URL.Query().Get("start_from"))
 	if err != nil {

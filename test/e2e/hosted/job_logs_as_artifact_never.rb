@@ -4,11 +4,13 @@
 require_relative '../../e2e'
 
 # Here, we use the SEMAPHORE_JOB_ID as the job ID for this test.
+$JOB_ID = ENV["SEMAPHORE_JOB_ID"]
+
 # Additionally, we pass the artifact related environment variables
 # to the job, so that it can upload the job logs as an artifact after the job is done.
 start_job <<-JSON
   {
-    "job_id": "#{ENV["SEMAPHORE_JOB_ID"]}",
+    "job_id": "#{$JOB_ID}",
     "executor": "shell",
     "env_vars": [
       { "name": "SEMAPHORE_JOB_ID", "value": "#{Base64.strict_encode64(ENV["SEMAPHORE_JOB_ID"])}" },
