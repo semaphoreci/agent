@@ -15,6 +15,7 @@ func DurationInRange(minMillis, maxMillis int) (*time.Duration, error) {
 		return nil, fmt.Errorf("max cannot be greater than or equal to zero")
 	}
 
+	// #nosec
 	interval := rand.Intn(maxMillis-minMillis) + minMillis
 	duration := time.Duration(interval) * time.Millisecond
 	return &duration, nil

@@ -67,8 +67,6 @@ func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
 }
 
 func NewJobWithOptions(options *JobOptions) (*Job, error) {
-	log.Debugf("Job Request %+v", options.Request)
-
 	if options.Request.Executor == "" {
 		log.Infof("No executor specified - using %s executor", executors.ExecutorTypeShell)
 		options.Request.Executor = executors.ExecutorTypeShell

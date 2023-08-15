@@ -184,6 +184,7 @@ func (c *KubernetesClient) CreateSecret(name string, jobRequest *api.JobRequest)
 		return fmt.Errorf("error creating temporary environment file: %v", err)
 	}
 
+	// #nosec
 	envFile, err := os.Open(envFileName)
 	if err != nil {
 		return fmt.Errorf("error opening environment file for reading: %v", err)

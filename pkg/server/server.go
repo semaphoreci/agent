@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
+	"time"
 
 	handlers "github.com/gorilla/handlers"
 	mux "github.com/gorilla/mux"
@@ -22,12 +24,13 @@ import (
 )
 
 type Server struct {
-	State      string
 	Logfile    io.Writer
 	ActiveJob  *jobs.Job
 	router     *mux.Router
 	HTTPClient *http.Client
 	Config     ServerConfig
+
+	activeJobLock sync.Mutex
 }
 
 type ServerConfig struct {
@@ -41,6 +44,10 @@ type ServerConfig struct {
 	HTTPClient     *http.Client
 	PreJobHookPath string
 	FileInjections []config.FileInjection
+
+	// A way to execute some code before handling a POST /jobs request.
+	// Currently, only used to make tests that assert race condition scenarios more reproducible.
+	BeforeRunJobFn func()
 }
 
 const ServerStateWaitingForJob = "waiting-for-job"
@@ -51,7 +58,6 @@ func NewServer(config ServerConfig) *Server {
 
 	server := &Server{
 		Config:     config,
-		State:      ServerStateWaitingForJob,
 		Logfile:    config.LogFile,
 		router:     router,
 		HTTPClient: config.HTTPClient,
@@ -64,14 +70,11 @@ func NewServer(config ServerConfig) *Server {
 
 	router.HandleFunc("/status", jwtMiddleware(server.Status)).Methods("GET")
 	router.HandleFunc("/jobs", jwtMiddleware(server.Run)).Methods("POST")
+	router.HandleFunc("/jobs/{job_id}/log", jwtMiddleware(server.JobLogs)).Methods("GET")
 
 	// The path /stop is the new standard, /jobs/terminate is here to support the legacy system.
 	router.HandleFunc("/stop", jwtMiddleware(server.Stop)).Methods("POST")
 	router.HandleFunc("/jobs/terminate", jwtMiddleware(server.Stop)).Methods("POST")
-
-	// The path /jobs/{job_id}/log is here to support the legacy systems.
-	router.HandleFunc("/job_logs", jwtMiddleware(server.JobLogs)).Methods("GET")
-	router.HandleFunc("/jobs/{job_id}/log", jwtMiddleware(server.JobLogs)).Methods("GET")
 
 	// Agent Logs
 	router.HandleFunc("/agent_logs", jwtMiddleware(server.AgentLogs)).Methods("GET")
@@ -86,19 +89,31 @@ func (s *Server) Serve() {
 
 	loggedRouter := handlers.LoggingHandler(s.Logfile, s.router)
 
-	log.Fatal(http.ListenAndServeTLS(
-		address,
-		s.Config.TLSCertPath,
-		s.Config.TLSKeyPath,
-		loggedRouter,
-	))
+	server := &http.Server{
+		Addr:              address,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		IdleTimeout:       30 * time.Second,
+		Handler:           loggedRouter,
+	}
+
+	err := server.ListenAndServeTLS(s.Config.TLSCertPath, s.Config.TLSKeyPath)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (s *Server) Status(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(200)
 	m := make(map[string]interface{})
 
-	m["state"] = s.State
+	state := ServerStateWaitingForJob
+	if s.ActiveJob != nil {
+		state = ServerStateJobReceived
+	}
+
+	m["state"] = state
 	m["version"] = s.Config.Version
 
 	jsonString, _ := json.Marshal(m)
@@ -114,6 +129,26 @@ func (s *Server) isAlive(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Type", "text/plain")
+
+	jobID := mux.Vars(r)["job_id"]
+
+	// If no jobs have been received yet, we have no logs.
+	if s.ActiveJob == nil {
+		log.Warnf("Attempt to fetch logs for '%s' before any job is received", jobID)
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, `{"message": "job %s is not running"}`, jobID)
+		return
+	}
+
+	// Here, we know that a job was scheduled.
+	// We need to ensure the ID in the request matches the one executing.
+	runningJobID := s.ActiveJob.Request.JobID
+	if runningJobID != jobID {
+		log.Warnf("Attempt to fetch logs for '%s', but job '%s' is the one running", jobID, runningJobID)
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprintf(w, `{"message": "job %s is not running"}`, jobID)
+		return
+	}
 
 	startFromLine, err := strconv.Atoi(r.URL.Query().Get("start_from"))
 	if err != nil {
@@ -158,7 +193,14 @@ func (s *Server) AgentLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
+	s.activeJobLock.Lock()
+	defer s.activeJobLock.Unlock()
+
 	log.Infof("New job arrived. Agent version %s.", s.Config.Version)
+
+	if s.Config.BeforeRunJobFn != nil {
+		s.Config.BeforeRunJobFn()
+	}
 
 	log.Debug("Reading content of the request")
 	body, err := ioutil.ReadAll(r.Body)
@@ -181,21 +223,23 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.State != ServerStateWaitingForJob {
-		if s.ActiveJob != nil && s.ActiveJob.Request.JobID == request.JobID {
-			// idempotent call
-			fmt.Fprint(w, `{"message": "ok"}`)
+	// If there's an active job already, we check if the IDs match.
+	// If they do, we return a 200, but don't do anything (idempotency).
+	// If they don't, we return a 422, since only one job should be run at a time.
+	if s.ActiveJob != nil {
+		if s.ActiveJob.Request.JobID == request.JobID {
+			log.Infof("Job %s is already running - no need to run again", s.ActiveJob.Request.JobID)
+			fmt.Fprint(w, `{"message": "job is already running"}`)
 			return
 		}
 
-		log.Warn("A job is already running, returning 422")
-
+		log.Warnf("Another job %s is already running - rejecting %s", s.ActiveJob.Request.JobID, request.JobID)
 		w.WriteHeader(422)
-		fmt.Fprintf(w, `{"message": "a job is already running"}`)
+		fmt.Fprintf(w, `{"message": "another job is already running"}`)
 		return
 	}
 
-	log.Debug("Creating new job")
+	log.Infof("Creating new job for %s", request.JobID)
 	job, err := jobs.NewJobWithOptions(&jobs.JobOptions{
 		Request:         request,
 		Client:          s.HTTPClient,
@@ -227,9 +271,6 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 		OnJobFinished:         nil,
 		CallbackRetryAttempts: 60,
 	})
-
-	log.Debugf("Setting state to '%s'", ServerStateJobReceived)
-	s.State = ServerStateJobReceived
 
 	fmt.Fprint(w, `{"message": "ok"}`)
 }

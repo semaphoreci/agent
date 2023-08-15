@@ -98,7 +98,7 @@ func getLogFilePath() string {
 	}
 
 	parentDirectory := path.Dir(logFilePath)
-	err := os.MkdirAll(parentDirectory, 0644)
+	err := os.MkdirAll(parentDirectory, 0640)
 	if err != nil {
 		log.Panicf("Could not create directories to place log file in '%s': %v", logFilePath, err)
 	}
@@ -403,6 +403,8 @@ const nameLength = 15
 
 func randomName() (string, error) {
 	buffer := make([]byte, nameLength)
+
+	// #nosec
 	_, err := rand.Read(buffer)
 
 	if err != nil {

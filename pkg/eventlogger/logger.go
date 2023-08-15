@@ -66,7 +66,7 @@ func (l *Logger) GeneratePlainTextFile() (string, error) {
 		}
 
 		newLines := []byte(strings.Join(logs, ""))
-		err = ioutil.WriteFile(tmpFile.Name(), newLines, 0755)
+		err = ioutil.WriteFile(tmpFile.Name(), newLines, 0600)
 		if err != nil {
 			return "", err
 		}

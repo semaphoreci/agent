@@ -393,6 +393,7 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForECR(credentials api.Ima
 
 	e.Logger.LogCommandOutput(loginCmd + "\n")
 
+	// #nosec
 	cmd := exec.Command("bash", "-c", loginCmd)
 	cmd.Env = envs
 
