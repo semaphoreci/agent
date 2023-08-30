@@ -301,13 +301,15 @@ func (job *Job) RunRegularCommands(options RunOptions) string {
 		job.Stopped = true
 		log.Info("Regular commands were stopped")
 		return JobStopped
-	} else if exitCode == 0 {
+	}
+
+	if exitCode == 0 {
 		log.Info("Regular commands finished successfully")
 		return JobPassed
-	} else {
-		log.Info("Regular commands finished with failure")
-		return JobFailed
 	}
+
+	log.Info("Regular commands finished with failure")
+	return JobFailed
 }
 
 func (job *Job) runPreJobHook(options RunOptions) bool {
