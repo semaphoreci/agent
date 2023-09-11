@@ -6,6 +6,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -178,12 +179,8 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		log.Fatalf("Error parsing --files: %v", err)
 	}
 
-	agentName := getAgentName()
-	formatter := eventlogger.CustomFormatter{AgentName: agentName}
-	log.SetFormatter(&formatter)
-
 	config := listener.Config{
-		AgentName:                        agentName,
+		AgentName:                        getAgentName(),
 		Endpoint:                         viper.GetString(config.Endpoint),
 		Token:                            viper.GetString(config.Token),
 		RegisterRetryLimit:               30,
@@ -262,8 +259,8 @@ func getAgentName() string {
 	// --name configuration parameter was specified.
 	agentName := viper.GetString(config.Name)
 	if agentName != "" {
-		if len(agentName) < 8 || len(agentName) > 80 {
-			log.Fatalf("The agent name should have between 8 and 80 characters. '%s' has %d.", agentName, len(agentName))
+		if err := validateAgentName(agentName); err != nil {
+			log.Fatalf("Agent name validation failed: %v", err)
 		}
 
 		return agentName
@@ -274,8 +271,8 @@ func getAgentName() string {
 	envVarName := viper.GetString(config.NameFromEnv)
 	if envVarName != "" {
 		agentName := os.Getenv(envVarName)
-		if len(agentName) < 8 || len(agentName) > 80 {
-			log.Fatalf("The agent name should have between 8 and 80 characters. '%s' has %d.", agentName, len(agentName))
+		if err := validateAgentName(agentName); err != nil {
+			log.Fatalf("Agent name validation failed: %v", err)
 		}
 
 		return agentName
@@ -412,4 +409,18 @@ func randomName() (string, error) {
 	}
 
 	return base64.URLEncoding.EncodeToString(buffer), nil
+}
+
+func validateAgentName(name string) error {
+	// Do not apply length restriction on URLs.
+	if _, err := url.ParseRequestURI(name); err == nil {
+		return nil
+	}
+
+	// Not a URL - apply length restriction.
+	if len(name) < 8 || len(name) > 80 {
+		return fmt.Errorf("name should have between 8 and 80 characters. '%s' has %d", name, len(name))
+	}
+
+	return nil
 }

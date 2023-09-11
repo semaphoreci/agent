@@ -3,10 +3,12 @@ package listener
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
 	"github.com/semaphoreci/agent/pkg/config"
+	"github.com/semaphoreci/agent/pkg/eventlogger"
 	"github.com/semaphoreci/agent/pkg/kubernetes"
 	selfhostedapi "github.com/semaphoreci/agent/pkg/listener/selfhostedapi"
 	osinfo "github.com/semaphoreci/agent/pkg/osinfo"
@@ -55,6 +57,7 @@ func Start(httpClient *http.Client, config Config) (*Listener, error) {
 	}
 
 	listener.DisplayHelloMessage()
+	setCustomLogFormatter(config.AgentName)
 
 	log.Info("Starting Agent")
 	log.Info("Registering Agent")
@@ -62,6 +65,11 @@ func Start(httpClient *http.Client, config Config) (*Listener, error) {
 	if err != nil {
 		return listener, err
 	}
+
+	// We re-set the agent name in the custom log formatter,
+	// to ensure that names assigned by the Semaphore control plane
+	// are also added to the agent's custom log formatter, after registration.
+	setCustomLogFormatter(listener.Config.AgentName)
 
 	log.Info("Starting to poll for jobs")
 	jobProcessor, err := StartJobProcessor(httpClient, listener.Client, listener.Config)
@@ -72,6 +80,25 @@ func Start(httpClient *http.Client, config Config) (*Listener, error) {
 	listener.JobProcessor = jobProcessor
 
 	return listener, nil
+}
+
+func setCustomLogFormatter(agentName string) {
+	// If the name is a URL, which will be followed by the Semaphore control plane.
+	// The actual name used for the agent will be returned by the Semaphore
+	// control in the registration response. So, while the name is a URL,
+	// we initially the URL host in the log context until we get a name from the Semaphore control plane.
+	if u, err := url.ParseRequestURI(agentName); err == nil {
+		formatter := eventlogger.CustomFormatter{
+			AgentName: fmt.Sprintf("[%s]", u.Host),
+		}
+
+		log.SetFormatter(&formatter)
+		return
+	}
+
+	// If it's not a URL, just use the name itself.
+	formatter := eventlogger.CustomFormatter{AgentName: agentName}
+	log.SetFormatter(&formatter)
 }
 
 // only used during tests
@@ -123,6 +150,7 @@ func (l *Listener) Register(name string) error {
 				return err
 			}
 
+			l.Config.AgentName = resp.Name
 			l.Client.SetAccessToken(resp.Token)
 			return nil
 		},
