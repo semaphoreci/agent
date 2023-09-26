@@ -346,13 +346,14 @@ func (p *Process) writeCommandToFile(cmdFilePath, command string) error {
 	return file.Close()
 }
 
+// Determines the buffer size used when reading command output from the TTY.
+// Note: the TTY read does not block until this buffer is completely filled,
+// so there's no need to use a small buffer here. Using a 2-8k one seems reasonable.
 func (p *Process) readBufferSize() int {
-	// simulating the worst kind of baud rate
-	// random in size, and possibly very short.
 	rand.Seed(time.Now().UnixNano())
 
-	min := 64
-	max := 256
+	min := 2048
+	max := 8192
 
 	// #nosec
 	return rand.Intn(max-min) + min
