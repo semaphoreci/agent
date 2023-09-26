@@ -45,6 +45,9 @@ test:
 	gotestsum --format short-verbose --junitfile junit-report.xml --packages="./..." -- -p 1
 .PHONY: test
 
+test.bench:
+	go test -benchmem -run=^$ -bench=. ./pkg/shell/ -count=10
+
 build:
 	rm -rf build
 	env GOOS=linux GOARCH=386 go build -o build/agent main.go
