@@ -40,7 +40,7 @@ func Benchmark__CommandOutput_100K(b *testing.B) {
 }
 
 func Benchmark__CommandOutput_250K(b *testing.B) {
-	p := createProcess(b, fmt.Sprintf("for i in {0..500}; do echo '%s'; done", strings.Repeat("x", 1024)))
+	p := createProcess(b, fmt.Sprintf("for i in {0..250}; do echo '%s'; done", strings.Repeat("x", 1024)))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		p.Run()
