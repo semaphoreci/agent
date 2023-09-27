@@ -215,6 +215,7 @@ func Test__ShutdownHookCanSeeShutdownReason(t *testing.T) {
 		Scheme:             "http",
 		EnvVars:            []config.HostEnvVar{},
 		FileInjections:     []config.FileInjection{},
+		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       "0.0.7",
 		ShutdownHookPath:   hook,
 	}
@@ -261,6 +262,7 @@ func Test__ShutdownAfterJobFinished(t *testing.T) {
 		Scheme:             "http",
 		EnvVars:            []config.HostEnvVar{},
 		FileInjections:     []config.FileInjection{},
+		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       "0.0.7",
 	}
 
@@ -310,6 +312,7 @@ func Test__ShutdownAfterIdleTimeout(t *testing.T) {
 		Scheme:                     "http",
 		EnvVars:                    []config.HostEnvVar{},
 		FileInjections:             []config.FileInjection{},
+		UploadJobLogs:              config.UploadJobLogsConditionNever,
 		AgentVersion:               "0.0.7",
 	}
 
@@ -341,6 +344,7 @@ func Test__ShutdownAfterInterruption(t *testing.T) {
 		Scheme:             "http",
 		EnvVars:            []config.HostEnvVar{},
 		FileInjections:     []config.FileInjection{},
+		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       "0.0.7",
 	}
 
@@ -375,6 +379,7 @@ func Test__ShutdownAfterInterruptionNoGracePeriod(t *testing.T) {
 		Scheme:             "http",
 		EnvVars:            []config.HostEnvVar{},
 		FileInjections:     []config.FileInjection{},
+		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       "0.0.7",
 	}
 
@@ -433,6 +438,7 @@ func Test__ShutdownAfterInterruptionWithGracePeriod(t *testing.T) {
 		EnvVars:                 []config.HostEnvVar{},
 		FileInjections:          []config.FileInjection{},
 		AgentVersion:            "0.0.7",
+		UploadJobLogs:           config.UploadJobLogsConditionNever,
 		InterruptionGracePeriod: 30,
 	}
 
@@ -489,6 +495,7 @@ func Test__ShutdownFromUpstreamWhileWaiting(t *testing.T) {
 		Scheme:             "http",
 		EnvVars:            []config.HostEnvVar{},
 		FileInjections:     []config.FileInjection{},
+		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       "0.0.7",
 	}
 
@@ -524,6 +531,7 @@ func Test__ShutdownFromUpstreamWhileRunningJob(t *testing.T) {
 		Scheme:             "http",
 		EnvVars:            []config.HostEnvVar{},
 		FileInjections:     []config.FileInjection{},
+		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       "0.0.7",
 	}
 
@@ -578,6 +586,7 @@ func Test__HostEnvVarsAreExposedToJob(t *testing.T) {
 			{Name: "IMPORTANT_HOST_VAR_B", Value: "IMPORTANT_HOST_VAR_B_VALUE"},
 		},
 		FileInjections: []config.FileInjection{},
+		UploadJobLogs:  config.UploadJobLogsConditionNever,
 		AgentVersion:   "0.0.7",
 	}
 
@@ -710,6 +719,7 @@ func Test__LogTokenIsRefreshed(t *testing.T) {
 		Scheme:             "http",
 		EnvVars:            []config.HostEnvVar{},
 		FileInjections:     []config.FileInjection{},
+		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       "0.0.7",
 	}
 
@@ -789,6 +799,7 @@ func Test__GetJobIsRetried(t *testing.T) {
 		Scheme:             "http",
 		EnvVars:            []config.HostEnvVar{},
 		FileInjections:     []config.FileInjection{},
+		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       "0.0.7",
 	}
 
@@ -841,6 +852,7 @@ func Test__ReportsFailedToFetchJob(t *testing.T) {
 		Scheme:             "http",
 		EnvVars:            []config.HostEnvVar{},
 		FileInjections:     []config.FileInjection{},
+		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       "0.0.7",
 	}
 
@@ -890,6 +902,7 @@ func Test__ReportsFailedToConstructJob(t *testing.T) {
 		Scheme:             "http",
 		EnvVars:            []config.HostEnvVar{},
 		FileInjections:     []config.FileInjection{},
+		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       "0.0.7",
 	}
 
