@@ -46,7 +46,7 @@ test:
 .PHONY: test
 
 test.bench:
-	go test -benchmem -run=^$$ -bench=. ./pkg/shell/ -count=10
+	go test -benchmem -run=^$$ -bench . ./... -count=10
 
 build:
 	rm -rf build
