@@ -133,7 +133,7 @@ func (l *HTTPBackend) delay() time.Duration {
 	 * we use a tighter range of 500ms - 1000ms.
 	 */
 	if l.flush {
-		delay, _ := random.DurationInRange(500, 1000)
+		delay, _ := random.DurationInRange(250, 500)
 		return *delay
 	}
 
