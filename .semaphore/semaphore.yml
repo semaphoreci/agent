@@ -22,7 +22,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.18
+          - sem-version go 1.20
           - checkout
 
       jobs:
@@ -66,7 +66,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.18
+          - sem-version go 1.20
           - checkout
           - go version
           - go get
@@ -98,7 +98,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.18
+          - sem-version go 1.20
           - checkout
           - go version
           - go get
@@ -165,7 +165,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.18
+          - sem-version go 1.20
           - checkout
           - go version
           - go get
@@ -201,7 +201,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.18
+          - sem-version go 1.20
           - checkout
           - go version
           - go get
@@ -242,7 +242,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.18
+          - sem-version go 1.20
           - curl -sLO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 && install minikube-linux-amd64 /tmp/
           - /tmp/minikube-linux-amd64 config set WantUpdateNotification false
           - /tmp/minikube-linux-amd64 start --driver=docker
