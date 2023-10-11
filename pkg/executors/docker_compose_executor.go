@@ -741,17 +741,27 @@ func (e *DockerComposeExecutor) Stop() int {
 		err := e.Shell.Close()
 		if err != nil {
 			log.Errorf("Process killing procedure returned an error %+v\n", err)
-
-			return 0
 		}
 	}
 
-	log.Debug("Process killing finished without errors")
-
-	return 0
+	return e.Cleanup()
 }
 
 func (e *DockerComposeExecutor) Cleanup() int {
+	log.Info("Cleaning up docker resources")
+	cmd := exec.Command(
+		"docker-compose",
+		"-f",
+		e.dockerComposeManifestPath,
+		"down",
+		"--remove-orphans",
+	)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Errorf("Error removing docker resources: %v - %s", err, output)
+	}
+
 	return 0
 }
 
