@@ -749,6 +749,8 @@ func (e *DockerComposeExecutor) Stop() int {
 
 func (e *DockerComposeExecutor) Cleanup() int {
 	log.Info("Cleaning up docker resources")
+
+	// #nosec
 	cmd := exec.Command(
 		"docker-compose",
 		"-f",
