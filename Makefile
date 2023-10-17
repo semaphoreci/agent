@@ -5,7 +5,10 @@ AGENT_SSH_PORT_IN_TESTS=2222
 SECURITY_TOOLBOX_BRANCH ?= master
 SECURITY_TOOLBOX_TMP_DIR ?= /tmp/security-toolbox
 
-LATEST_VERSION=$(shell git tag | sort --version-sort | tail -n 1)
+AGENT_VERSION=dev
+ifneq ($(SEMAPHORE_GIT_TAG_NAME),)
+	AGENT_VERSION=$(SEMAPHORE_GIT_TAG_NAME)
+endif
 
 check.prepare:
 	rm -rf $(SECURITY_TOOLBOX_TMP_DIR)
@@ -90,7 +93,7 @@ docker.build.dev:
 # Docker Release
 #
 docker.build:
-	env GOOS=linux GOARCH=amd64 go build -o build/agent main.go
+	env GOOS=linux GOARCH=amd64 go build -ldflags='-s -w -X "main.VERSION=$(AGENT_VERSION)"' -o build/agent main.go
 	docker build -f Dockerfile.self_hosted -t semaphoreci/agent:latest .
 
 docker.push:
