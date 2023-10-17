@@ -97,8 +97,8 @@ docker.build:
 	docker build -f Dockerfile.self_hosted -t semaphoreci/agent:latest .
 
 docker.push:
-	docker tag semaphoreci/agent:latest semaphoreci/agent:$(LATEST_VERSION)
-	docker push semaphoreci/agent:$(LATEST_VERSION)
+	docker tag semaphoreci/agent:latest semaphoreci/agent:$(AGENT_VERSION)
+	docker push semaphoreci/agent:$(AGENT_VERSION)
 	docker push semaphoreci/agent:latest
 
 release.major:
