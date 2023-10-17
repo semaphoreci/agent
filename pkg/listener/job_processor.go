@@ -340,11 +340,12 @@ func (p *JobProcessor) executeShutdownHook(reason ShutdownReason) {
 	var cmd *exec.Cmd
 	log.Infof("Executing shutdown hook from %s", p.ShutdownHookPath)
 
-	// #nosec
 	if runtime.GOOS == "windows" {
 		args := append(shell.Args(), p.ShutdownHookPath)
+		// #nosec
 		cmd = exec.Command(shell.Executable(), args...)
 	} else {
+		// #nosec
 		cmd = exec.Command("bash", p.ShutdownHookPath)
 	}
 
