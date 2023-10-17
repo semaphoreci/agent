@@ -17,7 +17,7 @@ RUN install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
 # Install Semaphore agent
 RUN mkdir -p /opt/semaphore
-ADD build/agent /opt/semaphore/agent
+COPY build/agent /opt/semaphore/agent
 RUN chown ${USER_UID}:${USER_GID} /opt/semaphore
 
 USER $USERNAME
