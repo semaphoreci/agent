@@ -90,7 +90,8 @@ docker.build.dev:
 # Docker Release
 #
 docker.build:
-	docker build --build-arg AGENT_VERSION=$(LATEST_VERSION) -f Dockerfile.self_hosted -t semaphoreci/agent:latest .
+	env GOOS=linux GOARCH=amd64 go build -o build/agent main.go
+	docker build --build-arg -f Dockerfile.self_hosted -t semaphoreci/agent:latest .
 
 docker.push:
 	docker tag semaphoreci/agent:latest semaphoreci/agent:$(LATEST_VERSION)

@@ -1,7 +1,5 @@
 FROM ubuntu:20.04
 
-ARG AGENT_VERSION
-
 ARG USERNAME=semaphore
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
@@ -18,13 +16,9 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
 RUN install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
 # Install Semaphore agent
-RUN mkdir -p /opt/semaphore && \
-  curl -L https://github.com/semaphoreci/agent/releases/download/${AGENT_VERSION}/agent_Linux_x86_64.tar.gz -o /opt/semaphore/agent.tar.gz && \
-  tar -xf /opt/semaphore/agent.tar.gz -C /opt/semaphore && \
-  rm /opt/semaphore/agent.tar.gz && \
-  rm /opt/semaphore/README.md && \
-  rm /opt/semaphore/install.sh && \
-  chown ${USER_UID}:${USER_GID} /opt/semaphore
+RUN mkdir -p /opt/semaphore
+ADD build/agent /opt/semaphore/agent
+RUN chown ${USER_UID}:${USER_GID} /opt/semaphore
 
 USER $USERNAME
 WORKDIR /home/semaphore
