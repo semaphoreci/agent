@@ -432,7 +432,7 @@ func (job *Job) Teardown(result string, callbackRetryAttempts int) (string, erro
  * 3. Send teardown_finished callback and close the logger
  */
 func (job *Job) teardownWithCallbacks(result string, callbackRetryAttempts int) error {
-	err := job.SendFinishedCallback(job.Request.Callbacks.Token, result, callbackRetryAttempts)
+	err := job.SendFinishedCallback(result, callbackRetryAttempts)
 	if err != nil {
 		log.Errorf("Could not send finished callback: %v", err)
 		return err
@@ -536,7 +536,7 @@ func (job *Job) Stop() {
 	})
 }
 
-func (job *Job) SendFinishedCallback(token, result string, retries int) error {
+func (job *Job) SendFinishedCallback(result string, retries int) error {
 	payload := fmt.Sprintf(`{"result": "%s"}`, result)
 	log.Infof("Sending finished callback: %+v", payload)
 	return retry.RetryWithConstantWait(retry.RetryOptions{
@@ -544,7 +544,7 @@ func (job *Job) SendFinishedCallback(token, result string, retries int) error {
 		MaxAttempts:          retries,
 		DelayBetweenAttempts: time.Second,
 		Fn: func() error {
-			return job.SendCallback(token, job.Request.Callbacks.Finished, payload)
+			return job.SendCallback(job.Request.Callbacks.Finished, payload)
 		},
 	})
 }
@@ -556,20 +556,20 @@ func (job *Job) SendTeardownFinishedCallback(retries int) error {
 		MaxAttempts:          retries,
 		DelayBetweenAttempts: time.Second,
 		Fn: func() error {
-			return job.SendCallback(job.Request.Callbacks.Token, job.Request.Callbacks.TeardownFinished, "{}")
+			return job.SendCallback(job.Request.Callbacks.TeardownFinished, "{}")
 		},
 	})
 }
 
-func (job *Job) SendCallback(token, url string, payload string) error {
+func (job *Job) SendCallback(url string, payload string) error {
 	log.Debugf("Sending callback to %s: %+v", url, payload)
 	request, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(payload)))
 	if err != nil {
 		return err
 	}
 
-	if token != "" {
-		request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	if job.Request.Callbacks.Token != "" {
+		request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", job.Request.Callbacks.Token))
 	}
 
 	response, err := job.Client.Do(request)
