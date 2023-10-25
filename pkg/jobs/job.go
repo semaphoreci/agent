@@ -568,6 +568,10 @@ func (job *Job) SendCallback(url string, payload string) error {
 		return err
 	}
 
+	if job.Request.Callbacks.Token != "" {
+		request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", job.Request.Callbacks.Token))
+	}
+
 	response, err := job.Client.Do(request)
 	if err != nil {
 		return err
