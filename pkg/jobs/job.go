@@ -301,13 +301,15 @@ func (job *Job) RunRegularCommands(options RunOptions) string {
 		job.Stopped = true
 		log.Info("Regular commands were stopped")
 		return JobStopped
-	} else if exitCode == 0 {
+	}
+
+	if exitCode == 0 {
 		log.Info("Regular commands finished successfully")
 		return JobPassed
-	} else {
-		log.Info("Regular commands finished with failure")
-		return JobFailed
 	}
+
+	log.Info("Regular commands finished with failure")
+	return JobFailed
 }
 
 func (job *Job) runPreJobHook(options RunOptions) bool {
@@ -564,6 +566,10 @@ func (job *Job) SendCallback(url string, payload string) error {
 	request, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(payload)))
 	if err != nil {
 		return err
+	}
+
+	if job.Request.Callbacks.Token != "" {
+		request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", job.Request.Callbacks.Token))
 	}
 
 	response, err := job.Client.Do(request)

@@ -76,6 +76,7 @@ func (f *File) ParseMode() (fs.FileMode, error) {
 type Callbacks struct {
 	Finished         string `json:"finished" yaml:"finished"`
 	TeardownFinished string `json:"teardown_finished" yaml:"teardown_finished"`
+	Token            string `json:"token" yaml:"token"`
 }
 
 type Logger struct {

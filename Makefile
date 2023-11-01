@@ -5,7 +5,10 @@ AGENT_SSH_PORT_IN_TESTS=2222
 SECURITY_TOOLBOX_BRANCH ?= master
 SECURITY_TOOLBOX_TMP_DIR ?= /tmp/security-toolbox
 
-LATEST_VERSION=$(shell git tag | sort --version-sort | tail -n 1)
+AGENT_VERSION=dev
+ifneq ($(SEMAPHORE_GIT_TAG_NAME),)
+	AGENT_VERSION=$(SEMAPHORE_GIT_TAG_NAME)
+endif
 
 check.prepare:
 	rm -rf $(SECURITY_TOOLBOX_TMP_DIR)
@@ -44,6 +47,9 @@ serve:
 test:
 	gotestsum --format short-verbose --junitfile junit-report.xml --packages="./..." -- -p 1
 .PHONY: test
+
+test.bench:
+	go test -benchmem -run=^$$ -bench . ./... -count=10
 
 build:
 	rm -rf build
@@ -87,11 +93,12 @@ docker.build.dev:
 # Docker Release
 #
 docker.build:
-	docker build --build-arg AGENT_VERSION=$(LATEST_VERSION) -f Dockerfile.self_hosted -t semaphoreci/agent:latest .
+	env GOOS=linux GOARCH=amd64 go build -ldflags='-s -w -X "main.VERSION=$(AGENT_VERSION)"' -o build/agent main.go
+	docker build -f Dockerfile.self_hosted -t semaphoreci/agent:latest .
 
 docker.push:
-	docker tag semaphoreci/agent:latest semaphoreci/agent:$(LATEST_VERSION)
-	docker push semaphoreci/agent:$(LATEST_VERSION)
+	docker tag semaphoreci/agent:latest semaphoreci/agent:$(AGENT_VERSION)
+	docker push semaphoreci/agent:$(AGENT_VERSION)
 	docker push semaphoreci/agent:latest
 
 release.major:

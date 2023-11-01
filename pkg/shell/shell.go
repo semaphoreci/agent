@@ -207,6 +207,10 @@ func (s *Shell) silencePromptAndDisablePS1() error {
 			return fmt.Errorf(text)
 		}
 
+		if strings.Contains(text, "The container name \"/main\" is already in use") {
+			return fmt.Errorf(text)
+		}
+
 		if !strings.Contains(text, "echo") && strings.Contains(text, everythingIsReadyMark) {
 			break
 		}
