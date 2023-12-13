@@ -64,7 +64,15 @@ func (e *DockerComposeExecutor) Prepare() int {
 		return 1
 	}
 
-	err := os.MkdirAll(e.tmpDirectory, os.ModePerm)
+	version, err := docker.DockerComposeVersion()
+	if err != nil {
+		log.Errorf("Error finding docker compose: %v", err)
+		return 1
+	}
+
+	log.Infof("Using Docker Compose version %s", version)
+
+	err = os.MkdirAll(e.tmpDirectory, os.ModePerm)
 	if err != nil {
 		return 1
 	}
@@ -194,23 +202,12 @@ func (e *DockerComposeExecutor) Start() int {
 	return exitCode
 }
 
-func (e *DockerComposeExecutor) commonArgs() []string {
-	return []string{
-		"--ansi",
-		"never",
-		"-f",
-		e.dockerComposeManifestPath,
-		"run",
-		"--rm",
-		"--name",
-		e.mainContainerName,
-		"-v",
-		"/var/run/docker.sock:/var/run/docker.sock",
-		"-v",
-		fmt.Sprintf("%s:%s:ro", e.tmpDirectory, e.tmpDirectory),
-		e.mainContainerName,
-		"bash",
+func (e *DockerComposeExecutor) composeExecutableAndArgs() (string, []string) {
+	if docker.HasDockerComposeV2() {
+		return "docker", []string{"compose"}
 	}
+
+	return "docker-compose", []string{}
 }
 
 func (e *DockerComposeExecutor) startBashSession() int {
@@ -230,16 +227,23 @@ func (e *DockerComposeExecutor) startBashSession() int {
 
 	log.Debug("Starting stateful shell")
 
-	var executable string
-	var args []string
-	if docker.HasDockerComposeV2Plugin() {
-		executable = "docker"
-		args = []string{"compose"}
-		args = append(args, e.commonArgs()...)
-	} else {
-		executable = "docker-compose"
-		args = e.commonArgs()
-	}
+	executable, args := e.composeExecutableAndArgs()
+	args = append(args,
+		"--ansi",
+		"never",
+		"-f",
+		e.dockerComposeManifestPath,
+		"run",
+		"--rm",
+		"--name",
+		e.mainContainerName,
+		"-v",
+		"/var/run/docker.sock:/var/run/docker.sock",
+		"-v",
+		fmt.Sprintf("%s:%s:ro", e.tmpDirectory, e.tmpDirectory),
+		e.mainContainerName,
+		"bash",
+	)
 
 	shell, err := shell.NewShellFromExecAndArgs(executable, args, e.tmpDirectory)
 	if err != nil {
@@ -542,34 +546,20 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	// are not present locally.
 	//
 
-	var cmd *exec.Cmd
-	if docker.HasDockerComposeV2Plugin() {
-		cmd = exec.Command(
-			"docker",
-			"compose",
-			"--ansi",
-			"never",
-			"-f",
-			e.dockerComposeManifestPath,
-			"run",
-			"--rm",
-			e.mainContainerName,
-			"true",
-		)
-	} else {
-		cmd = exec.Command(
-			"docker-compose",
-			"--ansi",
-			"never",
-			"-f",
-			e.dockerComposeManifestPath,
-			"run",
-			"--rm",
-			e.mainContainerName,
-			"true",
-		)
-	}
+	executable, args := e.composeExecutableAndArgs()
+	args = append(args,
+		"--ansi",
+		"never",
+		"-f",
+		e.dockerComposeManifestPath,
+		"run",
+		"--rm",
+		e.mainContainerName,
+		"true",
+	)
 
+	// #nosec
+	cmd := exec.Command(executable, args...)
 	tty, err := shell.StartPTY(cmd)
 	if err != nil {
 		log.Errorf("Failed to initialize docker pull, err: %+v", err)
@@ -778,26 +768,16 @@ func (e *DockerComposeExecutor) Stop() int {
 func (e *DockerComposeExecutor) Cleanup() int {
 	log.Info("Cleaning up docker resources")
 
-	var cmd *exec.Cmd
-	if docker.HasDockerComposeV2Plugin() {
-		cmd = exec.Command(
-			"docker",
-			"compose",
-			"-f",
-			e.dockerComposeManifestPath,
-			"down",
-			"--remove-orphans",
-		)
-	} else {
-		cmd = exec.Command(
-			"docker-compose",
-			"-f",
-			e.dockerComposeManifestPath,
-			"down",
-			"--remove-orphans",
-		)
-	}
+	executable, args := e.composeExecutableAndArgs()
+	args = append(args,
+		"-f",
+		e.dockerComposeManifestPath,
+		"down",
+		"--remove-orphans",
+	)
 
+	// #nosec
+	cmd := exec.Command(executable, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Errorf("Error removing docker resources: %v - %s", err, output)

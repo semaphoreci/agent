@@ -4,10 +4,15 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os/exec"
+	"regexp"
+	"strings"
 
 	"github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/aws"
 )
+
+var dockerComposeV2VersionRegex = regexp.MustCompile(`^Docker Compose version (.*)$`)
+var dockerComposeV1VersionRegex = regexp.MustCompile(`^docker-compose version (.*),.*$`)
 
 type DockerConfig struct {
 	Auths map[string]DockerConfigAuthEntry `json:"auths" datapolicy:"token"`
@@ -109,6 +114,42 @@ func configServerURL(strategy string, credentials api.ImagePullCredentials) (str
 	}
 }
 
-func HasDockerComposeV2Plugin() bool {
+func HasDockerComposeV2() bool {
 	return exec.Command("docker", "compose", "version").Run() == nil
+}
+
+func DockerComposeV2Version() (string, error) {
+	output, err := exec.Command("docker", "compose", "version").Output()
+	if err != nil {
+		return "", err
+	}
+
+	match := dockerComposeV2VersionRegex.FindStringSubmatch(strings.Trim(string(output), "\n"))
+	if match == nil {
+		return "", fmt.Errorf("error finding docker compose v2 version: '%s'", string(output))
+	}
+
+	return match[1], nil
+}
+
+func DockerComposeV1Version() (string, error) {
+	output, err := exec.Command("docker-compose", "--version").Output()
+	if err != nil {
+		return "", err
+	}
+
+	match := dockerComposeV1VersionRegex.FindStringSubmatch(strings.Trim(string(output), "\n"))
+	if match == nil {
+		return "", fmt.Errorf("error finding docker compose v1 version: %s", string(output))
+	}
+
+	return match[1], nil
+}
+
+func DockerComposeVersion() (string, error) {
+	if HasDockerComposeV2() {
+		return DockerComposeV2Version()
+	}
+
+	return DockerComposeV1Version()
 }

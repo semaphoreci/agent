@@ -8,6 +8,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func Test__DockerComposeVersion(t *testing.T) {
+	v1Version, err := DockerComposeV1Version()
+	assert.NoError(t, err)
+	assert.Contains(t, v1Version, "v1")
+
+	v2Version, err := DockerComposeV2Version()
+	assert.NoError(t, err)
+	assert.Contains(t, v2Version, "v2")
+}
+
 func Test__NewDockerConfig(t *testing.T) {
 	t.Run("no credentials", func(t *testing.T) {
 		_, err := NewDockerConfig([]api.ImagePullCredentials{})
