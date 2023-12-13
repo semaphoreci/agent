@@ -2,6 +2,7 @@ package docker
 
 import (
 	"encoding/base64"
+	"runtime"
 	"testing"
 
 	"github.com/semaphoreci/agent/pkg/api"
@@ -9,6 +10,10 @@ import (
 )
 
 func Test__DockerComposeVersion(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
 	v1Version, err := DockerComposeCLIVersion()
 	assert.NoError(t, err)
 	assert.Contains(t, v1Version, "1.")
