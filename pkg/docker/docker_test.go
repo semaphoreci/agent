@@ -9,13 +9,13 @@ import (
 )
 
 func Test__DockerComposeVersion(t *testing.T) {
-	v1Version, err := DockerComposeV1Version()
+	v1Version, err := DockerComposeCLIVersion()
 	assert.NoError(t, err)
-	assert.Contains(t, v1Version, "v1")
+	assert.Contains(t, v1Version, "1.")
 
-	v2Version, err := DockerComposeV2Version()
+	v2Version, err := DockerComposePluginVersion()
 	assert.NoError(t, err)
-	assert.Contains(t, v2Version, "v2")
+	assert.Contains(t, v2Version, "v2.")
 }
 
 func Test__NewDockerConfig(t *testing.T) {

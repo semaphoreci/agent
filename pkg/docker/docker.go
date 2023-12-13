@@ -114,11 +114,7 @@ func configServerURL(strategy string, credentials api.ImagePullCredentials) (str
 	}
 }
 
-func HasDockerComposeV2() bool {
-	return exec.Command("docker", "compose", "version").Run() == nil
-}
-
-func DockerComposeV2Version() (string, error) {
+func DockerComposePluginVersion() (string, error) {
 	output, err := exec.Command("docker", "compose", "version").Output()
 	if err != nil {
 		return "", err
@@ -132,7 +128,9 @@ func DockerComposeV2Version() (string, error) {
 	return match[1], nil
 }
 
-func DockerComposeV1Version() (string, error) {
+// NOTE: this doesn't necessarily points to a docker compose v1 installation.
+// Sometimes, 'docker-compose' is an alias to the docker compose v2 plugin.
+func DockerComposeCLIVersion() (string, error) {
 	output, err := exec.Command("docker-compose", "--version").Output()
 	if err != nil {
 		return "", err
@@ -147,9 +145,10 @@ func DockerComposeV1Version() (string, error) {
 }
 
 func DockerComposeVersion() (string, error) {
-	if HasDockerComposeV2() {
-		return DockerComposeV2Version()
+	version, err := DockerComposePluginVersion()
+	if err == nil {
+		return version, nil
 	}
 
-	return DockerComposeV1Version()
+	return DockerComposeCLIVersion()
 }

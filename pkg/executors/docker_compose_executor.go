@@ -30,6 +30,7 @@ type DockerComposeExecutor struct {
 	tmpDirectory              string
 	dockerConfiguration       api.Compose
 	dockerComposeManifestPath string
+	dockerComposeVersion      string
 	mainContainerName         string
 	exposeKvmDevice           bool
 	fileInjections            []config.FileInjection
@@ -71,6 +72,7 @@ func (e *DockerComposeExecutor) Prepare() int {
 	}
 
 	log.Infof("Using Docker Compose version %s", version)
+	e.dockerComposeVersion = version
 
 	err = os.MkdirAll(e.tmpDirectory, os.ModePerm)
 	if err != nil {
@@ -203,7 +205,7 @@ func (e *DockerComposeExecutor) Start() int {
 }
 
 func (e *DockerComposeExecutor) composeExecutableAndArgs() (string, []string) {
-	if docker.HasDockerComposeV2() {
+	if strings.HasPrefix(e.dockerComposeVersion, "v2") {
 		return "docker", []string{"compose"}
 	}
 
