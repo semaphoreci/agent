@@ -13,6 +13,7 @@ const (
 	PreJobHookPath             = "pre-job-hook-path"
 	PostJobHookPath            = "post-job-hook-path"
 	DisconnectAfterJob         = "disconnect-after-job"
+	RunJob                     = "run-job"
 	DisconnectAfterIdleTimeout = "disconnect-after-idle-timeout"
 	EnvVars                    = "env-vars"
 	Files                      = "files"
@@ -68,6 +69,7 @@ var ValidConfigKeys = []string{
 	PreJobHookPath,
 	PostJobHookPath,
 	DisconnectAfterJob,
+	RunJob,
 	DisconnectAfterIdleTimeout,
 	EnvVars,
 	Files,

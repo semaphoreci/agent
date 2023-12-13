@@ -33,6 +33,7 @@ type Config struct {
 	PreJobHookPath                   string
 	PostJobHookPath                  string
 	DisconnectAfterJob               bool
+	RunJob                           string
 	DisconnectAfterIdleSeconds       int
 	InterruptionGracePeriod          int
 	EnvVars                          []config.HostEnvVar
@@ -138,6 +139,7 @@ func (l *Listener) Register(name string) error {
 		SingleJob:               l.Config.DisconnectAfterJob,
 		IdleTimeout:             l.Config.DisconnectAfterIdleSeconds,
 		InterruptionGracePeriod: l.Config.InterruptionGracePeriod,
+		Job:                     l.Config.RunJob,
 	}
 
 	err := retry.RetryWithConstantWait(retry.RetryOptions{
