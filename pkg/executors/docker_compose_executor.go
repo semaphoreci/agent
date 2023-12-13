@@ -16,6 +16,7 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	aws "github.com/semaphoreci/agent/pkg/aws"
 	"github.com/semaphoreci/agent/pkg/config"
+	"github.com/semaphoreci/agent/pkg/docker"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	shell "github.com/semaphoreci/agent/pkg/shell"
 	log "github.com/sirupsen/logrus"
@@ -193,6 +194,25 @@ func (e *DockerComposeExecutor) Start() int {
 	return exitCode
 }
 
+func (e *DockerComposeExecutor) commonArgs() []string {
+	return []string{
+		"--ansi",
+		"never",
+		"-f",
+		e.dockerComposeManifestPath,
+		"run",
+		"--rm",
+		"--name",
+		e.mainContainerName,
+		"-v",
+		"/var/run/docker.sock:/var/run/docker.sock",
+		"-v",
+		fmt.Sprintf("%s:%s:ro", e.tmpDirectory, e.tmpDirectory),
+		e.mainContainerName,
+		"bash",
+	}
+}
+
 func (e *DockerComposeExecutor) startBashSession() int {
 	commandStartedAt := int(time.Now().Unix())
 	directive := "Starting the docker image..."
@@ -210,23 +230,15 @@ func (e *DockerComposeExecutor) startBashSession() int {
 
 	log.Debug("Starting stateful shell")
 
-	// #nosec
-	executable := "docker-compose"
-	args := []string{
-		"--ansi",
-		"never",
-		"-f",
-		e.dockerComposeManifestPath,
-		"run",
-		"--rm",
-		"--name",
-		e.mainContainerName,
-		"-v",
-		"/var/run/docker.sock:/var/run/docker.sock",
-		"-v",
-		fmt.Sprintf("%s:%s:ro", e.tmpDirectory, e.tmpDirectory),
-		e.mainContainerName,
-		"bash",
+	var executable string
+	var args []string
+	if docker.HasDockerComposeV2Plugin() {
+		executable = "docker"
+		args = []string{"compose"}
+		args = append(args, e.commonArgs()...)
+	} else {
+		executable = "docker-compose"
+		args = e.commonArgs()
 	}
 
 	shell, err := shell.NewShellFromExecAndArgs(executable, args, e.tmpDirectory)
@@ -530,17 +542,33 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	// are not present locally.
 	//
 
-	// #nosec
-	cmd := exec.Command(
-		"docker-compose",
-		"--ansi",
-		"never",
-		"-f",
-		e.dockerComposeManifestPath,
-		"run",
-		"--rm",
-		e.mainContainerName,
-		"true")
+	var cmd *exec.Cmd
+	if docker.HasDockerComposeV2Plugin() {
+		cmd = exec.Command(
+			"docker",
+			"compose",
+			"--ansi",
+			"never",
+			"-f",
+			e.dockerComposeManifestPath,
+			"run",
+			"--rm",
+			e.mainContainerName,
+			"true",
+		)
+	} else {
+		cmd = exec.Command(
+			"docker-compose",
+			"--ansi",
+			"never",
+			"-f",
+			e.dockerComposeManifestPath,
+			"run",
+			"--rm",
+			e.mainContainerName,
+			"true",
+		)
+	}
 
 	tty, err := shell.StartPTY(cmd)
 	if err != nil {
@@ -750,14 +778,25 @@ func (e *DockerComposeExecutor) Stop() int {
 func (e *DockerComposeExecutor) Cleanup() int {
 	log.Info("Cleaning up docker resources")
 
-	// #nosec
-	cmd := exec.Command(
-		"docker-compose",
-		"-f",
-		e.dockerComposeManifestPath,
-		"down",
-		"--remove-orphans",
-	)
+	var cmd *exec.Cmd
+	if docker.HasDockerComposeV2Plugin() {
+		cmd = exec.Command(
+			"docker",
+			"compose",
+			"-f",
+			e.dockerComposeManifestPath,
+			"down",
+			"--remove-orphans",
+		)
+	} else {
+		cmd = exec.Command(
+			"docker-compose",
+			"-f",
+			e.dockerComposeManifestPath,
+			"down",
+			"--remove-orphans",
+		)
+	}
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {

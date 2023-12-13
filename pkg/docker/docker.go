@@ -3,6 +3,7 @@ package docker
 import (
 	"encoding/base64"
 	"fmt"
+	"os/exec"
 
 	"github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/aws"
@@ -106,4 +107,8 @@ func configServerURL(strategy string, credentials api.ImagePullCredentials) (str
 	default:
 		return "", fmt.Errorf("%s not supported", strategy)
 	}
+}
+
+func HasDockerComposeV2Plugin() bool {
+	return exec.Command("docker", "compose", "version").Run() == nil
 }
