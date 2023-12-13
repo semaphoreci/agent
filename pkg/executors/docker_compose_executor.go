@@ -65,16 +65,7 @@ func (e *DockerComposeExecutor) Prepare() int {
 		return 1
 	}
 
-	version, err := docker.DockerComposeVersion()
-	if err != nil {
-		log.Errorf("Error finding docker compose: %v", err)
-		return 1
-	}
-
-	log.Infof("Using Docker Compose version %s", version)
-	e.dockerComposeVersion = version
-
-	err = os.MkdirAll(e.tmpDirectory, os.ModePerm)
+	err := os.MkdirAll(e.tmpDirectory, os.ModePerm)
 	if err != nil {
 		return 1
 	}
@@ -83,6 +74,15 @@ func (e *DockerComposeExecutor) Prepare() int {
 	if err != nil {
 		return 1
 	}
+
+	version, err := docker.DockerComposeVersion()
+	if err != nil {
+		log.Errorf("Error finding docker compose: %v", err)
+		return 1
+	}
+
+	log.Infof("Using Docker Compose version %s", version)
+	e.dockerComposeVersion = version
 
 	filesToInject, err := e.findValidFilesToInject()
 	if err != nil {
