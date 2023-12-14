@@ -155,6 +155,7 @@ blocks:
                 - check_dev_kvm
                 - host_setup_commands
                 - multiple_containers
+                - compose_v1
 
   - name: "Hosted E2E tests"
     dependencies: []

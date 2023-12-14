@@ -3,10 +3,16 @@ package docker
 import (
 	"encoding/base64"
 	"fmt"
+	"os/exec"
+	"regexp"
+	"strings"
 
 	"github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/aws"
 )
+
+var dockerComposeV2VersionRegex = regexp.MustCompile(`^Docker Compose version (.*)$`)
+var dockerComposeV1VersionRegex = regexp.MustCompile(`^docker-compose version (.*),.*$`)
 
 type DockerConfig struct {
 	Auths map[string]DockerConfigAuthEntry `json:"auths" datapolicy:"token"`
@@ -106,4 +112,43 @@ func configServerURL(strategy string, credentials api.ImagePullCredentials) (str
 	default:
 		return "", fmt.Errorf("%s not supported", strategy)
 	}
+}
+
+func DockerComposePluginVersion() (string, error) {
+	output, err := exec.Command("docker", "compose", "version").Output()
+	if err != nil {
+		return "", err
+	}
+
+	match := dockerComposeV2VersionRegex.FindStringSubmatch(strings.Trim(string(output), "\n"))
+	if match == nil {
+		return "", fmt.Errorf("error finding docker compose v2 version: '%s'", string(output))
+	}
+
+	return match[1], nil
+}
+
+// NOTE: this doesn't necessarily points to a docker compose v1 installation.
+// Sometimes, 'docker-compose' is an alias to the docker compose v2 plugin.
+func DockerComposeCLIVersion() (string, error) {
+	output, err := exec.Command("docker-compose", "--version").Output()
+	if err != nil {
+		return "", err
+	}
+
+	match := dockerComposeV1VersionRegex.FindStringSubmatch(strings.Trim(string(output), "\n"))
+	if match == nil {
+		return "", fmt.Errorf("error finding docker compose v1 version: %s", string(output))
+	}
+
+	return match[1], nil
+}
+
+func DockerComposeVersion() (string, error) {
+	version, err := DockerComposePluginVersion()
+	if err == nil {
+		return version, nil
+	}
+
+	return DockerComposeCLIVersion()
 }
