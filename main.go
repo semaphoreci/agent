@@ -54,7 +54,7 @@ func main() {
 	action := os.Args[1]
 
 	httpClient := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: 30 * time.Second,
 	}
 
 	switch action {

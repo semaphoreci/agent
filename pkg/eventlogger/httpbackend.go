@@ -61,7 +61,7 @@ func NewHTTPBackend(config HTTPBackendConfig) (*HTTPBackend, error) {
 
 	httpBackend := HTTPBackend{
 		client: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout: 30 * time.Second,
 		},
 		fileBackend: *fileBackend,
 		startFrom:   0,
