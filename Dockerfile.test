@@ -3,12 +3,10 @@ FROM python:3
 RUN apt-get update && \
   apt-get install curl -y && \
   curl -sSL https://get.docker.com/ | sh && \
-  apt-get install -y ssh && \
+  apt-get install -y ssh docker-compose-plugin && \
   # pin pyyaml to 5.3.1 until https://github.com/yaml/pyyaml/issues/724 is fixed
   pip install pyyaml==5.3.1 && \
-  pip install awscli && \
-  curl -sL 'https://github.com/docker/compose/releases/download/1.29.2/docker-compose-Linux-x86_64' -o /usr/local/bin/docker-compose && \
-  chmod +x /usr/local/bin/docker-compose
+  pip install awscli
 
 # By default, sshd runs on port 22, we need it to run on port 2222
 RUN sed -i 's/#Port 22/Port 2222/g' /etc/ssh/sshd_config
