@@ -120,7 +120,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	_ = pflag.String(config.PreJobHookPath, "", "Pre-job hook path")
 	_ = pflag.String(config.PostJobHookPath, "", "Post-job hook path")
 	_ = pflag.Bool(config.DisconnectAfterJob, false, "Disconnect after job")
-	_ = pflag.String(config.RunJob, "", "Request a specific job to run")
+	_ = pflag.String(config.JobID, "", "Request a specific job to run")
 	_ = pflag.Int(config.DisconnectAfterIdleTimeout, 0, "Disconnect after idle timeout, in seconds")
 	_ = pflag.Int(config.InterruptionGracePeriod, 0, "The grace period, in seconds, to wait after receiving an interrupt signal")
 	_ = pflag.StringSlice(config.EnvVars, []string{}, "Export environment variables in jobs")
@@ -194,7 +194,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		PreJobHookPath:                   viper.GetString(config.PreJobHookPath),
 		PostJobHookPath:                  viper.GetString(config.PostJobHookPath),
 		DisconnectAfterJob:               viper.GetBool(config.DisconnectAfterJob),
-		RunJob:                           viper.GetString(config.RunJob),
+		JobID:                            viper.GetString(config.JobID),
 		DisconnectAfterIdleSeconds:       viper.GetInt(config.DisconnectAfterIdleTimeout),
 		InterruptionGracePeriod:          viper.GetInt(config.InterruptionGracePeriod),
 		EnvVars:                          hostEnvVars,
@@ -248,8 +248,8 @@ func validateConfiguration() {
 		}
 	}
 
-	if viper.GetString(config.RunJob) != "" && !viper.GetBool(config.DisconnectAfterJob) {
-		log.Fatalf("%s can only be used if %s is also used. Exiting...", config.RunJob, config.DisconnectAfterJob)
+	if viper.GetString(config.JobID) != "" && !viper.GetBool(config.DisconnectAfterJob) {
+		log.Fatalf("%s can only be used if %s is also used. Exiting...", config.JobID, config.DisconnectAfterJob)
 	}
 
 	uploadJobLogs := viper.GetString(config.UploadJobLogs)
