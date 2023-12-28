@@ -16,6 +16,7 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	aws "github.com/semaphoreci/agent/pkg/aws"
 	"github.com/semaphoreci/agent/pkg/config"
+	"github.com/semaphoreci/agent/pkg/docker"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	shell "github.com/semaphoreci/agent/pkg/shell"
 	log "github.com/sirupsen/logrus"
@@ -29,6 +30,7 @@ type DockerComposeExecutor struct {
 	tmpDirectory              string
 	dockerConfiguration       api.Compose
 	dockerComposeManifestPath string
+	dockerComposeVersion      string
 	mainContainerName         string
 	exposeKvmDevice           bool
 	fileInjections            []config.FileInjection
@@ -72,6 +74,15 @@ func (e *DockerComposeExecutor) Prepare() int {
 	if err != nil {
 		return 1
 	}
+
+	version, err := docker.DockerComposeVersion()
+	if err != nil {
+		log.Errorf("Error finding docker compose: %v", err)
+		return 1
+	}
+
+	log.Infof("Using Docker Compose version %s", version)
+	e.dockerComposeVersion = version
 
 	filesToInject, err := e.findValidFilesToInject()
 	if err != nil {
@@ -193,6 +204,14 @@ func (e *DockerComposeExecutor) Start() int {
 	return exitCode
 }
 
+func (e *DockerComposeExecutor) composeExecutableAndArgs() (string, []string) {
+	if strings.HasPrefix(e.dockerComposeVersion, "v2") {
+		return "docker", []string{"compose"}
+	}
+
+	return "docker-compose", []string{}
+}
+
 func (e *DockerComposeExecutor) startBashSession() int {
 	commandStartedAt := int(time.Now().Unix())
 	directive := "Starting the docker image..."
@@ -210,9 +229,8 @@ func (e *DockerComposeExecutor) startBashSession() int {
 
 	log.Debug("Starting stateful shell")
 
-	// #nosec
-	executable := "docker-compose"
-	args := []string{
+	executable, args := e.composeExecutableAndArgs()
+	args = append(args,
 		"--ansi",
 		"never",
 		"-f",
@@ -227,7 +245,7 @@ func (e *DockerComposeExecutor) startBashSession() int {
 		fmt.Sprintf("%s:%s:ro", e.tmpDirectory, e.tmpDirectory),
 		e.mainContainerName,
 		"bash",
-	}
+	)
 
 	shell, err := shell.NewShellFromExecAndArgs(executable, args, e.tmpDirectory)
 	if err != nil {
@@ -530,9 +548,8 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	// are not present locally.
 	//
 
-	// #nosec
-	cmd := exec.Command(
-		"docker-compose",
+	executable, args := e.composeExecutableAndArgs()
+	args = append(args,
 		"--ansi",
 		"never",
 		"-f",
@@ -540,8 +557,11 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 		"run",
 		"--rm",
 		e.mainContainerName,
-		"true")
+		"true",
+	)
 
+	// #nosec
+	cmd := exec.Command(executable, args...)
 	tty, err := shell.StartPTY(cmd)
 	if err != nil {
 		log.Errorf("Failed to initialize docker pull, err: %+v", err)
@@ -750,15 +770,16 @@ func (e *DockerComposeExecutor) Stop() int {
 func (e *DockerComposeExecutor) Cleanup() int {
 	log.Info("Cleaning up docker resources")
 
-	// #nosec
-	cmd := exec.Command(
-		"docker-compose",
+	executable, args := e.composeExecutableAndArgs()
+	args = append(args,
 		"-f",
 		e.dockerComposeManifestPath,
 		"down",
 		"--remove-orphans",
 	)
 
+	// #nosec
+	cmd := exec.Command(executable, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Errorf("Error removing docker resources: %v - %s", err, output)

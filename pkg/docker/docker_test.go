@@ -2,11 +2,26 @@ package docker
 
 import (
 	"encoding/base64"
+	"runtime"
 	"testing"
 
 	"github.com/semaphoreci/agent/pkg/api"
 	"github.com/stretchr/testify/assert"
 )
+
+func Test__DockerComposeVersion(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
+	v1Version, err := DockerComposeCLIVersion()
+	assert.NoError(t, err)
+	assert.Contains(t, v1Version, "1.")
+
+	v2Version, err := DockerComposePluginVersion()
+	assert.NoError(t, err)
+	assert.Contains(t, v2Version, "v2.")
+}
 
 func Test__NewDockerConfig(t *testing.T) {
 	t.Run("no credentials", func(t *testing.T) {
