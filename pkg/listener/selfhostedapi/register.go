@@ -21,6 +21,7 @@ type RegisterRequest struct {
 	SingleJob               bool   `json:"single_job"`
 	IdleTimeout             int    `json:"idle_timeout"`
 	InterruptionGracePeriod int    `json:"interruption_grace_period"`
+	JobID                   string `json:"job_id"`
 }
 
 type RegisterResponse struct {
