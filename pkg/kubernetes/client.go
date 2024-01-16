@@ -29,7 +29,16 @@ type Config struct {
 	ImageValidator            *ImageValidator
 	PodSpecDecoratorConfigMap string
 	PodPollingAttempts        int
+	Labels                    map[string]string
 	PodPollingInterval        time.Duration
+}
+
+func (c *Config) LabelMap() map[string]string {
+	if c.Labels == nil {
+		return map[string]string{}
+	}
+
+	return c.Labels
 }
 
 func (c *Config) PollingInterval() time.Duration {
@@ -220,7 +229,11 @@ func (c *KubernetesClient) CreateSecret(name string, jobRequest *api.JobRequest)
 	}
 
 	secret := corev1.Secret{
-		ObjectMeta: v1.ObjectMeta{Name: name, Namespace: c.config.Namespace},
+		ObjectMeta: v1.ObjectMeta{
+			Name:      name,
+			Namespace: c.config.Namespace,
+			Labels:    c.config.LabelMap(),
+		},
 		Type:       corev1.SecretTypeOpaque,
 		Immutable:  &immutable,
 		StringData: data,
@@ -266,10 +279,14 @@ func (c *KubernetesClient) buildImagePullSecret(secretName string, credentials [
 
 	immutable := true
 	secret := corev1.Secret{
-		ObjectMeta: v1.ObjectMeta{Name: secretName, Namespace: c.config.Namespace},
-		Type:       corev1.SecretTypeDockerConfigJson,
-		Immutable:  &immutable,
-		Data:       map[string][]byte{corev1.DockerConfigJsonKey: json},
+		ObjectMeta: v1.ObjectMeta{
+			Name:      secretName,
+			Namespace: c.config.Namespace,
+			Labels:    c.config.LabelMap(),
+		},
+		Type:      corev1.SecretTypeDockerConfigJson,
+		Immutable: &immutable,
+		Data:      map[string][]byte{corev1.DockerConfigJsonKey: json},
 	}
 
 	return &secret, nil
@@ -322,9 +339,7 @@ func (c *KubernetesClient) podSpecFromJobRequest(podName string, envSecretName s
 		ObjectMeta: v1.ObjectMeta{
 			Namespace: c.config.Namespace,
 			Name:      podName,
-			Labels: map[string]string{
-				"app": "semaphore-agent",
-			},
+			Labels:    c.config.LabelMap(),
 		},
 	}, nil
 }

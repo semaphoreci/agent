@@ -132,6 +132,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	_ = pflag.Bool(config.KubernetesExecutor, false, "Use Kubernetes executor")
 	_ = pflag.String(config.KubernetesPodSpec, "", "Use a Kubernetes configmap to decorate the pod created to run the Semaphore job")
 	_ = pflag.StringSlice(config.KubernetesAllowedImages, []string{}, "List of regexes for allowed images to use for the Kubernetes executor")
+	_ = pflag.StringSlice(config.KubernetesLabels, []string{}, "Add labels to resources created by the kubernetes executor")
 	_ = pflag.Int(
 		config.KubernetesPodStartTimeout,
 		config.DefaultKubernetesPodStartTimeout,
@@ -182,6 +183,11 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		log.Fatalf("Error parsing --files: %v", err)
 	}
 
+	kubernetesLabels, err := ParseLabels()
+	if err != nil {
+		log.Fatalf("Error parsing --%s: %v", config.KubernetesLabels, err)
+	}
+
 	config := listener.Config{
 		AgentName:                        getAgentName(),
 		Endpoint:                         viper.GetString(config.Endpoint),
@@ -209,6 +215,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		KubernetesPodSpec:                viper.GetString(config.KubernetesPodSpec),
 		KubernetesImageValidator:         createImageValidator(viper.GetStringSlice(config.KubernetesAllowedImages)),
 		KubernetesPodStartTimeoutSeconds: viper.GetInt(config.KubernetesPodStartTimeout),
+		KubernetesLabels:                 kubernetesLabels,
 	}
 
 	go func() {
@@ -328,6 +335,20 @@ func ParseFiles(files []string) ([]config.FileInjection, error) {
 	}
 
 	return fileInjections, nil
+}
+
+func ParseLabels() (map[string]string, error) {
+	labels := map[string]string{}
+	for _, label := range viper.GetStringSlice(config.KubernetesLabels) {
+		nameAndValue := strings.Split(label, "=")
+		if len(nameAndValue) != 2 {
+			return nil, fmt.Errorf("%s is not a valid label", label)
+		}
+
+		labels[nameAndValue[0]] = nameAndValue[1]
+	}
+
+	return labels, nil
 }
 
 func RunServer(httpClient *http.Client, logfile io.Writer) {
