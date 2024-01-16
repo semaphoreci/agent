@@ -146,7 +146,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	viper.AutomaticEnv()
 	viper.SetEnvPrefix("SEMAPHORE_AGENT")
 
-	// Configuration parameters with a dash (-) on it can also be configured
+	// Configuration parameters with a dash (-) in their name can also be configured
 	// For example, --disconnect-after-job can be configured through SEMAPHORE_AGENT_DISCONNECT_AFTER_JOB.
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
