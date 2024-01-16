@@ -83,6 +83,7 @@ var ValidConfigKeys = []string{
 	KubernetesPodSpec,
 	KubernetesAllowedImages,
 	KubernetesPodStartTimeout,
+	KubernetesLabels,
 }
 
 type HostEnvVar struct {
