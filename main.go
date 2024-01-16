@@ -112,7 +112,7 @@ func getLogFilePath() string {
 func RunListener(httpClient *http.Client, logfile io.Writer) {
 	configFile := pflag.String(config.ConfigFile, "", "Config file")
 	_ = pflag.String(config.Name, "", "Name to use for the agent. If not set, a default random one is used.")
-	_ = pflag.String(config.NameFromEnv, "", "Specify name to use for the agent, using an environment variable. If --name and --name-from-env are empty, a random one is generated.")
+	_ = pflag.String(config.NameFromEnv, "", "Specify name to use for the agent, using an environment variable. Deprecated, use SEMAPHORE_AGENT_NAME instead.")
 	_ = pflag.String(config.Endpoint, "", "Endpoint where agents are registered")
 	_ = pflag.String(config.Token, "", "Registration token")
 	_ = pflag.Bool(config.NoHTTPS, false, "Use http for communication")
@@ -139,6 +139,16 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	)
 
 	pflag.Parse()
+
+	// Specifying configuration parameters with
+	// environment variables should also be possible through a SEMAPHORE_AGENT_ prefix,
+	// e.g., --endpoint can be specified with SEMAPHORE_AGENT_ENDPOINT.
+	viper.AutomaticEnv()
+	viper.SetEnvPrefix("SEMAPHORE_AGENT")
+
+	// Configuration parameters with a dash (-) on it can also be configured
+	// For example, --disconnect-after-job can be configured through SEMAPHORE_AGENT_DISCONNECT_AFTER_JOB.
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
 	if *configFile != "" {
 		loadConfigFile(*configFile)
