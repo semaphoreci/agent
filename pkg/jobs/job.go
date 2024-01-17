@@ -49,6 +49,7 @@ type JobOptions struct {
 	UseKubernetesExecutor            bool
 	PodSpecDecoratorConfigMap        string
 	KubernetesPodStartTimeoutSeconds int
+	KubernetesLabels                 map[string]string
 	KubernetesImageValidator         *kubernetes.ImageValidator
 	UploadJobLogs                    string
 	RefreshTokenFn                   func() (string, error)
@@ -121,6 +122,7 @@ func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOpti
 			ImageValidator:            jobOptions.KubernetesImageValidator,
 			PodSpecDecoratorConfigMap: jobOptions.PodSpecDecoratorConfigMap,
 			PodPollingAttempts:        jobOptions.KubernetesPodStartTimeoutSeconds,
+			Labels:                    jobOptions.KubernetesLabels,
 			PodPollingInterval:        time.Second,
 		})
 	}

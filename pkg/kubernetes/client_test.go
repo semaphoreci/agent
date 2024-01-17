@@ -39,6 +39,7 @@ func Test__CreateSecret(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, *secret.Immutable)
 		assert.Equal(t, secret.Name, secretName)
+		assert.Empty(t, secret.Labels)
 		assert.Equal(t, secret.StringData, map[string]string{
 			".env": "export A=AAA\nexport B=BBB\nexport C=CCC\n",
 		})
@@ -80,10 +81,49 @@ func Test__CreateSecret(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, *secret.Immutable)
 		assert.Equal(t, secret.Name, secretName)
+		assert.Empty(t, secret.Labels)
 		assert.Equal(t, secret.StringData, map[string]string{
 			".env": "export A=AAA\nexport B=BBB\nexport C=CCC\n",
 			key1:   "Random content",
 			key2:   "Random content 2",
+		})
+	})
+
+	t.Run("uses labels", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{})
+		secretName := "mysecret"
+
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace: "default",
+			Labels: map[string]string{
+				"app":                        "semaphore-agent",
+				"semaphoreci.com/agent-type": "s1-test",
+			},
+		})
+
+		// create secret using job request
+		assert.NoError(t, client.CreateSecret(secretName, &api.JobRequest{
+			EnvVars: []api.EnvVar{
+				{Name: "A", Value: base64.StdEncoding.EncodeToString([]byte("AAA"))},
+				{Name: "B", Value: base64.StdEncoding.EncodeToString([]byte("BBB"))},
+				{Name: "C", Value: base64.StdEncoding.EncodeToString([]byte("CCC"))},
+			},
+		}))
+
+		secret, err := clientset.CoreV1().
+			Secrets("default").
+			Get(context.Background(), secretName, v1.GetOptions{})
+
+		assert.NoError(t, err)
+		assert.True(t, *secret.Immutable)
+		assert.Equal(t, secret.Name, secretName)
+		assert.Equal(t, secret.Labels, map[string]string{
+			"app":                        "semaphore-agent",
+			"semaphoreci.com/agent-type": "s1-test",
+		})
+
+		assert.Equal(t, secret.StringData, map[string]string{
+			".env": "export A=AAA\nexport B=BBB\nexport C=CCC\n",
 		})
 	})
 }
@@ -128,6 +168,46 @@ func Test__CreateImagePullSecret(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, corev1.SecretTypeDockerConfigJson, secret.Type)
+		assert.Empty(t, secret.Labels)
+		assert.True(t, *secret.Immutable)
+		assert.NotEmpty(t, secret.Data)
+	})
+
+	t.Run("uses labels", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{})
+		secretName := "mysecretname"
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace: "default",
+			Labels: map[string]string{
+				"app":                        "semaphore-agent",
+				"semaphoreci.com/agent-type": "s1-test",
+			},
+		})
+
+		err := client.CreateImagePullSecret(secretName, []api.ImagePullCredentials{
+			{
+				EnvVars: []api.EnvVar{
+					{Name: "DOCKER_CREDENTIAL_TYPE", Value: base64.StdEncoding.EncodeToString([]byte(api.ImagePullCredentialsStrategyGenericDocker))},
+					{Name: "DOCKER_USERNAME", Value: base64.StdEncoding.EncodeToString([]byte("myuser"))},
+					{Name: "DOCKER_PASSWORD", Value: base64.StdEncoding.EncodeToString([]byte("mypass"))},
+					{Name: "DOCKER_URL", Value: base64.StdEncoding.EncodeToString([]byte("my-custom-registry.com"))},
+				},
+			},
+		})
+
+		assert.NoError(t, err)
+
+		secret, err := clientset.CoreV1().
+			Secrets("default").
+			Get(context.Background(), secretName, v1.GetOptions{})
+
+		assert.NoError(t, err)
+		assert.Equal(t, corev1.SecretTypeDockerConfigJson, secret.Type)
+		assert.Equal(t, secret.Labels, map[string]string{
+			"app":                        "semaphore-agent",
+			"semaphoreci.com/agent-type": "s1-test",
+		})
+
 		assert.True(t, *secret.Immutable)
 		assert.NotEmpty(t, secret.Data)
 	})
@@ -594,6 +674,61 @@ func Test__CreatePod(t *testing.T) {
 				},
 			})
 		}
+	})
+
+	t.Run("no labels", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{})
+		imageValidator, _ := NewImageValidator([]string{})
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:      "default",
+			ImageValidator: imageValidator,
+		})
+
+		_ = client.LoadPodSpec()
+		podName := "mypod"
+
+		// create pod using job request
+		assert.NoError(t, client.CreatePod(podName, "myenvsecret", "", &api.JobRequest{
+			Compose: api.Compose{Containers: []api.Container{{Name: "main", Image: "my-image"}}},
+		}))
+
+		pod, err := clientset.CoreV1().
+			Pods("default").
+			Get(context.Background(), podName, v1.GetOptions{})
+
+		assert.NoError(t, err)
+		assert.Empty(t, pod.Labels)
+	})
+
+	t.Run("with labels", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{})
+		imageValidator, _ := NewImageValidator([]string{})
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:      "default",
+			ImageValidator: imageValidator,
+			Labels: map[string]string{
+				"app":                        "semaphore-agent",
+				"semaphoreci.com/agent-type": "s1-test",
+			},
+		})
+
+		_ = client.LoadPodSpec()
+		podName := "mypod"
+
+		// create pod using job request
+		assert.NoError(t, client.CreatePod(podName, "myenvsecret", "", &api.JobRequest{
+			Compose: api.Compose{Containers: []api.Container{{Name: "main", Image: "my-image"}}},
+		}))
+
+		pod, err := clientset.CoreV1().
+			Pods("default").
+			Get(context.Background(), podName, v1.GetOptions{})
+
+		assert.NoError(t, err)
+		assert.Equal(t, pod.Labels, map[string]string{
+			"app":                        "semaphore-agent",
+			"semaphoreci.com/agent-type": "s1-test",
+		})
 	})
 }
 

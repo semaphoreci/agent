@@ -26,6 +26,7 @@ const (
 	KubernetesPodSpec          = "kubernetes-pod-spec"
 	KubernetesAllowedImages    = "kubernetes-allowed-images"
 	KubernetesPodStartTimeout  = "kubernetes-pod-start-timeout"
+	KubernetesLabels           = "kubernetes-labels"
 )
 
 const DefaultKubernetesPodStartTimeout = 300
@@ -82,6 +83,7 @@ var ValidConfigKeys = []string{
 	KubernetesPodSpec,
 	KubernetesAllowedImages,
 	KubernetesPodStartTimeout,
+	KubernetesLabels,
 }
 
 type HostEnvVar struct {
