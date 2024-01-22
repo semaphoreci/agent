@@ -1,7 +1,9 @@
 package shell
 
 import (
+	"context"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -220,12 +222,15 @@ func (b *OutputBuffer) chunkSize() int {
 func (b *OutputBuffer) Close() {
 	b.done = true
 
-	// wait until buffer is empty, for at most 10s.
+	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Minute)
+	defer cancelFunc()
+
+	// wait until buffer is empty, for at most 1m.
 	log.Debugf("Waiting for buffer to be completely flushed...")
-	err := retry.RetryWithConstantWait(retry.RetryOptions{
+	err := retry.RetryWithConstantWaitAndContext(ctx, retry.RetryOptions{
 		Task:                 "wait for all output to be flushed",
-		MaxAttempts:          1000,
-		DelayBetweenAttempts: 10 * time.Millisecond,
+		MaxAttempts:          math.MaxInt, // flush it until the the context reaches the deadline
+		DelayBetweenAttempts: 0,           // no need to sleep between flushes
 		HideError:            true,
 		Fn: func() error {
 			if b.IsEmpty() {
