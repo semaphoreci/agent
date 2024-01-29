@@ -188,6 +188,11 @@ func Test__OutputBuffer__DoesNotWaitForeverForOutputToBeFlushed(t *testing.T) {
 
 	buffer, _ := NewOutputBufferWithFlushTimeout(func(s string) {}, time.Second)
 
+	// write a lot of data to the buffer
+	for i := 0; i < 100; i++ {
+		buffer.Append(input)
+	}
+
 	// on a separate goroutine, we continuosly write
 	// to make sure the buffer is never empty
 	go func() {
