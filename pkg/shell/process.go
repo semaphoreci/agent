@@ -374,7 +374,10 @@ func (p *Process) readNonPTY(reader *io.PipeReader, done chan bool) {
 
 		if err == io.EOF {
 			log.Debug("Finished reading")
-			p.outputBuffer.Close()
+			if err := p.outputBuffer.Close(); err != nil {
+				log.Error("Could not flush all the output in the buffer")
+			}
+
 			break
 		}
 	}
@@ -382,9 +385,7 @@ func (p *Process) readNonPTY(reader *io.PipeReader, done chan bool) {
 	done <- true
 }
 
-//
 // Read state from shell into the inputBuffer
-//
 func (p *Process) read() error {
 	buffer := make([]byte, p.readBufferSize())
 
@@ -486,13 +487,17 @@ func (p *Process) scan() error {
 			// Reading failed. The most likely cause is that the bash process
 			// died. For example, running an `exit 1` command has killed it.
 			// Flushing all remaining data in the buffer and exiting.
-			p.outputBuffer.Close()
+			if err := p.outputBuffer.Close(); err != nil {
+				log.Error("Could not flush all the output in the buffer")
+			}
 
 			return err
 		}
 	}
 
-	p.outputBuffer.Close()
+	if err := p.outputBuffer.Close(); err != nil {
+		log.Error("Could not flush all the output in the buffer")
+	}
 
 	log.Debug("Command output finished")
 	log.Debugf("Parsing exit code %s", exitCode)

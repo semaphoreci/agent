@@ -6,6 +6,7 @@ import (
 	"time"
 
 	assert "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test__OutputBuffer__RequiresConsumer(t *testing.T) {
@@ -27,7 +28,7 @@ func Test__OutputBuffer__SimpleAscii(t *testing.T) {
 	}
 
 	buffer.Append(input)
-	buffer.Close()
+	require.NoError(t, buffer.Close())
 	assert.Equal(t, strings.Join(output, ""), string(input))
 }
 
@@ -44,7 +45,7 @@ func Test__OutputBuffer__SimpleAscii__ShorterThanMinimalCutLength(t *testing.T) 
 
 	// We need to wait a bit before flushing, the buffer is still too short
 	assert.Eventually(t, func() bool { return strings.Join(output, "") == string(input) }, time.Second, 100*time.Millisecond)
-	buffer.Close()
+	require.NoError(t, buffer.Close())
 }
 
 func Test__OutputBuffer__SimpleAscii__LongerThanMinimalCutLength(t *testing.T) {
@@ -64,7 +65,7 @@ func Test__OutputBuffer__SimpleAscii__LongerThanMinimalCutLength(t *testing.T) {
 	// wait for the output to be flushed
 	time.Sleep(time.Second)
 
-	buffer.Close()
+	require.NoError(t, buffer.Close())
 	if assert.Len(t, output, 2) {
 		assert.Equal(t, output[0], string(input[:OutputBufferDefaultCutLength]))
 		assert.Equal(t, output[1], string(input[OutputBufferDefaultCutLength:]))
@@ -80,7 +81,7 @@ func Test__OutputBuffer__SimpleAscii__ChunkIncreasesWhenClosed(t *testing.T) {
 	}
 
 	buffer.Append(input)
-	buffer.Close()
+	require.NoError(t, buffer.Close())
 
 	// everything is flushed in one chunk
 	if assert.Len(t, output, 1) {
@@ -101,7 +102,7 @@ func Test__OutputBuffer__UTF8_Sequence__Simple(t *testing.T) {
 	}
 
 	buffer.Append(input)
-	buffer.Close()
+	require.NoError(t, buffer.Close())
 	assert.Equal(t, strings.Join(output, ""), string(input))
 }
 
@@ -111,7 +112,7 @@ func Test__OutputBuffer__UTF8_Sequence__Short(t *testing.T) {
 
 	input := []byte("特特特")
 	buffer.Append(input)
-	buffer.Close()
+	require.NoError(t, buffer.Close())
 	assert.Equal(t, strings.Join(output, ""), string(input))
 }
 
@@ -128,7 +129,7 @@ func Test__OutputBuffer__InvalidUTF8_Sequence(t *testing.T) {
 	}
 
 	buffer.Append(input)
-	buffer.Close()
+	require.NoError(t, buffer.Close())
 	assert.Equal(t, strings.Join(output, ""), string(input))
 }
 
@@ -155,7 +156,7 @@ func Test__OutputBuffer__FlushIgnoresCharactersThatAreNotUtf8Valid(t *testing.T)
 	// In the output, we expect that the last broken byte is not returned initially.
 	time.Sleep(10 * time.Millisecond)
 	assert.Equal(t, strings.Join(output, ""), input)
-	buffer.Close()
+	require.NoError(t, buffer.Close())
 }
 
 func Test__OutputBuffer__FlushReturnsBytesThatAreBrokenAndSitInTheBufferForTooLong(t *testing.T) {
@@ -175,6 +176,28 @@ func Test__OutputBuffer__FlushReturnsBytesThatAreBrokenAndSitInTheBufferForTooLo
 	input = append(input, []byte("特")[0])
 
 	buffer.Append(input)
-	buffer.Close()
+	require.NoError(t, buffer.Close())
 	assert.Equal(t, strings.Join(output, ""), string(input))
+}
+
+func Test__OutputBuffer__DoesNotWaitForeverForOutputToBeFlushed(t *testing.T) {
+	input := []byte{}
+	for i := 0; i < OutputBufferDefaultCutLength*10+50; i++ {
+		input = append(input, 'a')
+	}
+
+	buffer, _ := NewOutputBufferWithFlushTimeout(func(s string) {}, time.Second)
+
+	// on a separate goroutine, we continuosly write
+	// to make sure the buffer is never empty
+	go func() {
+		for {
+			buffer.Append(input)
+		}
+	}()
+
+	// here, we try to close, which will not work
+	// since we will attempt to flush while the buffer is being continuosly written.
+	err := buffer.Close()
+	require.ErrorContains(t, err, "context deadline exceeded")
 }
