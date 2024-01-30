@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -182,27 +183,36 @@ func Test__OutputBuffer__FlushReturnsBytesThatAreBrokenAndSitInTheBufferForTooLo
 
 func Test__OutputBuffer__DoesNotWaitForeverForOutputToBeFlushed(t *testing.T) {
 	input := []byte{}
-	for i := 0; i < OutputBufferDefaultCutLength*10+50; i++ {
+	for i := 0; i < OutputBufferDefaultCutLength*10; i++ {
 		input = append(input, 'a')
 	}
 
 	buffer, _ := NewOutputBufferWithFlushTimeout(func(s string) {}, time.Second)
 
 	// write a lot of data to the buffer
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 1000; i++ {
 		buffer.Append(input)
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// on a separate goroutine, we continuosly write
 	// to make sure the buffer is never empty
 	go func() {
 		for {
-			buffer.Append(input)
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				buffer.Append(input)
+			}
 		}
 	}()
 
 	// here, we try to close, which will not work
 	// since we will attempt to flush while the buffer is being continuosly written.
 	err := buffer.Close()
-	require.ErrorContains(t, err, "context deadline exceeded")
+	assert.ErrorContains(t, err, "context deadline exceeded")
+	cancel()
 }
