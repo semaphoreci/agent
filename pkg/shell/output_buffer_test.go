@@ -189,7 +189,7 @@ func Test__OutputBuffer__DoesNotWaitForeverForOutputToBeFlushed(t *testing.T) {
 	buffer, _ := NewOutputBufferWithFlushTimeout(func(s string) {}, time.Second)
 
 	// write a lot of data to the buffer
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 10000; i++ {
 		buffer.Append(input)
 	}
 
