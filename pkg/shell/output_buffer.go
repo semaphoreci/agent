@@ -1,7 +1,9 @@
 package shell
 
 import (
+	"context"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -33,21 +35,27 @@ const OutputBufferMaxTimeSinceLastAppend = 100 * time.Millisecond
 const OutputBufferDefaultCutLength = 100
 
 type OutputBuffer struct {
-	Consumer   func(string)
-	bytes      []byte
-	mu         sync.Mutex
-	done       bool
-	lastAppend *time.Time
+	Consumer     func(string)
+	bytes        []byte
+	mu           sync.Mutex
+	done         bool
+	lastAppend   *time.Time
+	flushTimeout time.Duration
 }
 
 func NewOutputBuffer(consumer func(string)) (*OutputBuffer, error) {
+	return NewOutputBufferWithFlushTimeout(consumer, time.Minute)
+}
+
+func NewOutputBufferWithFlushTimeout(consumer func(string), flushTimeout time.Duration) (*OutputBuffer, error) {
 	if consumer == nil {
 		return nil, fmt.Errorf("output buffer requires a consumer")
 	}
 
 	b := &OutputBuffer{
-		Consumer: consumer,
-		bytes:    []byte{},
+		Consumer:     consumer,
+		bytes:        []byte{},
+		flushTimeout: flushTimeout,
 	}
 
 	go b.Flush()
@@ -217,15 +225,18 @@ func (b *OutputBuffer) chunkSize() int {
 	return OutputBufferDefaultCutLength
 }
 
-func (b *OutputBuffer) Close() {
+func (b *OutputBuffer) Close() error {
 	b.done = true
 
-	// wait until buffer is empty, for at most 10s.
+	ctx, cancelFunc := context.WithTimeout(context.Background(), b.flushTimeout)
+	defer cancelFunc()
+
 	log.Debugf("Waiting for buffer to be completely flushed...")
-	err := retry.RetryWithConstantWait(retry.RetryOptions{
+
+	return retry.RetryWithConstantWaitAndContext(ctx, retry.RetryOptions{
 		Task:                 "wait for all output to be flushed",
-		MaxAttempts:          1000,
-		DelayBetweenAttempts: 10 * time.Millisecond,
+		MaxAttempts:          math.MaxInt, // flush it until the the context reaches the deadline
+		DelayBetweenAttempts: 0,           // no need to sleep between flushes
 		HideError:            true,
 		Fn: func() error {
 			if b.IsEmpty() {
@@ -236,8 +247,4 @@ func (b *OutputBuffer) Close() {
 			return fmt.Errorf("not fully flushed")
 		},
 	})
-
-	if err != nil {
-		log.Error("Could not flush all the output in the buffer")
-	}
 }

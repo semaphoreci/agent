@@ -49,6 +49,8 @@ func RetryWithConstantWaitAndContext(ctx context.Context, options RetryOptions) 
 			)
 		}
 
-		time.Sleep(options.DelayBetweenAttempts)
+		if options.DelayBetweenAttempts > 0 {
+			time.Sleep(options.DelayBetweenAttempts)
+		}
 	}
 }

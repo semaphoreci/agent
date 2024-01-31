@@ -25,6 +25,8 @@ func Test__Shell__NewShell(t *testing.T) {
 	} else {
 		assert.Equal(t, shell.Args, []string{"--login"})
 	}
+
+	assert.NoError(t, shell.Close())
 }
 
 func Test__Shell__Start(t *testing.T) {
@@ -41,6 +43,8 @@ func Test__Shell__Start(t *testing.T) {
 		assert.NotNil(t, shell.BootCommand)
 		assert.NotNil(t, shell.TTY)
 	}
+
+	assert.NoError(t, shell.Close())
 }
 
 func Test__Shell__SimpleHelloWorld(t *testing.T) {
@@ -55,6 +59,7 @@ func Test__Shell__SimpleHelloWorld(t *testing.T) {
 
 	p1.Run()
 	assert.Equal(t, output.String(), "Hello\n")
+	assert.NoError(t, shell.Close())
 }
 
 func Test__Shell__SimpleHelloWorldUsingBase64Encoding(t *testing.T) {
@@ -78,6 +83,7 @@ func Test__Shell__SimpleHelloWorldUsingBase64Encoding(t *testing.T) {
 
 	p1.Run()
 	assert.Equal(t, output.String(), "Hello\n")
+	assert.NoError(t, shell.Close())
 }
 
 func Test__Shell__HandlingBashProcessKill(t *testing.T) {
