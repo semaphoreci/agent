@@ -44,7 +44,6 @@ The Kubernetes permissions required by the agent to use the Kubernetes executor 
 
 ## Limitations
 
-- Sidecar containers are addressable through localhost, and not through DNS names.
 - Running system-level software such as systemd and Docker requires privileged access to the Kubernetes nodes, which is not safe. If you need to run those workflows, consider using the [agent-aws-stack](https://github.com/renderedtext/agent-aws-stack) or [sysbox](https://github.com/nestybox/sysbox).
 
 ## Configuration
