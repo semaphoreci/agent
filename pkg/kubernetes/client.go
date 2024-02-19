@@ -323,6 +323,7 @@ func (c *KubernetesClient) podSpecFromJobRequest(podName string, envSecretName s
 	}
 
 	spec.Containers = containers
+	spec.HostAliases = c.hostAliases(containers)
 	spec.ImagePullSecrets = append(spec.ImagePullSecrets, c.imagePullSecrets(imagePullSecret)...)
 	spec.RestartPolicy = corev1.RestartPolicyNever
 	spec.Volumes = append(spec.Volumes, corev1.Volume{
@@ -342,6 +343,27 @@ func (c *KubernetesClient) podSpecFromJobRequest(podName string, envSecretName s
 			Labels:    c.config.LabelMap(),
 		},
 	}, nil
+}
+
+func (c *KubernetesClient) hostAliases(containers []corev1.Container) []corev1.HostAlias {
+	// If only 1 container is used for the job, there's no need for host aliases.
+	// We only use the ones used by the pod spec, or none if no pod spec is specified.
+	if len(containers) == 1 {
+		if c.podSpec != nil {
+			return c.podSpec.HostAliases
+		}
+
+		return []corev1.HostAlias{}
+	}
+
+	// Otherwise, we add a hostAlias for each sidecar container,
+	// so they can also be addressable via their names and not only localhost.
+	alias := corev1.HostAlias{IP: "127.0.0.1", Hostnames: []string{}}
+	for _, c := range containers[1:] {
+		alias.Hostnames = append(alias.Hostnames, c.Name)
+	}
+
+	return []corev1.HostAlias{alias}
 }
 
 func (c *KubernetesClient) imagePullSecrets(imagePullSecret string) []corev1.LocalObjectReference {

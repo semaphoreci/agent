@@ -308,6 +308,7 @@ func Test__CreatePod(t *testing.T) {
 			Get(context.Background(), podName, v1.GetOptions{})
 
 		assert.NoError(t, err)
+		assert.Empty(t, pod.Spec.HostAliases)
 
 		// assert pod spec containers
 		if assert.Len(t, pod.Spec.Containers, 1) {
@@ -448,6 +449,7 @@ func Test__CreatePod(t *testing.T) {
 			Get(context.Background(), podName, v1.GetOptions{})
 
 		assert.NoError(t, err)
+		assert.Equal(t, pod.Spec.HostAliases, []corev1.HostAlias{{IP: "127.0.0.1", Hostnames: []string{"db"}}})
 
 		// assert 2 containers are used and command and volume mounts are only set for the main one
 		if assert.Len(t, pod.Spec.Containers, 2) {
