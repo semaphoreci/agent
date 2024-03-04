@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
-	"strings"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
@@ -516,10 +516,24 @@ func (job *Job) uploadLogsAsArtifact(trimmed bool) {
 
 	defer os.Remove(file)
 
-	cmd := []string{"artifact", "push", "job", file, "-d", "agent/job_logs.txt"}
-	exitCode := job.Executor.RunCommand(strings.Join(cmd, " "), true, "")
-	if exitCode != 0 {
-		log.Errorf("Error uploading job logs as artifact")
+	token, err := job.Request.FindEnvVar("SEMAPHORE_ARTIFACT_TOKEN")
+	if err != nil {
+		log.Error("Error uploading job logs as artifact - no SEMAPHORE_ARTIFACT_TOKEN available")
+		return
+	}
+
+	path, err := exec.LookPath("artifact")
+	if err != nil {
+		log.Error("Error uploading job logs as artifact - no artifact CLI available")
+		return
+	}
+
+	args := []string{"push", "job", file, "-d", "agent/job_logs.txt"}
+	cmd := exec.Command(path, args...)
+	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", "SEMAPHORE_ARTIFACT_TOKEN", token))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Errorf("Error uploading job logs as artifact: %v, %s", err, output)
 		return
 	}
 
