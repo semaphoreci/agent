@@ -1,6 +1,19 @@
 #!/bin/ruby
 # rubocop:disable all
 
+$AGENT_CONFIG = {
+  "endpoint" => "localhost:4567",
+  "token" => "321h1l2jkh1jk42341",
+  "no-https" => true,
+  "shutdown-hook-path" => "",
+  "disconnect-after-job" => false,
+  "env-vars" => [],
+  "files" => [],
+  "fail-on-missing-files" => false,
+  "upload-job-logs" => "always"
+}
+
+
 require_relative '../../e2e'
 
 # Here, we use the SEMAPHORE_JOB_ID as the job ID for this test.
