@@ -529,6 +529,8 @@ func (job *Job) uploadLogsAsArtifact(trimmed bool) {
 	}
 
 	args := []string{"push", "job", file, "-d", "agent/job_logs.txt"}
+
+	// #nosec
 	cmd := exec.Command(path, args...)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", "SEMAPHORE_ARTIFACT_TOKEN", token))
 	output, err := cmd.CombinedOutput()
