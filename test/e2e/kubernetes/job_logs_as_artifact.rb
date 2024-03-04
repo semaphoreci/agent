@@ -14,10 +14,10 @@ $AGENT_CONFIG = {
   "upload-job-logs" => "always"
 }
 
+require_relative '../../e2e'
+
 # Here, we use the SEMAPHORE_JOB_ID as the job ID for this test.
 $JOB_ID = ENV["SEMAPHORE_JOB_ID"]
-
-require_relative '../../e2e'
 
 start_job <<-JSON
   {
