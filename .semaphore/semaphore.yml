@@ -125,6 +125,7 @@ blocks:
                 - command_aliases
                 - env_vars
                 - failed_job
+                - job_logs_as_artifact
                 - job_stopping
                 - job_stopping_on_epilogue
                 - file_injection
@@ -270,6 +271,7 @@ blocks:
                 - docker_compose__epilogue
                 - docker_compose__file-injection
                 - docker_compose__multiple-containers
+                - job_logs_as_artifact
                 - private_image_gcr
                 - private_image_ecr_no_account_id
                 - private_image_ecr_with_account_id
