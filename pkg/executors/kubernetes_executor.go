@@ -1,6 +1,7 @@
 package executors
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -176,13 +177,41 @@ func (e *KubernetesExecutor) Start() int {
 
 	e.logger.LogCommandOutput("Shell session is ready.\n")
 	e.Shell = shell
+
+	// Find the user being used to run the commands.
+	// Mostly helpful when troubleshooting issues with permissions on the container.
+	output, code := e.GetOutputFromCommand("whoami")
+	if code != 0 {
+		log.Errorf("Failed to determine user: exit code %d - %s", code, output)
+		e.logger.LogCommandOutput("Failed to determine user\n")
+		e.logger.LogCommandOutput(fmt.Sprintf("exit code %d - %s", code, output))
+		exitCode = code
+		return exitCode
+	}
+
+	log.Infof("User: %s", output)
+	e.logger.LogCommandOutput(fmt.Sprintf("User: %s", output))
+
+	// Find the user identity for the user being used to run the commands.
+	// Mostly helpful when troubleshooting issues with permissions on the container.
+	output, code = e.GetOutputFromCommand("id")
+	if code != 0 {
+		log.Errorf("Failed to determine user identity: exit code %d - %s", code, output)
+		e.logger.LogCommandOutput("Failed to determine user identity\n")
+		e.logger.LogCommandOutput(fmt.Sprintf("exit code %d - %s", code, output))
+		exitCode = code
+		return exitCode
+	}
+
+	log.Infof("User identity: %s", output)
+	e.logger.LogCommandOutput(fmt.Sprintf("User identity: %s", output))
 	return exitCode
 }
 
 // This function gets called twice during a job's execution:
-// - On the first call, the environment variables come from a secret file injected into the pod.
-// - On the second call, the environment variables (currently, just the job result) need to be exported
-//   through commands executed through the PTY.
+//   - On the first call, the environment variables come from a secret file injected into the pod.
+//   - On the second call, the environment variables (currently, just the job result) need to be exported
+//     through commands executed through the PTY.
 func (e *KubernetesExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config.HostEnvVar) int {
 	commandStartedAt := int(time.Now().Unix())
 	directive := "Exporting environment variables"
@@ -249,24 +278,24 @@ func (e *KubernetesExecutor) InjectFiles(files []api.File) int {
 		e.logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		log.Errorf("Error finding home directory: %v\n", err)
-		return 1
-	}
-
 	for _, file := range files {
 
 		// Find the key used to inject the file in /tmp/injected
 		fileNameSecretKey := base64.RawURLEncoding.EncodeToString([]byte(file.Path))
 
 		// Normalize path to properly handle absolute/relative/~ paths
-		destPath := file.NormalizePath(homeDir)
+		destPath := ""
+		if file.Path[0] == '/' || file.Path[0] == '~' {
+			destPath = file.Path
+		} else {
+			destPath = "~/" + file.Path
+		}
+
 		e.logger.LogCommandOutput(fmt.Sprintf("Injecting %s with file mode %s\n", file.Path, file.Mode))
 
 		// Create the parent directory
-		parentDir := filepath.Dir(file.Path)
-		exitCode := e.RunCommand(fmt.Sprintf("mkdir -p %s", parentDir), true, "")
+		parentDir := filepath.Dir(destPath)
+		exitCode = e.RunCommand(fmt.Sprintf("mkdir -p %s", parentDir), true, "")
 		if exitCode != 0 {
 			errMessage := fmt.Sprintf("Error injecting file %s: failed to created parent directory %s\n", destPath, parentDir)
 			e.logger.LogCommandOutput(errMessage)
@@ -276,18 +305,18 @@ func (e *KubernetesExecutor) InjectFiles(files []api.File) int {
 		}
 
 		// Copy the file injected as a secret in the /tmp/injected directory to its proper place
-		exitCode = e.RunCommand(fmt.Sprintf("cp /tmp/injected/%s %s", fileNameSecretKey, file.Path), true, "")
+		exitCode = e.RunCommand(fmt.Sprintf("cp /tmp/injected/%s %s", fileNameSecretKey, destPath), true, "")
 		if exitCode != 0 {
-			e.logger.LogCommandOutput(fmt.Sprintf("Error injecting file %s\n", file.Path))
-			log.Errorf("Error injecting file %s", file.Path)
+			e.logger.LogCommandOutput(fmt.Sprintf("Error injecting file %s\n", destPath))
+			log.Errorf("Error injecting file %s", destPath)
 			exitCode = 1
 			return exitCode
 		}
 
 		// Adjust the injected file's mode
-		exitCode = e.RunCommand(fmt.Sprintf("chmod %s %s", file.Mode, file.Path), true, "")
+		exitCode = e.RunCommand(fmt.Sprintf("chmod %s %s", file.Mode, destPath), true, "")
 		if exitCode != 0 {
-			errMessage := fmt.Sprintf("Error setting file mode (%s) for %s\n", file.Mode, file.Path)
+			errMessage := fmt.Sprintf("Error setting file mode (%s) for %s\n", file.Mode, destPath)
 			e.logger.LogCommandOutput(errMessage)
 			log.Errorf(errMessage)
 			exitCode = 1
@@ -305,6 +334,24 @@ func (e *KubernetesExecutor) RunCommand(command string, silent bool, alias strin
 		Alias:   alias,
 		Warning: "",
 	})
+}
+
+// Similar to RunCommand(), but instead of displaying the output
+// of the commands in the job log, we return them to the caller.
+func (e *KubernetesExecutor) GetOutputFromCommand(command string) (string, int) {
+	out := bytes.Buffer{}
+	p := e.Shell.NewProcessWithConfig(shell.Config{
+		UseBase64Encoding: true,
+		Command:           command,
+		Shell:             e.Shell,
+		OnOutput: func(output string) {
+			out.WriteString(output)
+		},
+	})
+
+	p.Run()
+
+	return out.String(), p.ExitCode
 }
 
 func (e *KubernetesExecutor) RunCommandWithOptions(options CommandOptions) int {
