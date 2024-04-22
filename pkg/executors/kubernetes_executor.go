@@ -205,6 +205,20 @@ func (e *KubernetesExecutor) Start() int {
 
 	log.Infof("User identity: %s", output)
 	e.logger.LogCommandOutput(fmt.Sprintf("User identity: %s", output))
+
+	// Find the working directory.
+	// Mostly helpful when troubleshooting issues with permissions on the container.
+	output, code = e.GetOutputFromCommand("pwd")
+	if code != 0 {
+		log.Errorf("Failed to determine working directory: exit code %d - %s", code, output)
+		e.logger.LogCommandOutput("Failed to determine working directory\n")
+		e.logger.LogCommandOutput(fmt.Sprintf("exit code %d - %s", code, output))
+		exitCode = code
+		return exitCode
+	}
+
+	log.Infof("Working directory: %s", output)
+	e.logger.LogCommandOutput(fmt.Sprintf("Working directory: %s", output))
 	return exitCode
 }
 
