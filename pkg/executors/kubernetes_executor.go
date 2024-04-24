@@ -284,6 +284,7 @@ func (e *KubernetesExecutor) InjectFiles(files []api.File) int {
 	directive := "Injecting Files"
 	commandStartedAt := int(time.Now().Unix())
 	exitCode := 0
+	output := ""
 
 	e.logger.LogCommandStarted(directive)
 
@@ -309,31 +310,29 @@ func (e *KubernetesExecutor) InjectFiles(files []api.File) int {
 
 		// Create the parent directory
 		parentDir := filepath.Dir(destPath)
-		exitCode = e.RunCommand(fmt.Sprintf("mkdir -p %s", parentDir), true, "")
+		output, exitCode = e.GetOutputFromCommand(fmt.Sprintf("mkdir -p %s", parentDir))
 		if exitCode != 0 {
-			errMessage := fmt.Sprintf("Error injecting file %s: failed to created parent directory %s\n", destPath, parentDir)
+			errMessage := fmt.Sprintf("Error injecting file %s: failed to created parent directory %s: %s\n", destPath, parentDir, output)
 			e.logger.LogCommandOutput(errMessage)
 			log.Errorf(errMessage)
-			exitCode = 1
 			return exitCode
 		}
 
 		// Copy the file injected as a secret in the /tmp/injected directory to its proper place
-		exitCode = e.RunCommand(fmt.Sprintf("cp /tmp/injected/%s %s", fileNameSecretKey, destPath), true, "")
+		output, exitCode = e.GetOutputFromCommand(fmt.Sprintf("cp /tmp/injected/%s %s", fileNameSecretKey, destPath))
 		if exitCode != 0 {
-			e.logger.LogCommandOutput(fmt.Sprintf("Error injecting file %s\n", destPath))
-			log.Errorf("Error injecting file %s", destPath)
-			exitCode = 1
+			errMessage := fmt.Sprintf("Error injecting file %s: %s\n", destPath, output)
+			e.logger.LogCommandOutput(errMessage)
+			log.Errorf(errMessage)
 			return exitCode
 		}
 
 		// Adjust the injected file's mode
-		exitCode = e.RunCommand(fmt.Sprintf("chmod %s %s", file.Mode, destPath), true, "")
+		output, exitCode = e.GetOutputFromCommand(fmt.Sprintf("chmod %s %s", file.Mode, destPath))
 		if exitCode != 0 {
-			errMessage := fmt.Sprintf("Error setting file mode (%s) for %s\n", file.Mode, destPath)
+			errMessage := fmt.Sprintf("Error injecting file %s: error setting file mode %s: %s\n", destPath, file.Mode, output)
 			e.logger.LogCommandOutput(errMessage)
 			log.Errorf(errMessage)
-			exitCode = 1
 			return exitCode
 		}
 	}
