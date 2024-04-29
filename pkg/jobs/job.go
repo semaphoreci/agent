@@ -203,6 +203,14 @@ func (o *RunOptions) GetPostJobHookCommand() string {
 	return fmt.Sprintf("bash %s", o.PostJobHookPath)
 }
 
+func (o *RunOptions) IsEnvVarEqualTo(value string) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("if ($env:SEMAPHORE_JOB_RESULT -eq \"%s\") { exit 0 } else { exit 1 }", value)
+	}
+
+	return fmt.Sprintf("if [ \"$SEMAPHORE_JOB_RESULT\" = \"%s\" ]; then exit 0; else exit 1; fi", value)
+}
+
 func (job *Job) Run() {
 	job.RunWithOptions(RunOptions{
 		EnvVars:               []config.HostEnvVar{},
@@ -299,7 +307,27 @@ func (job *Job) RunRegularCommands(options RunOptions) string {
 		exitCode = job.RunCommandsUntilFirstFailure(job.Request.Commands)
 	}
 
-	if job.Stopped || exitCode == 130 {
+	if job.Stopped {
+		job.Stopped = true
+		log.Info("Regular commands were stopped")
+		return JobStopped
+	}
+
+	if exitCode == 130 {
+		aliasMsg := "Check if job result was manually configured to \"passed\"."
+		exitCode = job.Executor.RunCommand(options.IsEnvVarEqualTo("passed"), false, aliasMsg)
+		if exitCode == 0 {
+			log.Info("Manually exited regular commands with result configured to \"passed\".")
+			return JobPassed
+		}
+
+		aliasMsg = "Check if job result was manually configured to \"failed\"."
+		exitCode = job.Executor.RunCommand(options.IsEnvVarEqualTo("failed"), false, aliasMsg)
+		if exitCode == 0 {
+			log.Info("Manually exited regular commands with result configured to \"failed\".")
+			return JobFailed
+		}
+
 		job.Stopped = true
 		log.Info("Regular commands were stopped")
 		return JobStopped

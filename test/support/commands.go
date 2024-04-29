@@ -71,6 +71,14 @@ func Output(line string) string {
 	return fmt.Sprintf("echo -n '%s'", line)
 }
 
+func EnvVarEqualTo(value string) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf("if ($env:SEMAPHORE_JOB_RESULT -eq \"%s\") { exit 0 } else { exit 1 }", value)
+	}
+
+	return fmt.Sprintf("if [ \"$SEMAPHORE_JOB_RESULT\" = \"%s\" ]; then exit 0; else exit 1; fi", value)
+}
+
 func EchoEnvVar(envVar string) string {
 	if runtime.GOOS == "windows" {
 		return fmt.Sprintf("Write-Host \"$env:%s\" -NoNewLine", envVar)
