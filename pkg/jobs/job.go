@@ -349,7 +349,9 @@ func (job *Job) handleStopExitCode() string {
 		job.Logger.LogCommandOutput("SEMAPHORE_JOB_RESULT=failed - stopping job and marking it as failed")
 		return JobFailed
 	default:
-		job.Logger.LogCommandOutput("SEMAPHORE_JOB_RESULT is set to '%s', stopping job")
+		job.Logger.LogCommandOutput(fmt.Sprintf(
+			"SEMAPHORE_JOB_RESULT is set to '%s', stopping job and marking it as stopped", status),
+		)
 		return JobStopped
 	}
 }

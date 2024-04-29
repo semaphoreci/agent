@@ -583,7 +583,131 @@ func Test__StopJobWithExitCode(t *testing.T) {
 		fmt.Sprintf("directive: %s", testsupport.ReturnExitCodeCommand(130)),
 		fmt.Sprintf("Exit Code: %d", testsupport.ManuallyStoppedCommandExitCode()),
 
+		"directive: Checking job result",
+		"SEMAPHORE_JOB_RESULT is set to '' - stopping job and marking it as stopped",
+		"Exit Code: 0",
+
 		"job_finished: stopped",
+	})
+}
+
+func Test__StopJobWithExitCodeWithResultSetToPassed(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		EnvVars: []api.EnvVar{},
+		Commands: []api.Command{
+			{Directive: testsupport.SetEnvVar("SEMAPHORE_JOB_RESULT", "passed")},
+			{Directive: testsupport.ReturnExitCodeCommand(130)},
+			{Directive: testsupport.Output("hello")},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+		},
+	}
+
+	job, err := NewJobWithOptions(&JobOptions{
+		Request: request,
+		Client:  http.DefaultClient,
+		Logger:  testLogger,
+	})
+
+	assert.Nil(t, err)
+
+	job.Run()
+
+	assert.Eventually(t, func() bool { return job.Finished }, 5*time.Second, 1*time.Second)
+
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", testsupport.SetEnvVar("SEMAPHORE_JOB_RESULT", "passed")),
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", testsupport.ReturnExitCodeCommand(130)),
+		fmt.Sprintf("Exit Code: %d", testsupport.ManuallyStoppedCommandExitCode()),
+
+		"directive: Checking job result",
+		"SEMAPHORE_JOB_RESULT=passed - stopping job and marking it as passed",
+		"Exit Code: 0",
+
+		"job_finished: passed",
+	})
+}
+
+func Test__StopJobWithExitCodeWithResultSetToFailed(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
+	testLogger, testLoggerBackend := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		EnvVars: []api.EnvVar{},
+		Commands: []api.Command{
+			{Directive: testsupport.SetEnvVar("SEMAPHORE_JOB_RESULT", "failed")},
+			{Directive: testsupport.ReturnExitCodeCommand(130)},
+			{Directive: testsupport.Output("hello")},
+		},
+		Callbacks: api.Callbacks{
+			Finished:         "https://httpbin.org/status/200",
+			TeardownFinished: "https://httpbin.org/status/200",
+		},
+		Logger: api.Logger{
+			Method: eventlogger.LoggerMethodPush,
+		},
+	}
+
+	job, err := NewJobWithOptions(&JobOptions{
+		Request: request,
+		Client:  http.DefaultClient,
+		Logger:  testLogger,
+	})
+
+	assert.Nil(t, err)
+
+	job.Run()
+
+	assert.Eventually(t, func() bool { return job.Finished }, 5*time.Second, 1*time.Second)
+
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
+	assert.Nil(t, err)
+
+	assert.Equal(t, simplifiedEvents, []string{
+		"job_started",
+
+		"directive: Exporting environment variables",
+		"Exit Code: 0",
+
+		"directive: Injecting Files",
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", testsupport.SetEnvVar("SEMAPHORE_JOB_RESULT", "failed")),
+		"Exit Code: 0",
+
+		fmt.Sprintf("directive: %s", testsupport.ReturnExitCodeCommand(130)),
+		fmt.Sprintf("Exit Code: %d", testsupport.ManuallyStoppedCommandExitCode()),
+
+		"directive: Checking job result",
+		"SEMAPHORE_JOB_RESULT=failed - stopping job and marking it as failed",
+		"Exit Code: 0",
+
+		"job_finished: failed",
 	})
 }
 
