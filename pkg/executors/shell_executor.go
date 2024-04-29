@@ -1,6 +1,7 @@
 package executors
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -224,6 +225,17 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 	e.Logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 
 	return exitCode
+}
+
+func (e *ShellExecutor) GetOutputFromCommand(command string) (string, int) {
+	out := bytes.Buffer{}
+	p := e.Shell.NewProcessWithOutput(command, func(output string) {
+		out.WriteString(output)
+	})
+
+	p.Run()
+
+	return out.String(), p.ExitCode
 }
 
 func (e *ShellExecutor) RunCommand(command string, silent bool, alias string) int {

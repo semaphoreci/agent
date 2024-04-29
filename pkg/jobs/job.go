@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
@@ -216,6 +217,7 @@ func (job *Job) Run() {
 func (job *Job) RunWithOptions(options RunOptions) {
 	log.Infof("Running job %s", job.Request.JobID)
 	executorRunning := false
+	epiloguesExecuted := false
 	result := JobFailed
 
 	job.Logger.LogJobStarted()
@@ -231,9 +233,10 @@ func (job *Job) RunWithOptions(options RunOptions) {
 		result = job.RunRegularCommands(options)
 		log.Debug("Exporting job result")
 
-		if result != JobStopped {
+		if !job.Stopped {
 			log.Debug("Handling epilogues")
 			job.handleEpilogues(result)
+			epiloguesExecuted = true
 		}
 	}
 
@@ -241,7 +244,7 @@ func (job *Job) RunWithOptions(options RunOptions) {
 	// so they do not influence the job's result, just like the epilogues.
 	job.runPostJobHook(options)
 
-	result, err := job.Teardown(result, options.CallbackRetryAttempts)
+	result, err := job.Teardown(result, epiloguesExecuted, options.CallbackRetryAttempts)
 	if err != nil {
 		log.Errorf("Error tearing down job: %v", err)
 	}
@@ -273,18 +276,24 @@ func (job *Job) PrepareEnvironment() int {
 	return 0
 }
 
+func (job *Job) envVar(name string) string {
+	if runtime.GOOS == "windows" {
+		return "$env:" + name
+	}
+
+	return "$" + name
+}
+
 func (job *Job) RunRegularCommands(options RunOptions) string {
 	exitCode := job.Executor.ExportEnvVars(job.Request.EnvVars, options.EnvVars)
 	if exitCode != 0 {
 		log.Error("Failed to export env vars")
-
 		return JobFailed
 	}
 
 	exitCode = job.Executor.InjectFiles(job.Request.Files)
 	if exitCode != 0 {
 		log.Error("Failed to inject files")
-
 		return JobFailed
 	}
 
@@ -299,10 +308,18 @@ func (job *Job) RunRegularCommands(options RunOptions) string {
 		exitCode = job.RunCommandsUntilFirstFailure(job.Request.Commands)
 	}
 
-	if job.Stopped || exitCode == 130 {
-		job.Stopped = true
+	// Job was stopped from UI or API
+	if job.Stopped {
 		log.Info("Regular commands were stopped")
 		return JobStopped
+	}
+
+	// Job was stopped from the job itself.
+	// Here, we need to know which job status to report.
+	// We use the SEMAPHORE_JOB_RESULT environment variable for that.
+	if exitCode == 130 {
+		job.Stopped = true
+		return job.handleStopExitCode()
 	}
 
 	if exitCode == 0 {
@@ -312,6 +329,29 @@ func (job *Job) RunRegularCommands(options RunOptions) string {
 
 	log.Info("Regular commands finished with failure")
 	return JobFailed
+}
+
+func (job *Job) handleStopExitCode() string {
+	directive := "Checking job result"
+	job.Logger.LogCommandStarted(directive)
+	defer func() {
+		now := int(time.Now().Unix())
+		job.Logger.LogCommandFinished(directive, 0, now, now)
+	}()
+
+	output, _ := job.Executor.GetOutputFromCommand("echo " + job.envVar("SEMAPHORE_JOB_RESULT"))
+	status := strings.Trim(output, "\n")
+	switch status {
+	case "passed":
+		job.Logger.LogCommandOutput("SEMAPHORE_JOB_RESULT=passed - stopping job and marking it as passed")
+		return JobPassed
+	case "failed":
+		job.Logger.LogCommandOutput("SEMAPHORE_JOB_RESULT=failed - stopping job and marking it as failed")
+		return JobFailed
+	default:
+		job.Logger.LogCommandOutput("SEMAPHORE_JOB_RESULT is set to '%s', stopping job")
+		return JobStopped
+	}
 }
 
 func (job *Job) runPreJobHook(options RunOptions) bool {
@@ -414,9 +454,9 @@ func (job *Job) RunCommandsUntilFirstFailure(commands []api.Command) int {
 	return lastExitCode
 }
 
-func (job *Job) Teardown(result string, callbackRetryAttempts int) (string, error) {
+func (job *Job) Teardown(result string, epiloguesExecuted bool, callbackRetryAttempts int) (string, error) {
 	// if job was stopped during the epilogues, result should be stopped
-	if job.Stopped {
+	if epiloguesExecuted && job.Stopped {
 		result = JobStopped
 	}
 
