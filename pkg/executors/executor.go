@@ -12,6 +12,7 @@ type Executor interface {
 	InjectFiles([]api.File) int
 	RunCommand(string, bool, string) int
 	RunCommandWithOptions(options CommandOptions) int
+	GetOutputFromCommand(string) (string, int)
 	Stop() int
 	Cleanup() int
 }
