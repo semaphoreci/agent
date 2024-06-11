@@ -9,6 +9,7 @@ Base agent responsibilities:
 - Inject files
 - Run epilogue commands
 - Set up an SSH jump-point (only available in hosted environment)
+- just testing
 
 Docker Based CI/CD:
 
