@@ -12,6 +12,7 @@ blocks:
           value: "on"
       secrets:
         - name: github-release-bot-agent
+        - name: semaphorecipushrobot
       prologue:
         commands:
           - sem-version go 1.22.3
@@ -19,7 +20,10 @@ blocks:
           - "export PATH=/home/semaphore/go/bin:$PATH"
           - checkout
       jobs:
-        - name: Sem Agent
+        - name: Release new version
           commands:
             - export GITHUB_TOKEN=$ACCESS_TOKEN
             - curl -sL https://git.io/goreleaser | bash -s -- --clean
+            - echo $DOCKERHUB_PASSWORD | docker login -u $DOCKERHUB_USERNAME --password-stdin
+            - make docker.build
+            - make docker.push
