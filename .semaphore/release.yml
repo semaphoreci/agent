@@ -14,7 +14,7 @@ blocks:
         - name: github-release-bot-agent
       prologue:
         commands:
-          - sem-version go 1.20
+          - sem-version go 1.22.3
           - "export GOPATH=~/go"
           - "export PATH=/home/semaphore/go/bin:$PATH"
           - checkout
