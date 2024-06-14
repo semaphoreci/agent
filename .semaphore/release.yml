@@ -12,7 +12,7 @@ blocks:
           value: "on"
       secrets:
         - name: github-release-bot-agent
-        - name: semaphorecipushrobot
+        - name: dockerhub-write
       prologue:
         commands:
           - sem-version go 1.22.3
