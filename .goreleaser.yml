@@ -17,6 +17,7 @@ builds:
     - amd64
     - arm
     - arm64
+    - ppc64le
 - id: windows-build
   env:
   - CGO_ENABLED=0
