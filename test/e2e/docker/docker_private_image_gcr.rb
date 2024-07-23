@@ -57,7 +57,7 @@ assert_job_log <<-LOG
   {"event":"cmd_output","output":"cat /tmp/gcr/keyfile.json | docker login -u _json_key --password-stdin https://$GCR_HOSTNAME\\n","timestamp":"*"}
   {"event":"cmd_output","output":"WARNING! Your password will be stored unencrypted in /root/.docker/config.json.\\n","timestamp":"*"}
   {"event":"cmd_output","output":"Configure a credential helper to remove this warning. See\\n","timestamp":"*"}
-  {"event":"cmd_output","output":"https://docs.docker.com/engine/reference/commandline/login/#credentials-store\\n","timestamp":"*"}
+  {"event":"cmd_output","output":"https://docs.docker.com/engine/reference/commandline/login/#credential-stores\\n","timestamp":"*"}
   {"event":"cmd_output","output":"\\n","timestamp":"*"}
   {"event":"cmd_output","output":"Login Succeeded\\n","timestamp":"*"}
   {"event":"cmd_output","output":"\\n","timestamp":"*"}
