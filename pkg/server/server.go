@@ -23,6 +23,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const DefaultCallbackRetryAttempts = 300
+
 type Server struct {
 	Logfile    io.Writer
 	ActiveJob  *jobs.Job
@@ -34,20 +36,29 @@ type Server struct {
 }
 
 type ServerConfig struct {
-	Host           string
-	Port           int
-	TLSCertPath    string
-	TLSKeyPath     string
-	Version        string
-	LogFile        io.Writer
-	JWTSecret      []byte
-	HTTPClient     *http.Client
-	PreJobHookPath string
-	FileInjections []config.FileInjection
+	Host                  string
+	Port                  int
+	TLSCertPath           string
+	TLSKeyPath            string
+	Version               string
+	LogFile               io.Writer
+	JWTSecret             []byte
+	HTTPClient            *http.Client
+	PreJobHookPath        string
+	FileInjections        []config.FileInjection
+	CallbackRetryAttempts int
 
 	// A way to execute some code before handling a POST /jobs request.
 	// Currently, only used to make tests that assert race condition scenarios more reproducible.
 	BeforeRunJobFn func()
+}
+
+func (c *ServerConfig) GetCallbackRetryAttempts() int {
+	if c.CallbackRetryAttempts == 0 {
+		return DefaultCallbackRetryAttempts
+	}
+
+	return c.CallbackRetryAttempts
 }
 
 const ServerStateWaitingForJob = "waiting-for-job"
@@ -269,7 +280,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 		SourcePreJobHook:      true, // cloud jobs should always source the pre-job hook
 		PostJobHookPath:       "",
 		OnJobFinished:         nil,
-		CallbackRetryAttempts: 60,
+		CallbackRetryAttempts: s.Config.GetCallbackRetryAttempts(),
 	})
 
 	fmt.Fprint(w, `{"message": "ok"}`)

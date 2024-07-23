@@ -370,6 +370,7 @@ func RunServer(httpClient *http.Client, logfile io.Writer) {
 	statsdHost := pflag.String("statsd-host", "", "Metrics Host")
 	statsdPort := pflag.String("statsd-port", "", "Metrics port")
 	statsdNamespace := pflag.String("statsd-namespace", "agent.prod", "The prefix to be added to every StatsD metric")
+	callbackRetryAttempts := pflag.Int("callback-retry-attempts", server.DefaultCallbackRetryAttempts, "Number of times to retry sending the callback after the job is finished")
 	preJobHookPath := pflag.String(config.PreJobHookPath, "", "The path to a pre-job hook script")
 	files := pflag.StringSlice(config.Files, []string{}, "Inject files into container, when using docker compose executor")
 
@@ -392,17 +393,20 @@ func RunServer(httpClient *http.Client, logfile io.Writer) {
 		log.Fatalf("Error parsing --files: %v", err)
 	}
 
+	log.Infof("Callback retry attempts: %d", *callbackRetryAttempts)
+
 	server.NewServer(server.ServerConfig{
-		Host:           *host,
-		Port:           *port,
-		TLSCertPath:    *tlsCertPath,
-		TLSKeyPath:     *tlsKeyPath,
-		Version:        VERSION,
-		LogFile:        logfile,
-		JWTSecret:      []byte(*authTokenSecret),
-		HTTPClient:     httpClient,
-		PreJobHookPath: *preJobHookPath,
-		FileInjections: fileInjections,
+		Host:                  *host,
+		Port:                  *port,
+		TLSCertPath:           *tlsCertPath,
+		TLSKeyPath:            *tlsKeyPath,
+		Version:               VERSION,
+		LogFile:               logfile,
+		JWTSecret:             []byte(*authTokenSecret),
+		HTTPClient:            httpClient,
+		PreJobHookPath:        *preJobHookPath,
+		FileInjections:        fileInjections,
+		CallbackRetryAttempts: *callbackRetryAttempts,
 	}).Serve()
 }
 

@@ -21,8 +21,8 @@ start_job <<-JSON
         {
           "env_vars": [
             { "name": "DOCKER_CREDENTIAL_TYPE", "value": "#{Base64.strict_encode64("DockerHub")}" },
-            { "name": "DOCKERHUB_USERNAME", "value": "#{Base64.strict_encode64("semaphoreagentprivatepuller")}" },
-            { "name": "DOCKERHUB_PASSWORD", "value": "#{Base64.strict_encode64("semaphoreagentprivatepullerpassword")}" }
+            { "name": "DOCKERHUB_USERNAME", "value": "#{Base64.strict_encode64(ENV['DOCKERHUB_USERNAME'])}" },
+            { "name": "DOCKERHUB_PASSWORD", "value": "#{Base64.strict_encode64(ENV['DOCKERHUB_TOKEN'])}" }
           ]
         }
       ]
@@ -56,7 +56,7 @@ assert_job_log <<-LOG
   {"event":"cmd_output",   "timestamp":"*", "output":"echo $DOCKERHUB_PASSWORD | docker login --username $DOCKERHUB_USERNAME --password-stdin\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"WARNING! Your password will be stored unencrypted in /root/.docker/config.json.\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Configure a credential helper to remove this warning. See\\n"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"https://docs.docker.com/engine/reference/commandline/login/#credentials-store\\n"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"https://docs.docker.com/engine/reference/commandline/login/#credential-stores\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Login Succeeded\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"\\n"}
