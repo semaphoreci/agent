@@ -21,8 +21,8 @@ start_job <<-JSON
         {
           "env_vars": [
             { "name": "DOCKER_CREDENTIAL_TYPE", "value": "#{Base64.strict_encode64("DockerHub")}" },
-            { "name": "DOCKERHUB_USERNAME", "value": "#{Base64.strict_encode64("semaphoreagentprivatepuller")}" },
-            { "name": "DOCKERHUB_PASSWORD", "value": "#{Base64.strict_encode64("semaphoreagentprivatepullerpassword")}" }
+            { "name": "DOCKERHUB_USERNAME", "value": "#{Base64.strict_encode64(ENV['DOCKERHUB_USERNAME'])}" },
+            { "name": "DOCKERHUB_PASSWORD", "value": "#{Base64.strict_encode64(ENV['DOCKERHUB_TOKEN'])}" }
           ]
         }
       ]

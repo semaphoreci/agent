@@ -89,6 +89,7 @@ blocks:
     task:
       secrets:
         - name: aws-ecr-agent-e2e-secret
+        - name: hellopuller
         - name: gcr-test-secret
         - name: docker-registry-test-secret
       env_vars:
