@@ -17,6 +17,10 @@ func (l *InMemoryBackend) Open() error {
 	return nil
 }
 
+func (l *InMemoryBackend) ReadAndProcess(processor func([]byte) error) error {
+	return nil
+}
+
 func (l *InMemoryBackend) Read(startFrom, maxLines int, writer io.Writer) (int, error) {
 	return 0, nil
 }

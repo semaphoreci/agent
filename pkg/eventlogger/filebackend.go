@@ -89,6 +89,24 @@ func (l *FileBackend) CloseWithOptions(options CloseOptions) error {
 	return nil
 }
 
+func (l *FileBackend) ReadAndProcess(eventProcessor func([]byte) error) error {
+	fd, err := os.OpenFile(l.path, os.O_RDONLY, os.ModePerm)
+	if err != nil {
+		return err
+	}
+
+	defer fd.Close()
+
+	scanner := bufio.NewScanner(fd)
+	for scanner.Scan() {
+		if err := eventProcessor(scanner.Bytes()); err != nil {
+			return err
+		}
+	}
+
+	return scanner.Err()
+}
+
 func (l *FileBackend) Read(startingLineNumber, maxLines int, writer io.Writer) (int, error) {
 	fd, err := os.OpenFile(l.path, os.O_RDONLY, os.ModePerm)
 	if err != nil {

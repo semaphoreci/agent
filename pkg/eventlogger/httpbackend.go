@@ -85,6 +85,10 @@ func (l *HTTPBackend) Read(startFrom, maxLines int, writer io.Writer) (int, erro
 	return l.fileBackend.Read(startFrom, maxLines, writer)
 }
 
+func (l *HTTPBackend) ReadAndProcess(eventProcessor func([]byte) error) error {
+	return l.fileBackend.ReadAndProcess(eventProcessor)
+}
+
 func (l *HTTPBackend) push() {
 	log.Infof("Logs will be pushed to %s", l.config.URL)
 

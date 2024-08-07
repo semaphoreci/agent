@@ -1,11 +1,12 @@
 package eventlogger
 
 import (
-	"bytes"
+	"bufio"
 	"encoding/json"
-	"io/ioutil"
-	"strings"
+	"os"
 	"time"
+
+	"github.com/tidwall/gjson"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -30,76 +31,78 @@ func (l *Logger) CloseWithOptions(options CloseOptions) error {
 	return l.Backend.CloseWithOptions(options)
 }
 
-/*
- * Convert the JSON logs file into a plain text one.
- * Note: the caller must delete the generated plain text file after it's done with it.
- */
-func (l *Logger) GeneratePlainTextFile() (string, error) {
-	tmpFile, err := ioutil.TempFile("", "*.txt")
+func (l *Logger) GeneratePlainTextFileIn(directory string) (string, error) {
+	tmpFile, err := os.CreateTemp(directory, "*.txt")
 	if err != nil {
 		return "", err
 	}
 
 	defer tmpFile.Close()
 
-	/*
-	 * Since we are only doing this for possibly very big files,
-	 * we read/write things in chunks to avoid keeping a lot of things in memory.
-	 */
-	startFrom := 0
-	var buf bytes.Buffer
-	for {
-		nextStartFrom, err := l.Backend.Read(startFrom, 20000, &buf)
-		if err != nil {
-			return "", err
-		}
+	bufferedWriter := bufio.NewWriterSize(tmpFile, 64*1024)
+	err = l.Backend.ReadAndProcess(func(b []byte) error {
+		return l.writePlain(bufferedWriter, b)
+	})
 
-		if nextStartFrom == startFrom {
-			break
-		}
+	if err != nil {
+		return "", err
+	}
 
-		startFrom = nextStartFrom
-		logEvents := strings.Split(buf.String(), "\n")
-		logs, err := l.eventsToPlainLogLines(logEvents)
-		if err != nil {
-			return "", err
-		}
-
-		newLines := []byte(strings.Join(logs, ""))
-		err = ioutil.WriteFile(tmpFile.Name(), newLines, 0600)
-		if err != nil {
-			return "", err
-		}
+	err = bufferedWriter.Flush()
+	if err != nil {
+		return "", err
 	}
 
 	return tmpFile.Name(), nil
 }
 
-func (l *Logger) eventsToPlainLogLines(logEvents []string) ([]string, error) {
-	lines := []string{}
-	var object map[string]interface{}
-
-	for _, logEvent := range logEvents {
-		if logEvent == "" {
-			continue
+func (l *Logger) writePlainCustom(writer *bufio.Writer, event []byte) error {
+	r := gjson.ParseBytes(event)
+	switch eventType := r.Get("event").Str; {
+	case eventType == "cmd_started":
+		if _, err := writer.WriteString(r.Get("directive").Str + "\n"); err != nil {
+			return err
 		}
-
-		err := json.Unmarshal([]byte(logEvent), &object)
-		if err != nil {
-			return []string{}, err
+	case eventType == "cmd_output":
+		if _, err := writer.WriteString(r.Get("output").Str); err != nil {
+			return err
 		}
-
-		switch eventType := object["event"].(string); {
-		case eventType == "cmd_started":
-			lines = append(lines, object["directive"].(string)+"\n")
-		case eventType == "cmd_output":
-			lines = append(lines, object["output"].(string))
-		default:
-			// We can ignore all the other event types here
-		}
+	default:
+		// We can ignore all the other event types here
 	}
 
-	return lines, nil
+	return nil
+}
+
+func (l *Logger) writePlain(writer *bufio.Writer, event []byte) error {
+	var object map[string]interface{}
+	err := json.Unmarshal(event, &object)
+	if err != nil {
+		return err
+	}
+
+	switch eventType := object["event"].(string); {
+	case eventType == "cmd_started":
+		if _, err := writer.WriteString(object["directive"].(string) + "\n"); err != nil {
+			return err
+		}
+	case eventType == "cmd_output":
+		if _, err := writer.WriteString(object["output"].(string)); err != nil {
+			return err
+		}
+	default:
+		// We can ignore all the other event types here
+	}
+
+	return nil
+}
+
+/*
+ * Convert the JSON logs file into a plain text one.
+ * Note: the caller must delete the generated plain text file after it's done with it.
+ */
+func (l *Logger) GeneratePlainTextFile() (string, error) {
+	return l.GeneratePlainTextFileIn(os.TempDir())
 }
 
 func (l *Logger) LogJobStarted() {
