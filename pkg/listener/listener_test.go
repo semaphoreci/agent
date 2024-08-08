@@ -38,6 +38,7 @@ func Test__Register(t *testing.T) {
 		EnvVars:            []config.HostEnvVar{},
 		FileInjections:     []config.FileInjection{},
 		AgentVersion:       testsupport.AgentVersionExpected,
+		UserAgent:          fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	}
 
 	listener, err := Start(http.DefaultClient, config)
@@ -79,6 +80,7 @@ func Test__RegisterRequestIsRetried(t *testing.T) {
 		EnvVars:            []config.HostEnvVar{},
 		FileInjections:     []config.FileInjection{},
 		AgentVersion:       testsupport.AgentVersionExpected,
+		UserAgent:          fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	}
 
 	listener, err := Start(http.DefaultClient, config)
@@ -121,6 +123,7 @@ func Test__RegistrationFails(t *testing.T) {
 		EnvVars:            []config.HostEnvVar{},
 		FileInjections:     []config.FileInjection{},
 		AgentVersion:       testsupport.AgentVersionExpected,
+		UserAgent:          fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	}
 
 	_, err := Start(http.DefaultClient, config)
@@ -164,6 +167,7 @@ func Test__ShutdownHookIsExecuted(t *testing.T) {
 		EnvVars:            []config.HostEnvVar{},
 		FileInjections:     []config.FileInjection{},
 		AgentVersion:       testsupport.AgentVersionExpected,
+		UserAgent:          fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 		ShutdownHookPath:   hook,
 	}
 
@@ -217,6 +221,7 @@ func Test__ShutdownHookCanSeeShutdownReason(t *testing.T) {
 		FileInjections:     []config.FileInjection{},
 		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       testsupport.AgentVersionExpected,
+		UserAgent:          fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 		ShutdownHookPath:   hook,
 	}
 
@@ -264,6 +269,7 @@ func Test__ShutdownAfterJobFinished(t *testing.T) {
 		FileInjections:     []config.FileInjection{},
 		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       testsupport.AgentVersionExpected,
+		UserAgent:          fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	}
 
 	listener, err := Start(http.DefaultClient, config)
@@ -314,6 +320,7 @@ func Test__ShutdownAfterIdleTimeout(t *testing.T) {
 		FileInjections:             []config.FileInjection{},
 		UploadJobLogs:              config.UploadJobLogsConditionNever,
 		AgentVersion:               testsupport.AgentVersionExpected,
+		UserAgent:                  fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	}
 
 	listener, err := Start(http.DefaultClient, config)
@@ -346,6 +353,7 @@ func Test__ShutdownAfterInterruption(t *testing.T) {
 		FileInjections:     []config.FileInjection{},
 		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       testsupport.AgentVersionExpected,
+		UserAgent:          fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	}
 
 	listener, err := Start(http.DefaultClient, config)
@@ -381,6 +389,7 @@ func Test__ShutdownAfterInterruptionNoGracePeriod(t *testing.T) {
 		FileInjections:     []config.FileInjection{},
 		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       testsupport.AgentVersionExpected,
+		UserAgent:          fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	}
 
 	listener, err := Start(http.DefaultClient, config)
@@ -438,6 +447,7 @@ func Test__ShutdownAfterInterruptionWithGracePeriod(t *testing.T) {
 		EnvVars:                 []config.HostEnvVar{},
 		FileInjections:          []config.FileInjection{},
 		AgentVersion:            testsupport.AgentVersionExpected,
+		UserAgent:               fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 		UploadJobLogs:           config.UploadJobLogsConditionNever,
 		InterruptionGracePeriod: 30,
 	}
@@ -497,6 +507,7 @@ func Test__ShutdownFromUpstreamWhileWaiting(t *testing.T) {
 		FileInjections:     []config.FileInjection{},
 		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       testsupport.AgentVersionExpected,
+		UserAgent:          fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	}
 
 	listener, err := Start(http.DefaultClient, config)
@@ -533,6 +544,7 @@ func Test__ShutdownFromUpstreamWhileRunningJob(t *testing.T) {
 		FileInjections:     []config.FileInjection{},
 		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       testsupport.AgentVersionExpected,
+		UserAgent:          fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	}
 
 	listener, err := Start(http.DefaultClient, config)
@@ -588,6 +600,7 @@ func Test__HostEnvVarsAreExposedToJob(t *testing.T) {
 		FileInjections: []config.FileInjection{},
 		UploadJobLogs:  config.UploadJobLogsConditionNever,
 		AgentVersion:   testsupport.AgentVersionExpected,
+		UserAgent:      fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	}
 
 	listener, err := Start(http.DefaultClient, config)
@@ -721,6 +734,7 @@ func Test__LogTokenIsRefreshed(t *testing.T) {
 		FileInjections:     []config.FileInjection{},
 		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       testsupport.AgentVersionExpected,
+		UserAgent:          fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	}
 
 	listener, err := Start(http.DefaultClient, config)
@@ -801,6 +815,7 @@ func Test__GetJobIsRetried(t *testing.T) {
 		FileInjections:     []config.FileInjection{},
 		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       testsupport.AgentVersionExpected,
+		UserAgent:          fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	}
 
 	listener, err := Start(http.DefaultClient, config)
@@ -854,6 +869,7 @@ func Test__ReportsFailedToFetchJob(t *testing.T) {
 		FileInjections:     []config.FileInjection{},
 		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       testsupport.AgentVersionExpected,
+		UserAgent:          fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	}
 
 	listener, err := Start(http.DefaultClient, config)
@@ -904,6 +920,7 @@ func Test__ReportsFailedToConstructJob(t *testing.T) {
 		FileInjections:     []config.FileInjection{},
 		UploadJobLogs:      config.UploadJobLogsConditionNever,
 		AgentVersion:       testsupport.AgentVersionExpected,
+		UserAgent:          fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	}
 
 	listener, err := Start(http.DefaultClient, config)
