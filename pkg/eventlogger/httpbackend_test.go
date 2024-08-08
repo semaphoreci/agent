@@ -1,6 +1,7 @@
 package eventlogger
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -93,6 +94,7 @@ func Test__LogsArePushedToHTTPEndpoint(t *testing.T) {
 		RefreshTokenFn:        func() (string, error) { return "", nil },
 		LinesPerRequest:       20,
 		FlushTimeoutInSeconds: DefaultFlushTimeoutInSeconds,
+		UserAgent:             fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	})
 
 	assert.Nil(t, err)
@@ -132,6 +134,7 @@ func Test__RequestsAreCappedAtLinesPerRequest(t *testing.T) {
 		RefreshTokenFn:        func() (string, error) { return "", nil },
 		LinesPerRequest:       2,
 		FlushTimeoutInSeconds: DefaultFlushTimeoutInSeconds,
+		UserAgent:             fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	})
 
 	assert.Nil(t, err)
@@ -183,6 +186,7 @@ func Test__FlushingGivesUpAfterTimeout(t *testing.T) {
 		RefreshTokenFn:        func() (string, error) { return "", nil },
 		LinesPerRequest:       2,
 		FlushTimeoutInSeconds: 10,
+		UserAgent:             fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	})
 
 	assert.Nil(t, err)
@@ -217,6 +221,7 @@ func Test__ExecutesOnCloseCallback(t *testing.T) {
 		RefreshTokenFn:        func() (string, error) { return "", nil },
 		LinesPerRequest:       10,
 		FlushTimeoutInSeconds: 10,
+		UserAgent:             fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	})
 
 	assert.Nil(t, err)
@@ -246,6 +251,7 @@ func Test__TokenIsRefreshed(t *testing.T) {
 		Token:                 testsupport.ExpiredLogToken,
 		LinesPerRequest:       20,
 		FlushTimeoutInSeconds: DefaultFlushTimeoutInSeconds,
+		UserAgent:             fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 		RefreshTokenFn: func() (string, error) {
 			tokenWasRefreshed = true
 			return "some-new-and-shiny-valid-token", nil

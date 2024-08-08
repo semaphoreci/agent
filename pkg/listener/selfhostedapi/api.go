@@ -16,13 +16,13 @@ type API struct {
 	client *http.Client
 }
 
-func New(httpClient *http.Client, scheme string, endpoint string, token string, agentVersion string) *API {
+func New(httpClient *http.Client, scheme string, endpoint string, token string, userAgent string) *API {
 	return &API{
 		Endpoint:      endpoint,
 		RegisterToken: token,
 		Scheme:        scheme,
 		client:        httpClient,
-		UserAgent:     fmt.Sprintf("SemaphoreAgent/%s", agentVersion),
+		UserAgent:     userAgent,
 	}
 }
 

@@ -26,6 +26,7 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 	p := &JobProcessor{
 		HTTPClient:                       httpClient,
 		APIClient:                        apiClient,
+		UserAgent:                        config.UserAgent,
 		LastSuccessfulSync:               time.Now(),
 		forceSyncCh:                      make(chan bool),
 		State:                            selfhostedapi.AgentStateWaitingForJobs,
@@ -84,6 +85,7 @@ type JobProcessor struct {
 	FileInjections                   []config.FileInjection
 	FailOnMissingFiles               bool
 	UploadJobLogs                    string
+	UserAgent                        string
 	FailOnPreJobHookError            bool
 	SourcePreJobHook                 bool
 	ExitOnShutdown                   bool
@@ -211,6 +213,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 		KubernetesLabels:                 p.KubernetesLabels,
 		KubernetesImageValidator:         p.KubernetesImageValidator,
 		UploadJobLogs:                    p.UploadJobLogs,
+		UserAgent:                        p.UserAgent,
 		RefreshTokenFn: func() (string, error) {
 			return p.APIClient.RefreshToken()
 		},

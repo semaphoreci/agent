@@ -11,16 +11,18 @@ import (
 const ExpiredLogToken = "expired-token"
 
 type LoghubMockServer struct {
-	Logs           []string
-	BatchSizesUsed []int
-	MaxSizeForLogs int
-	Server         *httptest.Server
-	Handler        http.Handler
+	Logs              []string
+	BatchSizesUsed    []int
+	MaxSizeForLogs    int
+	Server            *httptest.Server
+	Handler           http.Handler
+	ExpectedUserAgent string
 }
 
 func NewLoghubMockServer() *LoghubMockServer {
 	return &LoghubMockServer{
-		Logs: []string{},
+		ExpectedUserAgent: fmt.Sprintf("SemaphoreAgent/%s", AgentVersionExpected),
+		Logs:              []string{},
 	}
 }
 
@@ -34,6 +36,11 @@ func (m *LoghubMockServer) SetMaxSizeForLogs(maxSize int) {
 }
 
 func (m *LoghubMockServer) handler(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("User-Agent") != m.ExpectedUserAgent {
+		w.WriteHeader(500)
+		return
+	}
+
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return

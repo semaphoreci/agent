@@ -13,12 +13,22 @@ import (
 const LoggerMethodPull = "pull"
 const LoggerMethodPush = "push"
 
-func CreateLogger(request *api.JobRequest, refreshTokenFn func() (string, error)) (*Logger, error) {
-	switch request.Logger.Method {
+type LoggerOptions struct {
+	Request        *api.JobRequest
+	RefreshTokenFn func() (string, error)
+	UserAgent      string
+}
+
+func CreateLogger(options LoggerOptions) (*Logger, error) {
+	if options.Request == nil {
+		return nil, fmt.Errorf("request is required")
+	}
+
+	switch options.Request.Logger.Method {
 	case LoggerMethodPull:
-		return Default(request)
+		return Default(options.Request)
 	case LoggerMethodPush:
-		return DefaultHTTP(request, refreshTokenFn)
+		return DefaultHTTP(options)
 	default:
 		return nil, fmt.Errorf("unknown logger type")
 	}
@@ -50,19 +60,21 @@ func Default(request *api.JobRequest) (*Logger, error) {
 	return logger, nil
 }
 
-func DefaultHTTP(request *api.JobRequest, refreshTokenFn func() (string, error)) (*Logger, error) {
+func DefaultHTTP(options LoggerOptions) (*Logger, error) {
+	request := options.Request
 	if request.Logger.URL == "" {
 		return nil, errors.New("HTTP logger needs a URL")
 	}
 
-	if refreshTokenFn == nil {
+	if options.RefreshTokenFn == nil {
 		return nil, errors.New("HTTP logger needs a refresh token function")
 	}
 
 	backend, err := NewHTTPBackend(HTTPBackendConfig{
 		URL:                   request.Logger.URL,
 		Token:                 request.Logger.Token,
-		RefreshTokenFn:        refreshTokenFn,
+		RefreshTokenFn:        options.RefreshTokenFn,
+		UserAgent:             options.UserAgent,
 		LinesPerRequest:       MaxLinesPerRequest,
 		FlushTimeoutInSeconds: DefaultFlushTimeoutInSeconds,
 	})
