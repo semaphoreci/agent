@@ -17,7 +17,7 @@ func (l *InMemoryBackend) Open() error {
 	return nil
 }
 
-func (l *InMemoryBackend) ReadAndProcess(processor func([]byte) error) error {
+func (l *InMemoryBackend) Iterate(fn func([]byte) error) error {
 	return nil
 }
 

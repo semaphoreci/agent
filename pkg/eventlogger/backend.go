@@ -6,7 +6,7 @@ type Backend interface {
 	Open() error
 	Write(interface{}) error
 	Read(startFrom, maxLines int, writer io.Writer) (int, error)
-	ReadAndProcess(processor func([]byte) error) error
+	Iterate(fn func(event []byte) error) error
 	Close() error
 	CloseWithOptions(CloseOptions) error
 }

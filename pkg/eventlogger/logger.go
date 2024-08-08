@@ -6,8 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/tidwall/gjson"
-
 	log "github.com/sirupsen/logrus"
 )
 
@@ -40,8 +38,27 @@ func (l *Logger) GeneratePlainTextFileIn(directory string) (string, error) {
 	defer tmpFile.Close()
 
 	bufferedWriter := bufio.NewWriterSize(tmpFile, 64*1024)
-	err = l.Backend.ReadAndProcess(func(b []byte) error {
-		return l.writePlain(bufferedWriter, b)
+	err = l.Backend.Iterate(func(event []byte) error {
+		var object map[string]interface{}
+		err := json.Unmarshal(event, &object)
+		if err != nil {
+			return err
+		}
+
+		switch eventType := object["event"].(string); {
+		case eventType == "cmd_started":
+			if _, err := bufferedWriter.WriteString(object["directive"].(string) + "\n"); err != nil {
+				return err
+			}
+		case eventType == "cmd_output":
+			if _, err := bufferedWriter.WriteString(object["output"].(string)); err != nil {
+				return err
+			}
+		default:
+			// We can ignore all the other event types here
+		}
+
+		return nil
 	})
 
 	if err != nil {
@@ -54,47 +71,6 @@ func (l *Logger) GeneratePlainTextFileIn(directory string) (string, error) {
 	}
 
 	return tmpFile.Name(), nil
-}
-
-func (l *Logger) writePlainCustom(writer *bufio.Writer, event []byte) error {
-	r := gjson.ParseBytes(event)
-	switch eventType := r.Get("event").Str; {
-	case eventType == "cmd_started":
-		if _, err := writer.WriteString(r.Get("directive").Str + "\n"); err != nil {
-			return err
-		}
-	case eventType == "cmd_output":
-		if _, err := writer.WriteString(r.Get("output").Str); err != nil {
-			return err
-		}
-	default:
-		// We can ignore all the other event types here
-	}
-
-	return nil
-}
-
-func (l *Logger) writePlain(writer *bufio.Writer, event []byte) error {
-	var object map[string]interface{}
-	err := json.Unmarshal(event, &object)
-	if err != nil {
-		return err
-	}
-
-	switch eventType := object["event"].(string); {
-	case eventType == "cmd_started":
-		if _, err := writer.WriteString(object["directive"].(string) + "\n"); err != nil {
-			return err
-		}
-	case eventType == "cmd_output":
-		if _, err := writer.WriteString(object["output"].(string)); err != nil {
-			return err
-		}
-	default:
-		// We can ignore all the other event types here
-	}
-
-	return nil
 }
 
 /*

@@ -1,8 +1,9 @@
 package eventlogger
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,7 +25,7 @@ func Test__GeneratePlainLogs(t *testing.T) {
 	assert.NoError(t, err)
 	assert.FileExists(t, file)
 
-	bytes, err := ioutil.ReadFile(file)
+	bytes, err := os.ReadFile(file)
 	assert.NoError(t, err)
 
 	lines := strings.Split(string(bytes), "\n")
@@ -47,21 +48,56 @@ func Test__GeneratePlainLogs(t *testing.T) {
 	os.Remove(file)
 }
 
-func Benchmark__GeneratePlainLogsPerformance(b *testing.B) {
-	fileName := filepath.Join("/Users/lucaspin/Desktop/118m-logs.json")
-	backend, _ := NewFileBackend(fileName, DefaultMaxSizeInBytes)
+func Benchmark__GeneratePlainLogs(b *testing.B) {
+	//
+	// We do not want to account for this setup time in our benchmark
+	// so we stop the timer here, while we are creating the file backend
+	// and generating and writing the log events to it.
+	//
+	b.StopTimer()
+	tmpFileName := filepath.Join(os.TempDir(), fmt.Sprintf("logs_%d.json", time.Now().UnixNano()))
+	backend, _ := NewFileBackend(tmpFileName, DefaultMaxSizeInBytes)
+	require.Nil(b, backend.Open())
 	logger, _ := NewLogger(backend)
-	tmpDir, err := os.MkdirTemp("", "gen-plain-logs-test-*")
-	require.Nil(b, err)
 
-	b.Cleanup(func() {
-		os.RemoveAll(tmpDir)
+	//
+	// Write a lot of log events into our file backend.
+	// In this case, 1M `cmd_output` log events with a random string in it.
+	//
+	buf := make([]byte, 45)
+	expected := []string{}
+	expected = append(expected, "echo hello")
+	generateLogEventsWithOutputGenerator(b, 1000000, backend, func() string {
+		// #nosec
+		_, err := rand.Read(buf)
+		require.NoError(b, err)
+		o := base64.URLEncoding.EncodeToString(buf)
+		expected = append(expected, o)
+		return o
 	})
 
-	b.ResetTimer()
+	expected = append(expected, "")
+
+	//
+	// Actually run the benchmark.
+	// We start the timer at the beginning of the iteration,
+	// and stop it right after logger.GeneratePlainTextFile() returns,
+	// because we only want to account for the amount of time it takes
+	// for that function to run, but we also want to assert the output is correct.
+	//
 	for i := 0; i < b.N; i++ {
-		f, err := logger.GeneratePlainTextFileIn(tmpDir)
-		require.Nil(b, err)
-		require.FileExists(b, f)
+		b.StartTimer()
+		file, err := logger.GeneratePlainTextFile()
+
+		b.StopTimer()
+		require.NoError(b, err)
+		require.FileExists(b, file)
+		bytes, err := os.ReadFile(file)
+		require.NoError(b, err)
+		assert.Equal(b, expected, strings.Split(string(bytes), "\n"))
+
+		os.Remove(file)
 	}
+
+	require.NoError(b, logger.Close())
 }

@@ -89,7 +89,7 @@ func (l *FileBackend) CloseWithOptions(options CloseOptions) error {
 	return nil
 }
 
-func (l *FileBackend) ReadAndProcess(eventProcessor func([]byte) error) error {
+func (l *FileBackend) Iterate(fn func([]byte) error) error {
 	fd, err := os.OpenFile(l.path, os.O_RDONLY, os.ModePerm)
 	if err != nil {
 		return err
@@ -99,7 +99,11 @@ func (l *FileBackend) ReadAndProcess(eventProcessor func([]byte) error) error {
 
 	scanner := bufio.NewScanner(fd)
 	for scanner.Scan() {
-		if err := eventProcessor(scanner.Bytes()); err != nil {
+		if len(scanner.Bytes()) == 0 {
+			continue
+		}
+
+		if err := fn(scanner.Bytes()); err != nil {
 			return err
 		}
 	}
