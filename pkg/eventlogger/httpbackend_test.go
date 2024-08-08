@@ -278,7 +278,7 @@ func Test__TokenIsRefreshed(t *testing.T) {
 	mockServer.Close()
 }
 
-func generateLogEvents(t *testing.T, outputEventsCount int, backend Backend) {
+func generateLogEventsWithOutputGenerator(t testing.TB, outputEventsCount int, backend Backend, outputGenerator func() string) {
 	timestamp := int(time.Now().Unix())
 
 	assert.Nil(t, backend.Write(&JobStartedEvent{Timestamp: timestamp, Event: "job_started"}))
@@ -286,7 +286,7 @@ func generateLogEvents(t *testing.T, outputEventsCount int, backend Backend) {
 
 	count := outputEventsCount
 	for count > 0 {
-		assert.Nil(t, backend.Write(&CommandOutputEvent{Timestamp: timestamp, Event: "cmd_output", Output: "hello\n"}))
+		assert.Nil(t, backend.Write(&CommandOutputEvent{Timestamp: timestamp, Event: "cmd_output", Output: outputGenerator() + "\n"}))
 		count--
 	}
 
@@ -300,4 +300,10 @@ func generateLogEvents(t *testing.T, outputEventsCount int, backend Backend) {
 	}))
 
 	assert.Nil(t, backend.Write(&JobFinishedEvent{Timestamp: timestamp, Event: "job_finished", Result: "passed"}))
+}
+
+func generateLogEvents(t testing.TB, outputEventsCount int, backend Backend) {
+	generateLogEventsWithOutputGenerator(t, outputEventsCount, backend, func() string {
+		return "hello"
+	})
 }

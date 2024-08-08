@@ -540,16 +540,16 @@ func (job *Job) teardownWithNoCallbacks(result string) error {
 
 func (job *Job) uploadLogsAsArtifact(trimmed bool) {
 	if job.UploadJobLogs == config.UploadJobLogsConditionNever {
-		log.Infof("upload-job-logs=never - not uploading job logs as job artifact.")
+		log.Info("upload-job-logs=never - not uploading job logs as job artifact.")
 		return
 	}
 
 	if job.UploadJobLogs == config.UploadJobLogsConditionWhenTrimmed && !trimmed {
-		log.Infof("upload-job-logs=when-trimmed - logs were not trimmed, not uploading job logs as job artifact.")
+		log.Info("upload-job-logs=when-trimmed - logs were not trimmed, not uploading job logs as job artifact.")
 		return
 	}
 
-	log.Infof("Uploading job logs as job artifact...")
+	log.Info("Converting job logs to plain-text format...")
 	file, err := job.Logger.GeneratePlainTextFile()
 	if err != nil {
 		log.Errorf("Error converting '%s' to plain text: %v", file, err)
@@ -584,6 +584,8 @@ func (job *Job) uploadLogsAsArtifact(trimmed bool) {
 	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", "SEMAPHORE_ARTIFACT_TOKEN", token))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", "SEMAPHORE_JOB_ID", job.Request.JobID))
 	cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", "SEMAPHORE_ORGANIZATION_URL", orgURL))
+
+	log.Info("Uploading job logs as artifact...")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Errorf("Error uploading job logs as artifact: %v, %s", err, output)
