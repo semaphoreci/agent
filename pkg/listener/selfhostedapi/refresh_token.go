@@ -26,6 +26,7 @@ func (a *API) RefreshToken() (string, error) {
 	log.Info("Refreshing token for current job logs...")
 
 	a.authorize(r, a.AccessToken)
+	r.Header.Set("User-Agent", a.UserAgent)
 
 	resp, err := a.client.Do(r)
 	if err != nil {

@@ -17,6 +17,7 @@ func (a *API) Disconnect() (string, error) {
 	}
 
 	a.authorize(r, a.AccessToken)
+	r.Header.Set("User-Agent", a.UserAgent)
 
 	resp, err := a.client.Do(r)
 	if err != nil {
