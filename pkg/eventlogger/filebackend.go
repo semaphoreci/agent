@@ -92,7 +92,7 @@ func (l *FileBackend) CloseWithOptions(options CloseOptions) error {
 func (l *FileBackend) Iterate(fn func([]byte) error) error {
 	fd, err := os.OpenFile(l.path, os.O_RDONLY, os.ModePerm)
 	if err != nil {
-		return err
+		return fmt.Errorf("error opening file '%s': %v", l.path, err)
 	}
 
 	defer fd.Close()
@@ -104,7 +104,7 @@ func (l *FileBackend) Iterate(fn func([]byte) error) error {
 		}
 
 		if err := fn(scanner.Bytes()); err != nil {
-			return err
+			return fmt.Errorf("error processing event: %v", err)
 		}
 	}
 

@@ -3,6 +3,7 @@ package eventlogger
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
 	"time"
 
@@ -32,7 +33,7 @@ func (l *Logger) CloseWithOptions(options CloseOptions) error {
 func (l *Logger) GeneratePlainTextFileIn(directory string) (string, error) {
 	tmpFile, err := os.CreateTemp(directory, "*.txt")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error creating plain text file: %v", err)
 	}
 
 	defer tmpFile.Close()
@@ -42,17 +43,17 @@ func (l *Logger) GeneratePlainTextFileIn(directory string) (string, error) {
 		var object map[string]interface{}
 		err := json.Unmarshal(event, &object)
 		if err != nil {
-			return err
+			return fmt.Errorf("error unmarshaling log event '%s': %v", string(event), err)
 		}
 
 		switch eventType := object["event"].(string); {
 		case eventType == "cmd_started":
 			if _, err := bufferedWriter.WriteString(object["directive"].(string) + "\n"); err != nil {
-				return err
+				return fmt.Errorf("error writing to output: %v", err)
 			}
 		case eventType == "cmd_output":
 			if _, err := bufferedWriter.WriteString(object["output"].(string)); err != nil {
-				return err
+				return fmt.Errorf("error writing to output: %v", err)
 			}
 		default:
 			// We can ignore all the other event types here
@@ -62,12 +63,12 @@ func (l *Logger) GeneratePlainTextFileIn(directory string) (string, error) {
 	})
 
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error iterating on log backend: %v", err)
 	}
 
 	err = bufferedWriter.Flush()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error flushing buffered writer: %v", err)
 	}
 
 	return tmpFile.Name(), nil
