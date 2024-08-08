@@ -29,7 +29,7 @@ import (
 )
 
 var VERSION = "dev"
-var HTTP_USER_AGENT = fmt.Sprintf("SemaphoreAgent/%s", VERSION)
+var HTTPUserAgent = fmt.Sprintf("SemaphoreAgent/%s", VERSION)
 
 func main() {
 	logfile := OpenLogfile()
@@ -221,7 +221,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		FailOnPreJobHookError:            viper.GetBool(config.FailOnPreJobHookError),
 		SourcePreJobHook:                 viper.GetBool(config.SourcePreJobHook),
 		AgentVersion:                     VERSION,
-		UserAgent:                        HTTP_USER_AGENT,
+		UserAgent:                        HTTPUserAgent,
 		ExitOnShutdown:                   true,
 		KubernetesExecutor:               viper.GetBool(config.KubernetesExecutor),
 		KubernetesPodSpec:                viper.GetString(config.KubernetesPodSpec),
@@ -400,7 +400,7 @@ func RunServer(httpClient *http.Client, logfile io.Writer) {
 	server.NewServer(server.ServerConfig{
 		Host:                  *host,
 		Port:                  *port,
-		UserAgent:             HTTP_USER_AGENT,
+		UserAgent:             HTTPUserAgent,
 		TLSCertPath:           *tlsCertPath,
 		TLSKeyPath:            *tlsKeyPath,
 		Version:               VERSION,
