@@ -45,6 +45,7 @@ func (a *API) Register(req *RegisterRequest) (*RegisterResponse, error) {
 	}
 
 	a.authorize(r, a.RegisterToken)
+	r.Header.Set("User-Agent", a.UserAgent)
 
 	resp, err := a.client.Do(r)
 	if err != nil {

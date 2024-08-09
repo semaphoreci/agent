@@ -34,6 +34,7 @@ type HTTPBackend struct {
 
 type HTTPBackendConfig struct {
 	URL                   string
+	UserAgent             string
 	Token                 string
 	LinesPerRequest       int
 	FlushTimeoutInSeconds int
@@ -183,6 +184,7 @@ func (l *HTTPBackend) newRequest() error {
 
 	request.Header.Set("Content-Type", "text/plain")
 	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", l.config.Token))
+	request.Header.Set("User-Agent", l.config.UserAgent)
 	response, err := l.client.Do(request)
 	if err != nil {
 		return err

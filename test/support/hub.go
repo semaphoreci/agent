@@ -14,11 +14,14 @@ import (
 	"github.com/semaphoreci/agent/pkg/retry"
 )
 
+var AgentVersionExpected = "v1.0.2"
+
 type HubMockServer struct {
 	Server                    *httptest.Server
 	Handler                   http.Handler
 	JobRequest                *api.JobRequest
 	LogsURL                   string
+	ExpectedUserAgent         string
 	RegisterRequest           *selfhostedapi.RegisterRequest
 	RegisterAttemptRejections int
 	RegisterAttempts          int
@@ -37,13 +40,19 @@ type HubMockServer struct {
 func NewHubMockServer() *HubMockServer {
 	now := time.Now()
 	return &HubMockServer{
-		RegisterAttempts: -1,
-		LastStateChange:  &now,
+		RegisterAttempts:  -1,
+		LastStateChange:   &now,
+		ExpectedUserAgent: fmt.Sprintf("SemaphoreAgent/%s", AgentVersionExpected),
 	}
 }
 
 func (m *HubMockServer) Init() {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("User-Agent") != m.ExpectedUserAgent {
+			w.WriteHeader(500)
+			return
+		}
+
 		switch path := r.URL.Path; {
 		case strings.Contains(path, "/register"):
 			m.handleRegisterRequest(w, r)

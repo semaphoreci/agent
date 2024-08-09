@@ -38,6 +38,7 @@ type Server struct {
 type ServerConfig struct {
 	Host                  string
 	Port                  int
+	UserAgent             string
 	TLSCertPath           string
 	TLSKeyPath            string
 	Version               string
@@ -259,6 +260,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 		SelfHosted:      false,
 		RefreshTokenFn:  nil,
 		UploadJobLogs:   s.resolveUploadJobsConfig(request),
+		UserAgent:       s.Config.UserAgent,
 	})
 
 	if err != nil {

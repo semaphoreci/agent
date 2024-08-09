@@ -37,6 +37,7 @@ type Job struct {
 	Stopped        bool
 	Finished       bool
 	UploadJobLogs  string
+	UserAgent      string
 }
 
 type JobOptions struct {
@@ -54,6 +55,7 @@ type JobOptions struct {
 	KubernetesImageValidator         *kubernetes.ImageValidator
 	UploadJobLogs                    string
 	RefreshTokenFn                   func() (string, error)
+	UserAgent                        string
 }
 
 func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
@@ -90,7 +92,12 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 	if options.Logger != nil {
 		job.Logger = options.Logger
 	} else {
-		l, err := eventlogger.CreateLogger(options.Request, options.RefreshTokenFn)
+		l, err := eventlogger.CreateLogger(eventlogger.LoggerOptions{
+			Request:        options.Request,
+			RefreshTokenFn: options.RefreshTokenFn,
+			UserAgent:      options.UserAgent,
+		})
+
 		if err != nil {
 			return nil, err
 		}
@@ -643,6 +650,7 @@ func (job *Job) SendCallback(url string, payload string) error {
 		request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", job.Request.Callbacks.Token))
 	}
 
+	request.Header.Set("User-Agent", job.UserAgent)
 	response, err := job.Client.Do(request)
 	if err != nil {
 		return err

@@ -44,6 +44,7 @@ type Config struct {
 	SourcePreJobHook                 bool
 	ExitOnShutdown                   bool
 	AgentVersion                     string
+	UserAgent                        string
 	AgentName                        string
 	KubernetesExecutor               bool
 	KubernetesPodSpec                string
@@ -55,7 +56,7 @@ type Config struct {
 func Start(httpClient *http.Client, config Config) (*Listener, error) {
 	listener := &Listener{
 		Config: config,
-		Client: selfhostedapi.New(httpClient, config.Scheme, config.Endpoint, config.Token),
+		Client: selfhostedapi.New(httpClient, config.Scheme, config.Endpoint, config.Token, config.UserAgent),
 	}
 
 	listener.DisplayHelloMessage()
