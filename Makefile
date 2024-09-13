@@ -31,7 +31,7 @@ check.docker: check.prepare
 		-v $(SECURITY_TOOLBOX_TMP_DIR):$(SECURITY_TOOLBOX_TMP_DIR) \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		registry.semaphoreci.com/ruby:2.7 \
-		bash -c 'cd /app && $(SECURITY_TOOLBOX_TMP_DIR)/docker -d --image semaphoreci/agent:latest --skip-files Dockerfile.ecr,Dockerfile.test,Dockerfile.dev,test/hub_reference/Dockerfile,Dockerfile.empty_ubuntu'
+		bash -c 'cd /app && $(SECURITY_TOOLBOX_TMP_DIR)/docker -d --image semaphoreci/agent:latest --skip-files Dockerfile.ecr,Dockerfile.test,Dockerfile.dev,test/hub_reference/Dockerfile,Dockerfile.empty_ubuntu,/usr/local/bin/kubectl'
 
 lint:
 	revive -formatter friendly -config lint.toml ./...
