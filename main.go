@@ -375,6 +375,7 @@ func RunServer(httpClient *http.Client, logfile io.Writer) {
 	callbackRetryAttempts := pflag.Int("callback-retry-attempts", server.DefaultCallbackRetryAttempts, "Number of times to retry sending the callback after the job is finished")
 	preJobHookPath := pflag.String(config.PreJobHookPath, "", "The path to a pre-job hook script")
 	files := pflag.StringSlice(config.Files, []string{}, "Inject files into container, when using docker compose executor")
+	exposeKvmDevice := pflag.Bool(config.ExposeKvmDevice, true, "Expose /dev/kvm device, when using docker compose executor")
 
 	pflag.Parse()
 
@@ -410,6 +411,7 @@ func RunServer(httpClient *http.Client, logfile io.Writer) {
 		PreJobHookPath:        *preJobHookPath,
 		FileInjections:        fileInjections,
 		CallbackRetryAttempts: *callbackRetryAttempts,
+		ExposeKvmDevice:       *exposeKvmDevice,
 	}).Serve()
 }
 

@@ -17,6 +17,7 @@ const (
 	DisconnectAfterIdleTimeout = "disconnect-after-idle-timeout"
 	EnvVars                    = "env-vars"
 	Files                      = "files"
+	ExposeKvmDevice            = "expose-kvm-device"
 	FailOnMissingFiles         = "fail-on-missing-files"
 	UploadJobLogs              = "upload-job-logs"
 	FailOnPreJobHookError      = "fail-on-pre-job-hook-error"

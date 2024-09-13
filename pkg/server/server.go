@@ -48,6 +48,7 @@ type ServerConfig struct {
 	PreJobHookPath        string
 	FileInjections        []config.FileInjection
 	CallbackRetryAttempts int
+	ExposeKvmDevice       bool
 
 	// A way to execute some code before handling a POST /jobs request.
 	// Currently, only used to make tests that assert race condition scenarios more reproducible.
@@ -255,7 +256,7 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 	job, err := jobs.NewJobWithOptions(&jobs.JobOptions{
 		Request:         request,
 		Client:          s.HTTPClient,
-		ExposeKvmDevice: true,
+		ExposeKvmDevice: s.Config.ExposeKvmDevice,
 		FileInjections:  s.Config.FileInjections,
 		SelfHosted:      false,
 		RefreshTokenFn:  nil,
