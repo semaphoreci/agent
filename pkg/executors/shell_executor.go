@@ -91,6 +91,20 @@ func (e *ShellExecutor) Start() int {
 	return 0
 }
 
+func (e *ShellExecutor) envFileName() string {
+	//
+	// On Windows, we do not use the environment file at all during the job,
+	// but we still need it to be created for debug sessions to work properly.
+	// And, in order for users to be able to "source" the file in a PowerShell debug session,
+	// the file has to be suffixed with the .ps1 suffix.
+	//
+	if runtime.GOOS == "windows" {
+		return filepath.Join(e.tmpDirectory, fmt.Sprintf(".env-%d.ps1", time.Now().UnixNano()))
+	}
+
+	return filepath.Join(e.tmpDirectory, fmt.Sprintf(".env-%d", time.Now().UnixNano()))
+}
+
 func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config.HostEnvVar) int {
 	commandStartedAt := int(time.Now().Unix())
 	directive := "Exporting environment variables"
@@ -111,23 +125,13 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 	}
 
 	/*
-	 * In windows, no PTY is used, so the environment state
-	 * is tracked in the shell itself.
+	 * Create a temporary file containing all the environment variables.
+	 * For Windows agents, we don't use this file for the job itself,
+	 * since we keep track of the environment in-memory due to the lack of a PTY,
+	 * But we still need the file to be created for debug sessions.
 	 */
-	if runtime.GOOS == "windows" {
-		e.Shell.Env.Append(environment, func(name, value string) {
-			e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))
-		})
-
-		exitCode = 0
-		return exitCode
-	}
-
-	/*
-	 * If not windows, we use a PTY, so there's no need to track
-	 * the environment state here.
-	 */
-	envFileName := filepath.Join(e.tmpDirectory, fmt.Sprintf(".env-%d", time.Now().UnixNano()))
+	envFileName := e.envFileName()
+	e.cleanupAfterClose = append(e.cleanupAfterClose, envFileName)
 	err = environment.ToFile(envFileName, func(name string) {
 		e.Logger.LogCommandOutput(fmt.Sprintf("Exporting %s\n", name))
 	})
@@ -137,7 +141,15 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 		return exitCode
 	}
 
-	e.cleanupAfterClose = append(e.cleanupAfterClose, envFileName)
+	/*
+	 * In windows, no PTY is used, so we don't source the environment file.
+	 * Instead, we keep track of the environment changes in the shell object itself.
+	 */
+	if runtime.GOOS == "windows" {
+		e.Shell.Env.Append(environment, nil)
+		exitCode = 0
+		return exitCode
+	}
 
 	cmd := fmt.Sprintf("source %s", envFileName)
 	exitCode = e.RunCommand(cmd, true, "")
