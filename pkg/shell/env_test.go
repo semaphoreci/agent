@@ -102,10 +102,6 @@ VAR_C=CCC
 }
 
 func Test__EnvironmentToFile(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Environment.ToFile() is only used in non-windows")
-	}
-
 	vars := []api.EnvVar{
 		{Name: "Z", Value: base64.StdEncoding.EncodeToString([]byte("ZZZ"))},
 		{Name: "O", Value: base64.StdEncoding.EncodeToString([]byte("OOO"))},
@@ -124,7 +120,12 @@ func Test__EnvironmentToFile(t *testing.T) {
 
 	content, err := ioutil.ReadFile(file.Name())
 	assert.Nil(t, err)
-	assert.Equal(t, string(content), "export O=OOO\nexport QUOTED='This is going to get quoted'\nexport Z=ZZZ\n")
+
+	if runtime.GOOS == "windows" {
+		assert.Equal(t, string(content), "export O=OOO\nexport QUOTED='This is going to get quoted'\nexport Z=ZZZ\n")
+	} else {
+		assert.Equal(t, string(content), `$env:O = "OOO"\n$env:QUOTED = "This is going to get quoted"\n$env:Z = "ZZZ"\n`)
+	}
 
 	file.Close()
 	os.Remove(file.Name())

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	stdruntime "runtime"
 	"testing"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 )
@@ -40,9 +41,16 @@ func Test__CreateSecret(t *testing.T) {
 		assert.True(t, *secret.Immutable)
 		assert.Equal(t, secret.Name, secretName)
 		assert.Empty(t, secret.Labels)
-		assert.Equal(t, secret.StringData, map[string]string{
-			".env": "export A=AAA\nexport B=BBB\nexport C=CCC\n",
-		})
+
+		if stdruntime.GOOS == "windows" {
+			assert.Equal(t, secret.StringData, map[string]string{
+				".env": `$env:A = "AAA"\n$env:B = "BBB"\n$env:C = "CCC"\n`,
+			})
+		} else {
+			assert.Equal(t, secret.StringData, map[string]string{
+				".env": "export A=AAA\nexport B=BBB\nexport C=CCC\n",
+			})
+		}
 	})
 
 	t.Run("stores files in secret, with base64-encoded keys", func(t *testing.T) {
@@ -82,11 +90,20 @@ func Test__CreateSecret(t *testing.T) {
 		assert.True(t, *secret.Immutable)
 		assert.Equal(t, secret.Name, secretName)
 		assert.Empty(t, secret.Labels)
-		assert.Equal(t, secret.StringData, map[string]string{
-			".env": "export A=AAA\nexport B=BBB\nexport C=CCC\n",
-			key1:   "Random content",
-			key2:   "Random content 2",
-		})
+
+		if stdruntime.GOOS == "windows" {
+			assert.Equal(t, secret.StringData, map[string]string{
+				".env": `$env:A = "AAA"\n$env:B = "BBB"\n$env:C = "CCC"\n`,
+				key1:   "Random content",
+				key2:   "Random content 2",
+			})
+		} else {
+			assert.Equal(t, secret.StringData, map[string]string{
+				".env": "export A=AAA\nexport B=BBB\nexport C=CCC\n",
+				key1:   "Random content",
+				key2:   "Random content 2",
+			})
+		}
 	})
 
 	t.Run("uses labels", func(t *testing.T) {
@@ -122,9 +139,15 @@ func Test__CreateSecret(t *testing.T) {
 			"semaphoreci.com/agent-type": "s1-test",
 		})
 
-		assert.Equal(t, secret.StringData, map[string]string{
-			".env": "export A=AAA\nexport B=BBB\nexport C=CCC\n",
-		})
+		if stdruntime.GOOS == "windows" {
+			assert.Equal(t, secret.StringData, map[string]string{
+				".env": `$env:A = "AAA"\n$env:B = "BBB"\n$env:C = "CCC"\n`,
+			})
+		} else {
+			assert.Equal(t, secret.StringData, map[string]string{
+				".env": "export A=AAA\nexport B=BBB\nexport C=CCC\n",
+			})
+		}
 	})
 }
 
