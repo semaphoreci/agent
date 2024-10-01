@@ -122,9 +122,9 @@ func Test__EnvironmentToFile(t *testing.T) {
 	assert.Nil(t, err)
 
 	if runtime.GOOS == "windows" {
-		assert.Equal(t, string(content), "export O=OOO\nexport QUOTED='This is going to get quoted'\nexport Z=ZZZ\n")
-	} else {
 		assert.Equal(t, string(content), `$env:O = "OOO"\n$env:QUOTED = "This is going to get quoted"\n$env:Z = "ZZZ"\n`)
+	} else {
+		assert.Equal(t, string(content), "export O=OOO\nexport QUOTED='This is going to get quoted'\nexport Z=ZZZ\n")
 	}
 
 	file.Close()
