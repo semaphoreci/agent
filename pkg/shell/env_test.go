@@ -126,7 +126,7 @@ func Test__EnvironmentToFile(t *testing.T) {
 	var expected string
 	if runtime.GOOS == "windows" {
 		expected = `$env:BACKTICKS_ARE_ESCAPED_ON_POWERSHELL = "` + "``This``" + ` is going to get escaped too"
-$env:DOUBLE_QUOTES_ARE_ESCAPED_ON_POWERSHELL = "` + "`\"This\"`" + ` is going to get escaped"
+$env:DOUBLE_QUOTES_ARE_ESCAPED_ON_POWERSHELL = "` + "`\"This`\"" + ` is going to get escaped"
 $env:O = "OOO"
 $env:SPACES_ARE_SINGLE_QUOTED_ON_UNIX = "This is going to get quoted"
 $env:Z = "ZZZ"
