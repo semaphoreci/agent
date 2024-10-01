@@ -42,15 +42,14 @@ func Test__CreateSecret(t *testing.T) {
 		assert.Equal(t, secret.Name, secretName)
 		assert.Empty(t, secret.Labels)
 
+		var expected string
 		if stdruntime.GOOS == "windows" {
-			assert.Equal(t, secret.StringData, map[string]string{
-				".env": `$env:A = "AAA"\n$env:B = "BBB"\n$env:C = "CCC"\n`,
-			})
+			expected = "$env:A = \"AAA\"\n$env:B = \"BBB\"\n$env:C = \"CCC\"\n"
 		} else {
-			assert.Equal(t, secret.StringData, map[string]string{
-				".env": "export A=AAA\nexport B=BBB\nexport C=CCC\n",
-			})
+			expected = "export A=AAA\nexport B=BBB\nexport C=CCC\n"
 		}
+
+		assert.Equal(t, secret.StringData, map[string]string{".env": expected})
 	})
 
 	t.Run("stores files in secret, with base64-encoded keys", func(t *testing.T) {
@@ -91,19 +90,18 @@ func Test__CreateSecret(t *testing.T) {
 		assert.Equal(t, secret.Name, secretName)
 		assert.Empty(t, secret.Labels)
 
+		var expected string
 		if stdruntime.GOOS == "windows" {
-			assert.Equal(t, secret.StringData, map[string]string{
-				".env": `$env:A = "AAA"\n$env:B = "BBB"\n$env:C = "CCC"\n`,
-				key1:   "Random content",
-				key2:   "Random content 2",
-			})
+			expected = "$env:A = \"AAA\"\n$env:B = \"BBB\"\n$env:C = \"CCC\"\n"
 		} else {
-			assert.Equal(t, secret.StringData, map[string]string{
-				".env": "export A=AAA\nexport B=BBB\nexport C=CCC\n",
-				key1:   "Random content",
-				key2:   "Random content 2",
-			})
+			expected = "export A=AAA\nexport B=BBB\nexport C=CCC\n"
 		}
+
+		assert.Equal(t, secret.StringData, map[string]string{
+			".env": expected,
+			key1:   "Random content",
+			key2:   "Random content 2",
+		})
 	})
 
 	t.Run("uses labels", func(t *testing.T) {
@@ -139,15 +137,14 @@ func Test__CreateSecret(t *testing.T) {
 			"semaphoreci.com/agent-type": "s1-test",
 		})
 
+		var expected string
 		if stdruntime.GOOS == "windows" {
-			assert.Equal(t, secret.StringData, map[string]string{
-				".env": `$env:A = "AAA"\n$env:B = "BBB"\n$env:C = "CCC"\n`,
-			})
+			expected = "$env:A = \"AAA\"\n$env:B = \"BBB\"\n$env:C = \"CCC\"\n"
 		} else {
-			assert.Equal(t, secret.StringData, map[string]string{
-				".env": "export A=AAA\nexport B=BBB\nexport C=CCC\n",
-			})
+			expected = "export A=AAA\nexport B=BBB\nexport C=CCC\n"
 		}
+
+		assert.Equal(t, secret.StringData, map[string]string{".env": expected})
 	})
 }
 
