@@ -85,6 +85,25 @@ def wait_for_agent_to_shutdown
   $strategy.wait_for_agent_to_shutdown
 end
 
+def assert_artifact_is_compressed
+  puts "Checking if artifact is available and compressed"
+
+  # We give 20s for the artifact to appear here, to give the agent enough time
+  # to realize the "archivator" has reached out for the logs, and can close the logger.
+  Timeout.timeout(20) do
+    loop do
+      `artifact pull job agent/job_logs.txt -f -d job_logs.gz && (gunzip -c job_logs.gz | tail -n1 | grep -q "Exporting SEMAPHORE_JOB_RESULT")`
+      if $?.exitstatus == 0
+        puts "sucess: agent/job_logs.txt exists and is compressed!"
+        break
+      else
+        print "."
+        sleep 2
+      end
+    end
+  end
+end
+
 def assert_artifact_is_available
   puts "Checking if artifact is available"
 
