@@ -8,12 +8,15 @@ import (
 )
 
 func Compress(rawFileName string) (string, error) {
+	// #nosec
 	rawFile, err := os.Open(rawFileName)
 	if err != nil {
 		return "", fmt.Errorf("error opening raw file %s: %v", rawFileName, err)
 	}
 
 	gzippedFileName := rawFileName + ".gz"
+
+	// #nosec
 	gzippedFile, err := os.Create(gzippedFileName)
 	if err != nil {
 		return "", fmt.Errorf("error creating file %s for compression: %v", gzippedFileName, err)

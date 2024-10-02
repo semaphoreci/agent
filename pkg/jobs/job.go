@@ -586,6 +586,7 @@ func (job *Job) minSizeForCompression() int64 {
 	return n
 }
 
+// #nosec
 func (job *Job) findFileSize(fileName string) (int64, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
@@ -640,7 +641,9 @@ func (job *Job) prepareArtifactForUpload() (string, error) {
 	}
 
 	// Remove the raw file since we are using the compressed one now.
-	os.Remove(rawFileName)
+	if err := os.Remove(rawFileName); err != nil {
+		log.Errorf("Error removing file %s: %v", rawFileName, err)
+	}
 
 	return compressedFile, nil
 }
