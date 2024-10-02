@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -125,7 +126,12 @@ func (e *Environment) ToFile(fileName string, callback func(name string)) error 
 	fileContent := ""
 	for _, name := range e.Keys() {
 		value, _ := e.Get(name)
-		fileContent += fmt.Sprintf("export %s=%s\n", name, shellQuote(value))
+		if runtime.GOOS == "windows" {
+			fileContent += fmt.Sprintf("$env:%s = \"%s\"\n", name, escapePowershellQuotes(value))
+		} else {
+			fileContent += fmt.Sprintf("export %s=%s\n", name, shellQuote(value))
+		}
+
 		if callback != nil {
 			callback(name)
 		}
@@ -138,6 +144,11 @@ func (e *Environment) ToFile(fileName string, callback func(name string)) error 
 	}
 
 	return nil
+}
+
+func escapePowershellQuotes(s string) string {
+	r := strings.Replace(s, "`", "``", -1)
+	return strings.Replace(r, "\"", "`\"", -1)
 }
 
 func shellQuote(s string) string {

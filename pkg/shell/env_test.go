@@ -102,14 +102,12 @@ VAR_C=CCC
 }
 
 func Test__EnvironmentToFile(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Environment.ToFile() is only used in non-windows")
-	}
-
 	vars := []api.EnvVar{
 		{Name: "Z", Value: base64.StdEncoding.EncodeToString([]byte("ZZZ"))},
 		{Name: "O", Value: base64.StdEncoding.EncodeToString([]byte("OOO"))},
-		{Name: "QUOTED", Value: base64.StdEncoding.EncodeToString([]byte("This is going to get quoted"))},
+		{Name: "SPACES_ARE_SINGLE_QUOTED_ON_UNIX", Value: base64.StdEncoding.EncodeToString([]byte("This is going to get quoted"))},
+		{Name: "DOUBLE_QUOTES_ARE_ESCAPED_ON_POWERSHELL", Value: base64.StdEncoding.EncodeToString([]byte("\"This\" is going to get escaped"))},
+		{Name: "BACKTICKS_ARE_ESCAPED_ON_POWERSHELL", Value: base64.StdEncoding.EncodeToString([]byte("`This` is going to get escaped too"))},
 	}
 
 	env, err := CreateEnvironment(vars, []config.HostEnvVar{})
@@ -124,8 +122,25 @@ func Test__EnvironmentToFile(t *testing.T) {
 
 	content, err := ioutil.ReadFile(file.Name())
 	assert.Nil(t, err)
-	assert.Equal(t, string(content), "export O=OOO\nexport QUOTED='This is going to get quoted'\nexport Z=ZZZ\n")
 
+	var expected string
+	if runtime.GOOS == "windows" {
+		expected = `$env:BACKTICKS_ARE_ESCAPED_ON_POWERSHELL = "` + "``This``" + ` is going to get escaped too"
+$env:DOUBLE_QUOTES_ARE_ESCAPED_ON_POWERSHELL = "` + "`\"This`\"" + ` is going to get escaped"
+$env:O = "OOO"
+$env:SPACES_ARE_SINGLE_QUOTED_ON_UNIX = "This is going to get quoted"
+$env:Z = "ZZZ"
+`
+	} else {
+		expected = `export BACKTICKS_ARE_ESCAPED_ON_POWERSHELL='` + "`This`" + ` is going to get escaped too'
+export DOUBLE_QUOTES_ARE_ESCAPED_ON_POWERSHELL='"This" is going to get escaped'
+export O=OOO
+export SPACES_ARE_SINGLE_QUOTED_ON_UNIX='This is going to get quoted'
+export Z=ZZZ
+`
+	}
+
+	assert.Equal(t, expected, string(content))
 	file.Close()
 	os.Remove(file.Name())
 }
