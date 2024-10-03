@@ -8,10 +8,12 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/compression"
 	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	executors "github.com/semaphoreci/agent/pkg/executors"
@@ -25,6 +27,13 @@ import (
 const JobPassed = "passed"
 const JobFailed = "failed"
 const JobStopped = "stopped"
+
+// By default, we will only compress the job logs before uploading them as an artifact
+// if their size goes above 100MB. However, the SEMAPHORE_AGENT_LOGS_COMPRESSION_SIZE environment
+// variable can be used to configure that value, with anything between 1MB and 1GB being possible.
+const MinSizeForCompression = 1024 * 1024
+const DefaultSizeForCompression = 1024 * 1024 * 100
+const MaxSizeForCompression = 1024 * 1024 * 1024
 
 type Job struct {
 	Client  *http.Client
@@ -545,6 +554,100 @@ func (job *Job) teardownWithNoCallbacks(result string) error {
 	return nil
 }
 
+func (job *Job) minSizeForCompression() int64 {
+	fromEnv := os.Getenv("SEMAPHORE_AGENT_LOGS_COMPRESSION_SIZE")
+	if fromEnv == "" {
+		return DefaultSizeForCompression
+	}
+
+	n, err := strconv.ParseInt(fromEnv, 10, 64)
+	if err != nil {
+		log.Errorf(
+			"Error parsing SEMAPHORE_AGENT_LOGS_COMPRESSION_SIZE: %v - using default of %d",
+			err,
+			DefaultSizeForCompression,
+		)
+
+		return DefaultSizeForCompression
+	}
+
+	if n < MinSizeForCompression || n > MaxSizeForCompression {
+		log.Errorf(
+			"Invalid SEMAPHORE_AGENT_LOGS_COMPRESSION_SIZE %d, not in range %d-%d, using default %d",
+			n,
+			MinSizeForCompression,
+			MaxSizeForCompression,
+			DefaultSizeForCompression,
+		)
+
+		return DefaultSizeForCompression
+	}
+
+	return n
+}
+
+// #nosec
+func (job *Job) findFileSize(fileName string) (int64, error) {
+	file, err := os.Open(fileName)
+	if err != nil {
+		return 0, fmt.Errorf("error opening %s: %v", fileName, err)
+	}
+
+	defer file.Close()
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("error determining size for file %s: %v", fileName, err)
+	}
+
+	return fileInfo.Size(), nil
+}
+
+func (job *Job) prepareArtifactForUpload() (string, error) {
+	log.Info("Converting job logs to plain-text format...")
+	rawFileName, err := job.Logger.GeneratePlainTextFile()
+	if err != nil {
+		return "", fmt.Errorf("error converting '%s' to plain text: %v", rawFileName, err)
+	}
+
+	//
+	// If an error happens determing the size of the raw logs file,
+	// we should still try to upload the raw logs,
+	// so we don't return an error here.
+	//
+	rawFileSize, err := job.findFileSize(rawFileName)
+	if err != nil {
+		log.Errorf("Error determining size for %s: %v", rawFileName, err)
+		return rawFileName, nil
+	}
+
+	// If the size of the file is below our threshold for compression, we upload the raw file.
+	minSizeForCompression := job.minSizeForCompression()
+	if rawFileSize < minSizeForCompression {
+		log.Infof("Logs are below the minimum size for compression - size=%d, minimum=%d", rawFileSize, minSizeForCompression)
+		return rawFileName, nil
+	}
+
+	log.Info("Compressing job logs")
+
+	//
+	// If an error happens compressing the logs,
+	// we should still try to upload the raw logs,
+	// so we don't return an error here as well.
+	//
+	compressedFile, err := compression.Compress(rawFileName)
+	if err != nil {
+		log.Errorf("Error compressing job logs %s: %v - using raw file", rawFileName, err)
+		return rawFileName, nil
+	}
+
+	// Remove the raw file since we are using the compressed one now.
+	if err := os.Remove(rawFileName); err != nil {
+		log.Errorf("Error removing file %s: %v", rawFileName, err)
+	}
+
+	return compressedFile, nil
+}
+
 func (job *Job) uploadLogsAsArtifact(trimmed bool) {
 	if job.UploadJobLogs == config.UploadJobLogsConditionNever {
 		log.Info("upload-job-logs=never - not uploading job logs as job artifact.")
@@ -555,15 +658,6 @@ func (job *Job) uploadLogsAsArtifact(trimmed bool) {
 		log.Info("upload-job-logs=when-trimmed - logs were not trimmed, not uploading job logs as job artifact.")
 		return
 	}
-
-	log.Info("Converting job logs to plain-text format...")
-	file, err := job.Logger.GeneratePlainTextFile()
-	if err != nil {
-		log.Errorf("Error converting '%s' to plain text: %v", file, err)
-		return
-	}
-
-	defer os.Remove(file)
 
 	token, err := job.Request.FindEnvVar("SEMAPHORE_ARTIFACT_TOKEN")
 	if err != nil {
@@ -580,6 +674,12 @@ func (job *Job) uploadLogsAsArtifact(trimmed bool) {
 	path, err := exec.LookPath("artifact")
 	if err != nil {
 		log.Error("Error uploading job logs as artifact - no artifact CLI available")
+		return
+	}
+
+	file, err := job.prepareArtifactForUpload()
+	if err != nil {
+		log.Errorf("Error preparing artifact for upload: %v", err)
 		return
 	}
 
