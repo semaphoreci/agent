@@ -386,7 +386,17 @@ func (c *KubernetesClient) containers(apiContainers []api.Container) ([]corev1.C
 		return c.convertContainersFromSemaphore(apiContainers), nil
 	}
 
-	return []corev1.Container{}, fmt.Errorf("no containers specified in Semaphore YAML")
+	if c.config.KubernetesDefaultImage != "" {
+		containers := []api.Container{}
+
+		containers = append(containers, &api.Container{Image: c.config.KubernetesDefaultImage})
+
+		return c.convertContainersFromSemaphore(containers), nil
+	}
+
+	return []corev1.Container{}, fmt.Errorf(
+		"no containers specified in Semaphore YAML, and no default container is provided",
+		)
 }
 
 func (c *KubernetesClient) buildMainContainer(mainContainerFromAPI *api.Container) corev1.Container {
