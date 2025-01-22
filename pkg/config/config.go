@@ -28,6 +28,7 @@ const (
 	KubernetesAllowedImages    = "kubernetes-allowed-images"
 	KubernetesPodStartTimeout  = "kubernetes-pod-start-timeout"
 	KubernetesLabels           = "kubernetes-labels"
+	KubernetesDefaultImage     = "kubernetes-default-image"
 )
 
 const DefaultKubernetesPodStartTimeout = 300
