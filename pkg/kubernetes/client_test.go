@@ -250,7 +250,7 @@ func Test__CreatePod(t *testing.T) {
 			Compose: api.Compose{
 				Containers: []api.Container{},
 			},
-		}), "no containers specified in Semaphore YAML")
+		}), "no containers specified in Semaphore YAML, and no default container is provided")
 	})
 
 	t.Run("containers and no pod spec", func(t *testing.T) {
