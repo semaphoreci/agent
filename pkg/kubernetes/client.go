@@ -31,6 +31,7 @@ type Config struct {
 	PodPollingAttempts        int
 	Labels                    map[string]string
 	PodPollingInterval        time.Duration
+	DefaultImage              string
 }
 
 func (c *Config) LabelMap() map[string]string {
@@ -386,10 +387,10 @@ func (c *KubernetesClient) containers(apiContainers []api.Container) ([]corev1.C
 		return c.convertContainersFromSemaphore(apiContainers), nil
 	}
 
-	if c.config.KubernetesDefaultImage != "" {
+	if c.config.DefaultImage != "" {
 		containers := []api.Container{}
 
-		containers = append(containers, &api.Container{Image: c.config.KubernetesDefaultImage})
+		containers = append(containers, api.Container{Image: c.config.DefaultImage})
 
 		return c.convertContainersFromSemaphore(containers), nil
 	}
