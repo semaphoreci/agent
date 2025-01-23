@@ -48,9 +48,15 @@ assert_job_log <<-LOG
   *** LONG_OUTPUT ***
   {"event":"cmd_finished", "timestamp":"*", "directive":"Starting shell session...","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
 
+  {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
+  {"event":"cmd_finished", "timestamp":"*", "directive":"Exporting environment variables","exit_code":0,"finished_at":"*","started_at":"*"}
+  {"event":"cmd_started",  "timestamp":"*", "directive":"Injecting Files"}
+  {"event":"cmd_finished", "timestamp":"*", "directive":"Injecting Files","exit_code":0,"finished_at":"*","started_at":"*"}
+
   {"event":"cmd_started",  "timestamp":"*", "directive":"echo Hello World"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Hello World\\n"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"echo Hello World","exit_code":0,"finished_at":"*","started_at":"*"}
+
   {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Exporting SEMAPHORE_JOB_RESULT\\n"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"Exporting environment variables","exit_code":0,"started_at":"*","finished_at":"*"}
