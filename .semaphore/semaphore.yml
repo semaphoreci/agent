@@ -270,6 +270,7 @@ blocks:
             - env_var: TEST
               values:
                 - shell__not-allowed
+                - shell__default-image
                 - docker_compose__env-vars
                 - docker_compose__epilogue
                 - docker_compose__file-injection

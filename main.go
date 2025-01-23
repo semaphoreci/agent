@@ -139,6 +139,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		config.DefaultKubernetesPodStartTimeout,
 		fmt.Sprintf("Timeout for the pod to be ready, in seconds. Default is %d.", config.DefaultKubernetesPodStartTimeout),
 	)
+	_ = pflag.String(config.KubernetesDefaultImage, "", "Default image to use in Kubernetes executor if no containers are specified in the job request")
 
 	pflag.Parse()
 
@@ -228,6 +229,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		KubernetesImageValidator:         createImageValidator(viper.GetStringSlice(config.KubernetesAllowedImages)),
 		KubernetesPodStartTimeoutSeconds: viper.GetInt(config.KubernetesPodStartTimeout),
 		KubernetesLabels:                 kubernetesLabels,
+		KubernetesDefaultImage:           viper.GetString(config.KubernetesDefaultImage),
 	}
 
 	go func() {

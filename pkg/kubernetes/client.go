@@ -31,6 +31,7 @@ type Config struct {
 	PodPollingAttempts        int
 	Labels                    map[string]string
 	PodPollingInterval        time.Duration
+	DefaultImage              string
 }
 
 func (c *Config) LabelMap() map[string]string {
@@ -386,7 +387,17 @@ func (c *KubernetesClient) containers(apiContainers []api.Container) ([]corev1.C
 		return c.convertContainersFromSemaphore(apiContainers), nil
 	}
 
-	return []corev1.Container{}, fmt.Errorf("no containers specified in Semaphore YAML")
+	if c.config.DefaultImage != "" {
+		containers := []api.Container{}
+
+		containers = append(containers, api.Container{Image: c.config.DefaultImage})
+
+		return c.convertContainersFromSemaphore(containers), nil
+	}
+
+	return []corev1.Container{}, fmt.Errorf(
+		"no containers specified in Semaphore YAML, and no default container is provided",
+		)
 }
 
 func (c *KubernetesClient) buildMainContainer(mainContainerFromAPI *api.Container) corev1.Container {

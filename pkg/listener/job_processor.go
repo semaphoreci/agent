@@ -48,6 +48,7 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		KubernetesImageValidator:         config.KubernetesImageValidator,
 		KubernetesPodStartTimeoutSeconds: config.KubernetesPodStartTimeoutSeconds,
 		KubernetesLabels:                 config.KubernetesLabels,
+		KubernetesDefaultImage:           config.KubernetesDefaultImage,
 	}
 
 	go p.Start()
@@ -94,6 +95,7 @@ type JobProcessor struct {
 	KubernetesImageValidator         *kubernetes.ImageValidator
 	KubernetesPodStartTimeoutSeconds int
 	KubernetesLabels                 map[string]string
+	KubernetesDefaultImage           string
 }
 
 func (p *JobProcessor) Start() {
@@ -212,6 +214,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 		KubernetesPodStartTimeoutSeconds: p.KubernetesPodStartTimeoutSeconds,
 		KubernetesLabels:                 p.KubernetesLabels,
 		KubernetesImageValidator:         p.KubernetesImageValidator,
+		KubernetesDefaultImage:           p.KubernetesDefaultImage,
 		UploadJobLogs:                    p.UploadJobLogs,
 		UserAgent:                        p.UserAgent,
 		RefreshTokenFn: func() (string, error) {

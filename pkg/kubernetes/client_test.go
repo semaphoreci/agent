@@ -250,7 +250,44 @@ func Test__CreatePod(t *testing.T) {
 			Compose: api.Compose{
 				Containers: []api.Container{},
 			},
-		}), "no containers specified in Semaphore YAML")
+		}), "no containers specified in Semaphore YAML, and no default container is provided")
+	})
+
+	t.Run("default image and no containers from YAML", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{})
+		imageValidator, _ := NewImageValidator([]string{})
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:      "default",
+			ImageValidator: imageValidator,
+			DefaultImage: "default-image",
+		})
+
+		_ = client.LoadPodSpec()
+		podName := "mypod"
+		envSecretName := "mysecret"
+
+		// create pod using job request
+		assert.NoError(t, client.CreatePod(podName, envSecretName, "", &api.JobRequest{
+			Compose: api.Compose{
+				Containers: []api.Container{},
+			},
+		}))
+
+		pod, err := clientset.CoreV1().
+			Pods("default").
+			Get(context.Background(), podName, v1.GetOptions{})
+
+		assert.NoError(t, err)
+
+		// assert pod spec containers
+		if assert.Len(t, pod.Spec.Containers, 1) {
+			assert.Equal(t, pod.Spec.Containers[0].Name, "main")
+			assert.Equal(t, pod.Spec.Containers[0].Image, "default-image")
+			assert.Equal(t, pod.Spec.Containers[0].ImagePullPolicy, corev1.PullPolicy(""))
+			assert.Equal(t, pod.Spec.Containers[0].Command, []string{"bash", "-c", "sleep infinity"})
+			assert.Empty(t, pod.Spec.Containers[0].Env)
+			assert.Equal(t, pod.Spec.Containers[0].VolumeMounts, []corev1.VolumeMount{{Name: "environment", ReadOnly: true, MountPath: "/tmp/injected"}})
+		}
 	})
 
 	t.Run("containers and no pod spec", func(t *testing.T) {
@@ -301,6 +338,7 @@ func Test__CreatePod(t *testing.T) {
 			Namespace:                 "default",
 			PodSpecDecoratorConfigMap: "pod-spec",
 			ImageValidator:            imageValidator,
+			DefaultImage: "default-image",
 		})
 
 		if !assert.NoError(t, err) {

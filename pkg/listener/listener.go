@@ -51,6 +51,7 @@ type Config struct {
 	KubernetesImageValidator         *kubernetes.ImageValidator
 	KubernetesPodStartTimeoutSeconds int
 	KubernetesLabels                 map[string]string
+	KubernetesDefaultImage           string
 }
 
 func Start(httpClient *http.Client, config Config) (*Listener, error) {
