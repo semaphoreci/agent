@@ -18,6 +18,7 @@ The Kubernetes executor creates a new Kubernetes pod to run every job it receive
     - [Semaphore secrets](#semaphore-secrets)
     - [Use a manually created Kubernetes secret](#use-a-manually-created-kubernetes-secret)
   - [Restricting images used in jobs](#restricting-images-used-in-jobs)
+  - [Default image used in jobs](#default-image-used-in-jobs)
 
 ## Requirements
 
@@ -87,7 +88,9 @@ Each of the keys in the config map decorate a specific part of the pod created f
 
 ### Specifying containers
 
-The Kubernetes executor requires the Semaphore YAML to specify the containers to use. If no containers are specified in the YAML, the job will fail. Here are the configurable fields in a container definition in the Semaphore YAML:
+The Kubernetes executor requires that containers are defined in the Semaphore YAML or that a [default image](#default-image-used-in-jobs) is configured. If neither a container nor a default image is provided, the job will fail.
+
+Here are the configurable fields in a container definition in the Semaphore YAML:
 
 ```yaml
 containers:
@@ -238,3 +241,9 @@ data:
 By default, the Kubernetes executor accepts all images specified in the Semaphore YAML. If you want to restrict the images used in the jobs executed by your agents, you can use the `--kubernetes-allowed-images`.
 
 That parameter takes a list of regular expressions. If the image specified in the Semaphore YAML matches one of the expressions, it is allowed. For example, if you want to restrict jobs to only use images from a `custom-registry-1.com` registry, you can use `--kubernetes-allowed-images ^custom-registry-1\.com\/(.+)`
+
+### Default image used in jobs
+
+The Kubernetes executor will fail if you do not specify an image in the Semaphore YAML. To set a default image for agents, use the `--kubernetes-default-image` parameter.
+
+The parameter accepts the name of an image. For example: `registry.semaphoreci.com/ubuntu:22.04`
