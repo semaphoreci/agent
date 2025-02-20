@@ -14,9 +14,10 @@ const LoggerMethodPull = "pull"
 const LoggerMethodPush = "push"
 
 type LoggerOptions struct {
-	Request        *api.JobRequest
-	RefreshTokenFn func() (string, error)
-	UserAgent      string
+	Request          *api.JobRequest
+	RefreshTokenFn   func() (string, error)
+	UserAgent        string
+	RedactableValues []string
 }
 
 func CreateLogger(options LoggerOptions) (*Logger, error) {
@@ -26,7 +27,7 @@ func CreateLogger(options LoggerOptions) (*Logger, error) {
 
 	switch options.Request.Logger.Method {
 	case LoggerMethodPull:
-		return Default(options.Request)
+		return Default(options)
 	case LoggerMethodPush:
 		return DefaultHTTP(options)
 	default:
@@ -34,9 +35,10 @@ func CreateLogger(options LoggerOptions) (*Logger, error) {
 	}
 }
 
-func Default(request *api.JobRequest) (*Logger, error) {
+func Default(options LoggerOptions) (*Logger, error) {
 	path := filepath.Join(os.TempDir(), fmt.Sprintf("job_log_%d.json", time.Now().UnixNano()))
 
+	request := options.Request
 	maxSize := DefaultMaxSizeInBytes
 	if request.Logger.MaxSizeInBytes > 0 {
 		maxSize = request.Logger.MaxSizeInBytes
@@ -47,7 +49,7 @@ func Default(request *api.JobRequest) (*Logger, error) {
 		return nil, err
 	}
 
-	logger, err := NewLogger(backend)
+	logger, err := NewLogger(backend, options)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +85,7 @@ func DefaultHTTP(options LoggerOptions) (*Logger, error) {
 		return nil, err
 	}
 
-	logger, err := NewLogger(backend)
+	logger, err := NewLogger(backend, options)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +104,7 @@ func DefaultTestLogger() (*Logger, *InMemoryBackend) {
 		panic(err)
 	}
 
-	logger, err := NewLogger(backend)
+	logger, err := NewLogger(backend, LoggerOptions{})
 	if err != nil {
 		panic(err)
 	}

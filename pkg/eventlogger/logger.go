@@ -5,17 +5,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 )
 
+const MaxStagedOutputEvents = 3
+
 type Logger struct {
 	Backend Backend
+	Options LoggerOptions
+
+	/*
+	 * We stage a few of these output events before sending them to the backend,
+	 * for redacting reasons. Since the output is received here in chunks, it could be
+	 * that a bigger secret is not put into a single output event.
+	 * TODO: do I need a lock here?
+	 */
+	StagedOutputEvents []CommandOutputEvent
 }
 
-func NewLogger(backend Backend) (*Logger, error) {
-	return &Logger{Backend: backend}, nil
+func NewLogger(backend Backend, options LoggerOptions) (*Logger, error) {
+	return &Logger{Backend: backend, Options: options}, nil
 }
 
 func (l *Logger) Open() error {
@@ -127,13 +139,85 @@ func (l *Logger) LogCommandOutput(output string) {
 		Output:    output,
 	}
 
-	err := l.Backend.Write(event)
-	if err != nil {
-		log.Errorf("Error writing cmd_output log: %v", err)
+	l.StagedOutputEvents = append(l.StagedOutputEvents, *event)
+
+	//
+	// If we still didn't hit the max number of staged output events,
+	// we don't send anything to the backend yet.
+	//
+	if len(l.StagedOutputEvents) < MaxStagedOutputEvents {
+		return
+	}
+
+	l.FlushStagedOutput()
+}
+
+func (l *Logger) FlushStagedOutput() {
+	//
+	// Make sure we clear the staged output events before returning
+	//
+	defer func() {
+		l.StagedOutputEvents = []CommandOutputEvent{}
+	}()
+
+	//
+	// Otherwise, try to redact the output.
+	// If the output is redacted, combine all the staged events into a single event
+	// with the new redacted output, and send it to the backend.
+	//
+	redacted, output := l.redactOutput()
+	if redacted {
+		event := &CommandOutputEvent{
+			Timestamp: l.StagedOutputEvents[0].Timestamp,
+			Event:     "cmd_output",
+			Output:    output,
+		}
+
+		err := l.Backend.Write(event)
+		if err != nil {
+			log.Errorf("Error writing cmd_output log: %v", err)
+		}
+
+		return
+	}
+
+	//
+	// Output was not redacted, just send it as is.
+	//
+	for _, stagedEvent := range l.StagedOutputEvents {
+		err := l.Backend.Write(stagedEvent)
+		if err != nil {
+			log.Errorf("Error writing cmd_output log: %v", err)
+		}
 	}
 }
 
+func (l *Logger) AllStagedOutput() string {
+	o := ""
+	for _, v := range l.StagedOutputEvents {
+		o += v.Output
+	}
+
+	return o
+}
+
+func (l *Logger) redactOutput() (bool, string) {
+	redacted := false
+	output := l.AllStagedOutput()
+
+	for _, v := range l.Options.RedactableValues {
+		if strings.Contains(output, v) {
+			output = strings.ReplaceAll(output, v, "[REDACTED]")
+			redacted = true
+		}
+	}
+
+	return redacted, output
+}
+
 func (l *Logger) LogCommandFinished(directive string, exitCode int, startedAt int, finishedAt int) {
+	l.FlushStagedOutput()
+
 	event := &CommandFinishedEvent{
 		Timestamp:  int(time.Now().Unix()),
 		Event:      "cmd_finished",

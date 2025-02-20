@@ -18,7 +18,7 @@ func Test__GeneratePlainLogs(t *testing.T) {
 	tmpFileName := filepath.Join(os.TempDir(), fmt.Sprintf("logs_%d.json", time.Now().UnixNano()))
 	backend, _ := NewFileBackend(tmpFileName, DefaultMaxSizeInBytes)
 	assert.Nil(t, backend.Open())
-	logger, _ := NewLogger(backend)
+	logger, _ := NewLogger(backend, LoggerOptions{})
 	generateLogEvents(t, 10, backend)
 
 	file, err := logger.GeneratePlainTextFile()
@@ -58,7 +58,7 @@ func Benchmark__GeneratePlainLogs(b *testing.B) {
 	tmpFileName := filepath.Join(os.TempDir(), fmt.Sprintf("logs_%d.json", time.Now().UnixNano()))
 	backend, _ := NewFileBackend(tmpFileName, DefaultMaxSizeInBytes)
 	require.Nil(b, backend.Open())
-	logger, _ := NewLogger(backend)
+	logger, _ := NewLogger(backend, LoggerOptions{})
 
 	//
 	// Write a lot of log events into our file backend.

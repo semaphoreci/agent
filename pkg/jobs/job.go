@@ -24,6 +24,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+var redactableSuffixes = []string{
+	"_PASSWORD",
+	"_SECRET",
+	"_TOKEN",
+	"_ACCESS_KEY",
+	"_SECRET_KEY",
+}
+
 const JobPassed = "passed"
 const JobFailed = "failed"
 const JobStopped = "stopped"
@@ -103,9 +111,10 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 		job.Logger = options.Logger
 	} else {
 		l, err := eventlogger.CreateLogger(eventlogger.LoggerOptions{
-			Request:        options.Request,
-			RefreshTokenFn: options.RefreshTokenFn,
-			UserAgent:      options.UserAgent,
+			Request:          options.Request,
+			RefreshTokenFn:   options.RefreshTokenFn,
+			UserAgent:        options.UserAgent,
+			RedactableValues: redactableValues(options.Request),
 		})
 
 		if err != nil {
@@ -123,6 +132,21 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 
 	job.Executor = executor
 	return job, nil
+}
+
+func redactableValues(jobRequest *api.JobRequest) []string {
+	redactable := []string{}
+	for _, envVar := range jobRequest.EnvVars {
+		for _, redactableSuffix := range redactableSuffixes {
+			if strings.HasSuffix(envVar.Name, redactableSuffix) {
+				log.Infof("%s will be redacted from job logs", envVar.Name)
+				s, _ := envVar.Decode()
+				redactable = append(redactable, string(s))
+			}
+		}
+	}
+
+	return redactable
 }
 
 func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOptions JobOptions) (executors.Executor, error) {
