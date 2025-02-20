@@ -101,3 +101,44 @@ func Benchmark__GeneratePlainLogs(b *testing.B) {
 
 	require.NoError(b, logger.Close())
 }
+
+func Test__OutputIsRedacted(t *testing.T) {
+	tmpFileName := filepath.Join(os.TempDir(), fmt.Sprintf("logs_%d.json", time.Now().UnixNano()))
+	backend, _ := NewFileBackend(tmpFileName, DefaultMaxSizeInBytes)
+	assert.Nil(t, backend.Open())
+	logger, _ := NewLogger(backend, LoggerOptions{
+		RedactableValues: []string{"hello-secret"},
+	})
+
+	logger.LogJobStarted()
+
+	// this won't be redacted
+	logger.LogCommandStarted("echo hello")
+	logger.LogCommandOutput("hello\n")
+	logger.LogCommandFinished("echo hello", 0, 0, 0)
+
+	// this will
+	logger.LogCommandStarted("echo hello-secret")
+	logger.LogCommandOutput("hello-secret\n")
+	logger.LogCommandFinished("echo hello-secret", 0, 0, 0)
+	logger.LogJobFinished("passed")
+
+	file, err := logger.GeneratePlainTextFile()
+	assert.NoError(t, err)
+	assert.FileExists(t, file)
+
+	bytes, err := os.ReadFile(file)
+	assert.NoError(t, err)
+
+	lines := strings.Split(string(bytes), "\n")
+	assert.Equal(t, []string{
+		"echo hello",
+		"hello",
+		"echo hello-secret",
+		"[REDACTED]",
+		"",
+	}, lines)
+
+	assert.NoError(t, logger.Close())
+	os.Remove(file)
+}
