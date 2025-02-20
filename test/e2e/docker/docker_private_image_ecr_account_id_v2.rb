@@ -66,7 +66,7 @@ assert_job_log <<-LOG
   {"event":"cmd_output",   "timestamp":"*", "output":"\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"WARNING! Your credentials are stored unencrypted in '/root/.docker/config.json'.\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Configure a credential helper to remove this warning. See\\n"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"https://docs.docker.com/engine/reference/commandline/login/#credential-stores\\n"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"https://docs.docker.com/go/credential-store/\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Login Succeeded\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"\\n"}
