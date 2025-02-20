@@ -57,7 +57,7 @@ assert_job_log <<-LOG
   {"event":"cmd_output",   "timestamp":"*", "output":"$(aws ecr get-login --no-include-email --region $AWS_REGION)\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"WARNING! Using --password via the CLI is insecure. Use --password-stdin.\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"\\n"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"WARNING! Your password will be stored unencrypted in /root/.docker/config.json.\\n"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"WARNING! Your credentials are stored unencrypted in /root/.docker/config.json.\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Configure a credential helper to remove this warning. See\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"https://docs.docker.com/engine/reference/commandline/login/#credential-stores\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"\\n"}
