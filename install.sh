@@ -23,6 +23,11 @@ User=$SEMAPHORE_AGENT_INSTALLATION_USER
 WorkingDirectory=$AGENT_INSTALLATION_DIRECTORY
 ExecStart=$AGENT_INSTALLATION_DIRECTORY/agent start --config-file $AGENT_CONFIG_PATH
 Environment=SEMAPHORE_AGENT_LOG_FILE_PATH=$AGENT_INSTALLATION_DIRECTORY/agent.log
+Delegate=yes
+DelegateSubgroup=semaphore
+MemoryAccounting=yes
+CPUAccounting=yes
+TasksAccounting=yes
 
 [Install]
 WantedBy=multi-user.target
