@@ -66,14 +66,15 @@ class ApiMode
     puts "========================="
     puts "Waiting for job to finish"
 
-    Timeout.timeout(60 * 4) do
+    Timeout.timeout(60 * 5) do
       loop do
-        `curl -s -H "Authorization: Bearer #{$TOKEN}" --fail -k "https://0.0.0.0:30000/jobs/#{$JOB_ID}/log" | grep "job_finished"`
+        last_log_line = `curl -s -H "Authorization: Bearer #{$TOKEN}" --fail -k "https://0.0.0.0:30000/jobs/#{$JOB_ID}/log" | tail -n 1`
 
-        if $?.exitstatus == 0
+        if last_log_line.include?("job_finished")
       	break
         else
-      	sleep 1
+          puts(last_log_line)
+          sleep 1
         end
       end
     end
