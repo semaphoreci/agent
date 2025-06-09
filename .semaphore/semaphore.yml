@@ -277,7 +277,6 @@ blocks:
                 - private_image_gcr
                 - private_image_ecr_no_account_id
                 - private_image_ecr_with_account_id
-                - private_image_generic
 
 after_pipeline:
   task:
