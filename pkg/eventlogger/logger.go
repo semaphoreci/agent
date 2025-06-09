@@ -2,32 +2,36 @@ package eventlogger
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 )
 
-const MaxStagedOutputEvents = 3
+// We buffer the output events before flushing them for 100ms, for redacting reasons.
+// Since the output is received here in chunks, it could be
+// that a bigger secret is not put into a single output event.
+const OutputBufferingWindow = 100 * time.Millisecond
+const OutputBufferMax = 4 * 1024
 
 type Logger struct {
 	Backend Backend
 	Options LoggerOptions
 
-	/*
-	 * We stage a few of these output events before sending them to the backend,
-	 * for redacting reasons. Since the output is received here in chunks, it could be
-	 * that a bigger secret is not put into a single output event.
-	 * TODO: do I need a lock here?
-	 */
-	StagedOutputEvents []CommandOutputEvent
+	bufferedOutput bytes.Buffer
+	lastBufferedAt *time.Time
+	bufferLock     sync.Mutex
 }
 
 func NewLogger(backend Backend, options LoggerOptions) (*Logger, error) {
-	return &Logger{Backend: backend, Options: options}, nil
+	return &Logger{
+		Backend: backend,
+		Options: options,
+	}, nil
 }
 
 func (l *Logger) Open() error {
@@ -133,90 +137,97 @@ func (l *Logger) LogCommandStarted(directive string) {
 }
 
 func (l *Logger) LogCommandOutput(output string) {
-	event := &CommandOutputEvent{
-		Timestamp: int(time.Now().Unix()),
-		Event:     "cmd_output",
-		Output:    output,
-	}
+	l.bufferLock.Lock()
+	defer l.bufferLock.Unlock()
 
-	l.StagedOutputEvents = append(l.StagedOutputEvents, *event)
-
-	//
-	// If we still didn't hit the max number of staged output events,
-	// we don't send anything to the backend yet.
-	//
-	if len(l.StagedOutputEvents) < MaxStagedOutputEvents {
+	now := time.Now()
+	_, err := l.bufferedOutput.WriteString(output)
+	if err != nil {
+		log.Errorf("Error writing cmd_output log: %v", err)
 		return
 	}
 
-	l.FlushStagedOutput()
+	//
+	// If we are above our max buffer size, we flush.
+	//
+	if l.bufferedOutput.Len() > OutputBufferMax {
+		l.lastBufferedAt = &now
+		l.flushBufferedOutput()
+		return
+	}
+
+	//
+	// If we are outside our current buffering window, we flush.
+	//
+	if l.lastBufferedAt != nil && l.lastBufferedAt.Add(OutputBufferingWindow).After(now) {
+		l.lastBufferedAt = &now
+		l.flushBufferedOutput()
+		return
+	}
+
+	//
+	// Otherwise, we just update our last buffered at time.
+	//
+	l.lastBufferedAt = &now
 }
 
-func (l *Logger) FlushStagedOutput() {
+func (l *Logger) flushBufferedOutput() {
 	//
-	// Make sure we clear the staged output events before returning
+	// Make sure we clear the buffered output events before returning
 	//
 	defer func() {
-		l.StagedOutputEvents = []CommandOutputEvent{}
+		l.bufferedOutput.Reset()
 	}()
 
 	//
-	// Otherwise, try to redact the output.
-	// If the output is redacted, combine all the staged events into a single event
-	// with the new redacted output, and send it to the backend.
+	// Redact the output before flushing it to the backend.
+	// Also, we chunk the output into multiple events.
 	//
-	redacted, output := l.redactOutput()
-	if redacted {
+	output := l.redact()
+	chunkSize := 256
+	outputLen := len(output)
+
+	for i := 0; i < outputLen; i += chunkSize {
+		end := i + chunkSize
+		if end > outputLen {
+			end = outputLen
+		}
+
+		chunk := output[i:end]
 		event := &CommandOutputEvent{
-			Timestamp: l.StagedOutputEvents[0].Timestamp,
+			Timestamp: int(l.lastBufferedAt.Unix()),
 			Event:     "cmd_output",
-			Output:    output,
+			Output:    string(chunk),
 		}
 
 		err := l.Backend.Write(event)
 		if err != nil {
 			log.Errorf("Error writing cmd_output log: %v", err)
-		}
-
-		return
-	}
-
-	//
-	// Output was not redacted, just send it as is.
-	//
-	for _, stagedEvent := range l.StagedOutputEvents {
-		err := l.Backend.Write(stagedEvent)
-		if err != nil {
-			log.Errorf("Error writing cmd_output log: %v", err)
+			return
 		}
 	}
 }
 
-func (l *Logger) AllStagedOutput() string {
-	o := ""
-	for _, v := range l.StagedOutputEvents {
-		o += v.Output
-	}
-
-	return o
-}
-
-func (l *Logger) redactOutput() (bool, string) {
-	redacted := false
-	output := l.AllStagedOutput()
-
+func (l *Logger) redact() []byte {
+	out := bytes.Clone(l.bufferedOutput.Bytes())
 	for _, v := range l.Options.RedactableValues {
-		if strings.Contains(output, v) {
-			output = strings.ReplaceAll(output, v, "[REDACTED]")
-			redacted = true
+		if bytes.Contains(out, v) {
+			out = bytes.ReplaceAll(out, v, []byte("[REDACTED]"))
 		}
 	}
 
-	return redacted, output
+	for _, r := range l.Options.RedactableRegexes {
+		out = r.ReplaceAll(out, []byte("[REDACTED]"))
+	}
+
+	return out
 }
 
 func (l *Logger) LogCommandFinished(directive string, exitCode int, startedAt int, finishedAt int) {
-	l.FlushStagedOutput()
+	l.bufferLock.Lock()
+	defer l.bufferLock.Unlock()
+
+	l.flushBufferedOutput()
 
 	event := &CommandFinishedEvent{
 		Timestamp:  int(time.Now().Unix()),

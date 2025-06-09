@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	"github.com/semaphoreci/agent/pkg/api"
@@ -14,10 +15,11 @@ const LoggerMethodPull = "pull"
 const LoggerMethodPush = "push"
 
 type LoggerOptions struct {
-	Request          *api.JobRequest
-	RefreshTokenFn   func() (string, error)
-	UserAgent        string
-	RedactableValues []string
+	Request           *api.JobRequest
+	RefreshTokenFn    func() (string, error)
+	UserAgent         string
+	RedactableValues  [][]byte
+	RedactableRegexes []*regexp.Regexp
 }
 
 func CreateLogger(options LoggerOptions) (*Logger, error) {

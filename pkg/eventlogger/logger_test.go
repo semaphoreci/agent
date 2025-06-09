@@ -105,9 +105,11 @@ func Benchmark__GeneratePlainLogs(b *testing.B) {
 func Test__OutputIsRedacted(t *testing.T) {
 	tmpFileName := filepath.Join(os.TempDir(), fmt.Sprintf("logs_%d.json", time.Now().UnixNano()))
 	backend, _ := NewFileBackend(tmpFileName, DefaultMaxSizeInBytes)
-	assert.Nil(t, backend.Open())
+	require.Nil(t, backend.Open())
 	logger, _ := NewLogger(backend, LoggerOptions{
-		RedactableValues: []string{"hello-secret"},
+		RedactableValues: [][]byte{
+			[]byte("hello-secret"),
+		},
 	})
 
 	logger.LogJobStarted()
@@ -124,8 +126,8 @@ func Test__OutputIsRedacted(t *testing.T) {
 	logger.LogJobFinished("passed")
 
 	file, err := logger.GeneratePlainTextFile()
-	assert.NoError(t, err)
-	assert.FileExists(t, file)
+	require.NoError(t, err)
+	require.FileExists(t, file)
 
 	bytes, err := os.ReadFile(file)
 	assert.NoError(t, err)
@@ -141,4 +143,35 @@ func Test__OutputIsRedacted(t *testing.T) {
 
 	assert.NoError(t, logger.Close())
 	os.Remove(file)
+}
+
+func Benchmark__WritingLogs(b *testing.B) {
+	//
+	// We do not want to account for this setup time in our benchmark
+	// so we stop the timer here, while we are creating the file backend
+	// and generating and writing the log events to it.
+	//
+	b.StopTimer()
+	tmpFileName := filepath.Join(os.TempDir(), fmt.Sprintf("logs_%d.json", time.Now().UnixNano()))
+	backend, _ := NewFileBackend(tmpFileName, DefaultMaxSizeInBytes)
+	require.Nil(b, backend.Open())
+	logger, _ := NewLogger(backend, LoggerOptions{RedactableValues: [][]byte{
+		[]byte("hello-secret"),
+		[]byte("hello-secret-2"),
+	}})
+
+	logger.LogJobStarted()
+	logger.LogCommandStarted("echo hello")
+	buf := make([]byte, 45)
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := rand.Read(buf)
+		require.NoError(b, err)
+		o := base64.URLEncoding.EncodeToString(buf)
+		logger.LogCommandOutput(o + "\n")
+	}
+
+	b.StopTimer()
+	require.NoError(b, logger.Close())
 }

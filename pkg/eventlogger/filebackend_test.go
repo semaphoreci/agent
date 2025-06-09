@@ -3,7 +3,6 @@ package eventlogger
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,7 +32,7 @@ func Test__LogsArePushedToFile(t *testing.T) {
 	}))
 	assert.Nil(t, fileBackend.Write(&JobFinishedEvent{Timestamp: timestamp, Event: "job_finished", Result: "passed"}))
 
-	bytes, err := ioutil.ReadFile(tmpFileName)
+	bytes, err := os.ReadFile(tmpFileName)
 	assert.Nil(t, err)
 	logs := strings.Split(string(bytes), "\n")
 

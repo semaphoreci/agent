@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -24,6 +25,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const JobPassed = "passed"
+const JobFailed = "failed"
+const JobStopped = "stopped"
+
 var redactableSuffixes = []string{
 	"_PASSWORD",
 	"_SECRET",
@@ -32,9 +37,20 @@ var redactableSuffixes = []string{
 	"_SECRET_KEY",
 }
 
-const JobPassed = "passed"
-const JobFailed = "failed"
-const JobStopped = "stopped"
+func redactableValues(jobRequest *api.JobRequest) [][]byte {
+	redactable := [][]byte{}
+	for _, envVar := range jobRequest.EnvVars {
+		for _, redactableSuffix := range redactableSuffixes {
+			if strings.HasSuffix(envVar.Name, redactableSuffix) {
+				log.Infof("%s will be redacted from job logs", envVar.Name)
+				s, _ := envVar.Decode()
+				redactable = append(redactable, s)
+			}
+		}
+	}
+
+	return redactable
+}
 
 // By default, we will only compress the job logs before uploading them as an artifact
 // if their size goes above 100MB. However, the SEMAPHORE_AGENT_LOGS_COMPRESSION_SIZE environment
@@ -111,10 +127,11 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 		job.Logger = options.Logger
 	} else {
 		l, err := eventlogger.CreateLogger(eventlogger.LoggerOptions{
-			Request:          options.Request,
-			RefreshTokenFn:   options.RefreshTokenFn,
-			UserAgent:        options.UserAgent,
-			RedactableValues: redactableValues(options.Request),
+			Request:           options.Request,
+			RefreshTokenFn:    options.RefreshTokenFn,
+			UserAgent:         options.UserAgent,
+			RedactableValues:  redactableValues(options.Request),
+			RedactableRegexes: []*regexp.Regexp{},
 		})
 
 		if err != nil {
@@ -132,21 +149,6 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 
 	job.Executor = executor
 	return job, nil
-}
-
-func redactableValues(jobRequest *api.JobRequest) []string {
-	redactable := []string{}
-	for _, envVar := range jobRequest.EnvVars {
-		for _, redactableSuffix := range redactableSuffixes {
-			if strings.HasSuffix(envVar.Name, redactableSuffix) {
-				log.Infof("%s will be redacted from job logs", envVar.Name)
-				s, _ := envVar.Decode()
-				redactable = append(redactable, string(s))
-			}
-		}
-	}
-
-	return redactable
 }
 
 func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOptions JobOptions) (executors.Executor, error) {
