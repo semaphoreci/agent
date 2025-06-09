@@ -58,10 +58,11 @@ assert_job_log <<-LOG
   {"event":"cmd_started",  "timestamp":"*", "directive":"Setting up image pull credentials"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Setting up credentials for ECR\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"$(aws ecr get-login --no-include-email --region $AWS_REGION --registry-ids #{aws_account_id})\\n"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"WARNING! Using --password via the CLI is insecure. Use --password-stdin.\\n"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"WARNING! Your password will be stored unencrypted in /root/.docker/config.json.\\n"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"WARNING! Using --password via the CLI is insecure. Use --password-stdin.\n"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"\\n"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"WARNING! Your credentials are stored unencrypted in /root/.docker/config.json.\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Configure a credential helper to remove this warning. See\\n"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"https://docs.docker.com/engine/reference/commandline/login/#credential-stores\\n"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"https://docs.docker.com/go/credential-store/\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Login Succeeded\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"\\n"}
