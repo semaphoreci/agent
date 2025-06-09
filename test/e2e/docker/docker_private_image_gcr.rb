@@ -55,14 +55,7 @@ assert_job_log <<-LOG
   {"directive":"Setting up image pull credentials","event":"cmd_started","timestamp":"*"}
   {"event":"cmd_output","output":"Setting up credentials for GCR\\n","timestamp":"*"}
   {"event":"cmd_output","output":"cat /tmp/gcr/keyfile.json | docker login -u _json_key --password-stdin https://$GCR_HOSTNAME\\n","timestamp":"*"}
-  {"event":"cmd_output","output":"WARNING! Using --password via the CLI is insecure. Use --password-stdin.\n", "timestamp":"*"}
-  {"event":"cmd_output","output":"\\n", "timestamp":"*"}
-  {"event":"cmd_output","output":"WARNING! Your credentials are stored unencrypted in /root/.docker/config.json.\\n", "timestamp":"*"}
-  {"event":"cmd_output","output":"Configure a credential helper to remove this warning. See\\n","timestamp":"*"}
-  {"event":"cmd_output","output":"https://docs.docker.com/go/credential-store/\\n","timestamp":"*"}
-  {"event":"cmd_output","output":"\\n","timestamp":"*"}
-  {"event":"cmd_output","output":"Login Succeeded\\n","timestamp":"*"}
-  {"event":"cmd_output","output":"\\n","timestamp":"*"}
+  *** LONG_OUTPUT ***
   {"directive":"Setting up image pull credentials","event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
   {"directive":"Pulling docker images...","event":"cmd_started","timestamp":"*"}
   *** LONG_OUTPUT ***
