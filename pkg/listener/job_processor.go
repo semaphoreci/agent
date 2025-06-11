@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"regexp"
 	"runtime"
 	"sync"
 	"syscall"
@@ -43,6 +44,8 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		FailOnPreJobHookError:            config.FailOnPreJobHookError,
 		SourcePreJobHook:                 config.SourcePreJobHook,
 		ExitOnShutdown:                   config.ExitOnShutdown,
+		RedactableEnvVars:                config.RedactableEnvVars,
+		RedactableRegexes:                config.RedactableRegexes,
 		KubernetesExecutor:               config.KubernetesExecutor,
 		KubernetesPodSpec:                config.KubernetesPodSpec,
 		KubernetesImageValidator:         config.KubernetesImageValidator,
@@ -90,6 +93,8 @@ type JobProcessor struct {
 	FailOnPreJobHookError            bool
 	SourcePreJobHook                 bool
 	ExitOnShutdown                   bool
+	RedactableEnvVars                []string
+	RedactableRegexes                []*regexp.Regexp
 	KubernetesExecutor               bool
 	KubernetesPodSpec                string
 	KubernetesImageValidator         *kubernetes.ImageValidator
@@ -217,6 +222,8 @@ func (p *JobProcessor) RunJob(jobID string) {
 		KubernetesDefaultImage:           p.KubernetesDefaultImage,
 		UploadJobLogs:                    p.UploadJobLogs,
 		UserAgent:                        p.UserAgent,
+		RedactableEnvVars:                p.RedactableEnvVars,
+		RedactableRegexes:                p.RedactableRegexes,
 		RefreshTokenFn: func() (string, error) {
 			return p.APIClient.RefreshToken()
 		},

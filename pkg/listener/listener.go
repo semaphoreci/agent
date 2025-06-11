@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/semaphoreci/agent/pkg/config"
@@ -43,6 +44,8 @@ type Config struct {
 	FailOnPreJobHookError            bool
 	SourcePreJobHook                 bool
 	ExitOnShutdown                   bool
+	RedactableRegexes                []*regexp.Regexp
+	RedactableEnvVars                []string
 	AgentVersion                     string
 	UserAgent                        string
 	AgentName                        string

@@ -53,7 +53,7 @@ test.bench:
 
 build:
 	rm -rf build
-	env GOOS=linux GOARCH=386 go build -o build/agent main.go
+	env GOOS=linux go build -o build/agent main.go
 .PHONY: build
 
 build.windows:

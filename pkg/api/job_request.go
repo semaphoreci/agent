@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io/fs"
 	"io/ioutil"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	yaml "gopkg.in/yaml.v3"
 )
 
@@ -111,6 +113,22 @@ type JobRequest struct {
 
 func (j *JobRequest) FindEnvVar(varName string) (string, error) {
 	return findEnvVar(j.EnvVars, varName)
+}
+
+func (j *JobRequest) RedactableEnvVars(patterns []string) [][]byte {
+	redactable := [][]byte{}
+	for _, envVar := range j.EnvVars {
+		for _, pattern := range patterns {
+			match, _ := path.Match(pattern, envVar.Name)
+			if match {
+				log.Infof("Redacting env var '%s'", envVar.Name)
+				s, _ := envVar.Decode()
+				redactable = append(redactable, s)
+			}
+		}
+	}
+
+	return redactable
 }
 
 func NewRequestFromJSON(content []byte) (*JobRequest, error) {

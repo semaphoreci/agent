@@ -23,6 +23,8 @@ const (
 	FailOnPreJobHookError      = "fail-on-pre-job-hook-error"
 	SourcePreJobHook           = "source-pre-job-hook"
 	InterruptionGracePeriod    = "interruption-grace-period"
+	RedactRegexes              = "redact-regexes"
+	RedactEnvVars              = "redact-env-vars"
 	KubernetesExecutor         = "kubernetes-executor"
 	KubernetesPodSpec          = "kubernetes-pod-spec"
 	KubernetesAllowedImages    = "kubernetes-allowed-images"
@@ -81,6 +83,8 @@ var ValidConfigKeys = []string{
 	FailOnPreJobHookError,
 	SourcePreJobHook,
 	InterruptionGracePeriod,
+	RedactRegexes,
+	RedactEnvVars,
 	KubernetesExecutor,
 	KubernetesPodSpec,
 	KubernetesAllowedImages,

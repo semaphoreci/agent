@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -254,14 +256,16 @@ func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
 
 	log.Infof("Creating new job for %s", request.JobID)
 	job, err := jobs.NewJobWithOptions(&jobs.JobOptions{
-		Request:         request,
-		Client:          s.HTTPClient,
-		ExposeKvmDevice: s.Config.ExposeKvmDevice,
-		FileInjections:  s.Config.FileInjections,
-		SelfHosted:      false,
-		RefreshTokenFn:  nil,
-		UploadJobLogs:   s.resolveUploadJobsConfig(request),
-		UserAgent:       s.Config.UserAgent,
+		Request:           request,
+		Client:            s.HTTPClient,
+		ExposeKvmDevice:   s.Config.ExposeKvmDevice,
+		FileInjections:    s.Config.FileInjections,
+		SelfHosted:        false,
+		RefreshTokenFn:    nil,
+		UploadJobLogs:     s.resolveUploadJobsConfig(request),
+		UserAgent:         s.Config.UserAgent,
+		RedactableEnvVars: s.resolveRedactableVars(request),
+		RedactableRegexes: []*regexp.Regexp{},
 	})
 
 	if err != nil {
@@ -315,4 +319,16 @@ func (s *Server) resolveUploadJobsConfig(jobRequest *api.JobRequest) string {
 
 	// Otherwise, use the value specified by job definition.
 	return value
+}
+
+func (s *Server) resolveRedactableVars(jobRequest *api.JobRequest) []string {
+	value, err := jobRequest.FindEnvVar("SEMAPHORE_AGENT_REDACT_ENV_VARS")
+
+	// If not specified, no vars are redacted.
+	if err != nil {
+		return []string{}
+	}
+
+	// Otherwise, use the value specified by job definition.
+	return strings.Split(value, ",")
 }

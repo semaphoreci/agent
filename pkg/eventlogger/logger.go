@@ -22,15 +22,16 @@ type Logger struct {
 	Backend Backend
 	Options LoggerOptions
 
-	bufferedOutput bytes.Buffer
-	lastBufferedAt *time.Time
-	bufferLock     sync.Mutex
+	bufferedOutput     *bytes.Buffer
+	bufferingStartedAt *time.Time
+	bufferLock         sync.Mutex
 }
 
 func NewLogger(backend Backend, options LoggerOptions) (*Logger, error) {
 	return &Logger{
-		Backend: backend,
-		Options: options,
+		Backend:        backend,
+		Options:        options,
+		bufferedOutput: bytes.NewBuffer(nil),
 	}, nil
 }
 
@@ -141,6 +142,10 @@ func (l *Logger) LogCommandOutput(output string) {
 	defer l.bufferLock.Unlock()
 
 	now := time.Now()
+	if l.bufferingStartedAt == nil {
+		l.bufferingStartedAt = &now
+	}
+
 	_, err := l.bufferedOutput.WriteString(output)
 	if err != nil {
 		log.Errorf("Error writing cmd_output log: %v", err)
@@ -151,7 +156,6 @@ func (l *Logger) LogCommandOutput(output string) {
 	// If we are above our max buffer size, we flush.
 	//
 	if l.bufferedOutput.Len() > OutputBufferMax {
-		l.lastBufferedAt = &now
 		l.flushBufferedOutput()
 		return
 	}
@@ -159,16 +163,10 @@ func (l *Logger) LogCommandOutput(output string) {
 	//
 	// If we are outside our current buffering window, we flush.
 	//
-	if l.lastBufferedAt != nil && l.lastBufferedAt.Add(OutputBufferingWindow).After(now) {
-		l.lastBufferedAt = &now
+	if now.Add(-OutputBufferingWindow).After(*l.bufferingStartedAt) {
 		l.flushBufferedOutput()
 		return
 	}
-
-	//
-	// Otherwise, we just update our last buffered at time.
-	//
-	l.lastBufferedAt = &now
 }
 
 func (l *Logger) flushBufferedOutput() {
@@ -177,6 +175,7 @@ func (l *Logger) flushBufferedOutput() {
 	//
 	defer func() {
 		l.bufferedOutput.Reset()
+		l.bufferingStartedAt = nil
 	}()
 
 	//
@@ -195,7 +194,7 @@ func (l *Logger) flushBufferedOutput() {
 
 		chunk := output[i:end]
 		event := &CommandOutputEvent{
-			Timestamp: int(l.lastBufferedAt.Unix()),
+			Timestamp: int(l.bufferingStartedAt.Unix()),
 			Event:     "cmd_output",
 			Output:    string(chunk),
 		}

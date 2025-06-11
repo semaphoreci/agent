@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -130,6 +131,8 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	_ = pflag.String(config.UploadJobLogs, config.UploadJobLogsConditionNever, "When should the agent upload the job logs as a job artifact. Default is never.")
 	_ = pflag.Bool(config.FailOnPreJobHookError, false, "Fail job if pre-job hook fails")
 	_ = pflag.Bool(config.SourcePreJobHook, false, "Execute pre-job hook in the current shell (using 'source <script>') instead of in a new shell (using 'bash <script>')")
+	_ = pflag.StringSlice(config.RedactRegexes, []string{}, "Regular expressions to redact from the output")
+	_ = pflag.StringSlice(config.RedactEnvVars, []string{}, "Environment variable values to redact from the output")
 	_ = pflag.Bool(config.KubernetesExecutor, false, "Use Kubernetes executor")
 	_ = pflag.String(config.KubernetesPodSpec, "", "Use a Kubernetes configmap to decorate the pod created to run the Semaphore job")
 	_ = pflag.StringSlice(config.KubernetesAllowedImages, []string{}, "List of regexes for allowed images to use for the Kubernetes executor")
@@ -200,6 +203,11 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		log.Fatalf("Error parsing --%s: %v", config.KubernetesLabels, err)
 	}
 
+	redactableRegexes, err := parseRedactableRegexes()
+	if err != nil {
+		log.Fatalf("Error parsing --%s: %v", config.RedactRegexes, err)
+	}
+
 	config := listener.Config{
 		AgentName:                        getAgentName(),
 		Endpoint:                         viper.GetString(config.Endpoint),
@@ -224,6 +232,8 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		AgentVersion:                     VERSION,
 		UserAgent:                        HTTPUserAgent,
 		ExitOnShutdown:                   true,
+		RedactableRegexes:                redactableRegexes,
+		RedactableEnvVars:                viper.GetStringSlice(config.RedactEnvVars),
 		KubernetesExecutor:               viper.GetBool(config.KubernetesExecutor),
 		KubernetesPodSpec:                viper.GetString(config.KubernetesPodSpec),
 		KubernetesImageValidator:         createImageValidator(viper.GetStringSlice(config.KubernetesAllowedImages)),
@@ -240,6 +250,20 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 	}()
 
 	select {}
+}
+
+func parseRedactableRegexes() ([]*regexp.Regexp, error) {
+	regexes := []*regexp.Regexp{}
+	for _, expression := range viper.GetStringSlice(config.RedactRegexes) {
+		regex, err := regexp.Compile(expression)
+		if err != nil {
+			return nil, fmt.Errorf("error compiling regex %s: %v", expression, err)
+		}
+
+		regexes = append(regexes, regex)
+	}
+
+	return regexes, nil
 }
 
 func createImageValidator(expressions []string) *kubernetes.ImageValidator {

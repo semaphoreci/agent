@@ -29,29 +29,6 @@ const JobPassed = "passed"
 const JobFailed = "failed"
 const JobStopped = "stopped"
 
-var redactableSuffixes = []string{
-	"_PASSWORD",
-	"_SECRET",
-	"_TOKEN",
-	"_ACCESS_KEY",
-	"_SECRET_KEY",
-}
-
-func redactableValues(jobRequest *api.JobRequest) [][]byte {
-	redactable := [][]byte{}
-	for _, envVar := range jobRequest.EnvVars {
-		for _, redactableSuffix := range redactableSuffixes {
-			if strings.HasSuffix(envVar.Name, redactableSuffix) {
-				log.Infof("%s will be redacted from job logs", envVar.Name)
-				s, _ := envVar.Decode()
-				redactable = append(redactable, s)
-			}
-		}
-	}
-
-	return redactable
-}
-
 // By default, we will only compress the job logs before uploading them as an artifact
 // if their size goes above 100MB. However, the SEMAPHORE_AGENT_LOGS_COMPRESSION_SIZE environment
 // variable can be used to configure that value, with anything between 1MB and 1GB being possible.
@@ -90,6 +67,8 @@ type JobOptions struct {
 	UploadJobLogs                    string
 	RefreshTokenFn                   func() (string, error)
 	UserAgent                        string
+	RedactableEnvVars                []string
+	RedactableRegexes                []*regexp.Regexp
 }
 
 func NewJob(request *api.JobRequest, client *http.Client) (*Job, error) {
@@ -123,6 +102,9 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 		UploadJobLogs:  options.UploadJobLogs,
 	}
 
+	log.Infof("Redacting vars: %v", options.RedactableEnvVars)
+	log.Infof("Redacting regexes: %v", options.RedactableRegexes)
+
 	if options.Logger != nil {
 		job.Logger = options.Logger
 	} else {
@@ -130,8 +112,8 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 			Request:           options.Request,
 			RefreshTokenFn:    options.RefreshTokenFn,
 			UserAgent:         options.UserAgent,
-			RedactableValues:  redactableValues(options.Request),
-			RedactableRegexes: []*regexp.Regexp{},
+			RedactableValues:  options.Request.RedactableEnvVars(options.RedactableEnvVars),
+			RedactableRegexes: options.RedactableRegexes,
 		})
 
 		if err != nil {
