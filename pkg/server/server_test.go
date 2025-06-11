@@ -27,6 +27,12 @@ func Test__JobLogs(t *testing.T) {
 		return
 	}
 
+	callbackServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	defer callbackServer.Close()
+
 	t.Run("no active job -> 404", func(t *testing.T) {
 		code, _ := getLogs(t, testServer, "job-0", token)
 		assert.Equal(t, http.StatusNotFound, code)
@@ -34,7 +40,7 @@ func Test__JobLogs(t *testing.T) {
 
 	t.Run("job running and job on request do not match -> 403", func(t *testing.T) {
 		// Start a job with ID 'job-0'
-		code, _ := postJob(t, testServer, nil, token, 0)
+		code, _ := postJob(t, testServer, nil, token, 0, callbackServer.URL)
 		assert.Equal(t, http.StatusOK, code)
 
 		code, _ = getLogs(t, testServer, "id-not-matching", token)
@@ -59,11 +65,17 @@ func Test__ServerStatus(t *testing.T) {
 		return
 	}
 
+	callbackServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	defer callbackServer.Close()
+
 	// no job yet
 	assert.Equal(t, ServerStateWaitingForJob, getAgentStatus(t, testServer, token))
 
 	// run job and assert state changes
-	code, _ := postJob(t, testServer, nil, token, 0)
+	code, _ := postJob(t, testServer, nil, token, 0, callbackServer.URL)
 	assert.Equal(t, http.StatusOK, code)
 	assert.Equal(t, ServerStateJobReceived, getAgentStatus(t, testServer, token))
 }
@@ -84,6 +96,12 @@ func Test__RunJobDoesNotAcceptMultipleJobs(t *testing.T) {
 		return
 	}
 
+	callbackServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	defer callbackServer.Close()
+
 	// Run a bunch of requests concurrently,
 	// with a different job ID for each request,
 	// keeping track of their responses.
@@ -94,7 +112,7 @@ func Test__RunJobDoesNotAcceptMultipleJobs(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			code, _ := postJob(t, testServer, nil, token, i)
+			code, _ := postJob(t, testServer, nil, token, i, callbackServer.URL)
 			codes[i] = code
 		}(i)
 	}
@@ -107,6 +125,12 @@ func Test__RunJobDoesNotAcceptMultipleJobs(t *testing.T) {
 }
 
 func Test__RunJobAcceptsSameJobAgain(t *testing.T) {
+	callbackServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	defer callbackServer.Close()
+
 	dummyKey := "dummykey"
 	testServer := NewServer(ServerConfig{
 		HTTPClient: http.DefaultClient,
@@ -120,8 +144,8 @@ func Test__RunJobAcceptsSameJobAgain(t *testing.T) {
 	request := &api.JobRequest{
 		JobID: "same-job-id",
 		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
+			Finished:         callbackServer.URL,
+			TeardownFinished: callbackServer.URL,
 		},
 	}
 
@@ -140,7 +164,7 @@ func Test__RunJobAcceptsSameJobAgain(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			code, b := postJob(t, testServer, request, token, i)
+			code, b := postJob(t, testServer, request, token, i, callbackServer.URL)
 			body := map[string]string{}
 			err := json.Unmarshal(b.Bytes(), &body)
 			if !assert.NoError(t, err) {
@@ -185,14 +209,14 @@ func getLogs(t *testing.T, testServer *Server, jobID, token string) (int, *bytes
 	return rr.Code, rr.Body
 }
 
-func postJob(t *testing.T, testServer *Server, jobReq *api.JobRequest, token string, i int) (int, *bytes.Buffer) {
+func postJob(t *testing.T, testServer *Server, jobReq *api.JobRequest, token string, i int, callbackURL string) (int, *bytes.Buffer) {
 	jobRequest := jobReq
 	if jobRequest == nil {
 		jobRequest = &api.JobRequest{
 			JobID: fmt.Sprintf("job-%d", i),
 			Callbacks: api.Callbacks{
-				Finished:         "https://httpbin.org/status/200",
-				TeardownFinished: "https://httpbin.org/status/200",
+				Finished:         callbackURL,
+				TeardownFinished: callbackURL,
 			},
 		}
 	}
