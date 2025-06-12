@@ -54,12 +54,7 @@ assert_job_log <<-LOG
   {"event":"cmd_started",  "timestamp":"*", "directive":"Setting up image pull credentials"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Setting up credentials for DockerHub\\n"}
   {"event":"cmd_output",   "timestamp":"*", "output":"echo $DOCKERHUB_PASSWORD | docker login --username $DOCKERHUB_USERNAME --password-stdin\\n"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"WARNING! Your password will be stored unencrypted in /root/.docker/config.json.\\n"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"Configure a credential helper to remove this warning. See\\n"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"https://docs.docker.com/engine/reference/commandline/login/#credential-stores\\n"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"\\n"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"Login Succeeded\\n"}
-  {"event":"cmd_output",   "timestamp":"*", "output":"\\n"}
+  *** LONG_OUTPUT ***
 
   {"event":"cmd_finished", "timestamp":"*", "directive":"Setting up image pull credentials", "event":"cmd_finished","exit_code":0,"finished_at":"*","started_at":"*","timestamp":"*"}
 

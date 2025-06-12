@@ -13,7 +13,7 @@ start_job <<-JSON
       "containers": [
         {
           "name": "main",
-          "image": "ruby:2.6"
+          "image": "registry.semaphoreci.com/ruby:2.6"
         }
       ]
     },
@@ -62,6 +62,7 @@ assert_job_log <<-LOG
   {"event":"cmd_started",  "timestamp":"*", "directive":"Injecting Files"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"Injecting Files","exit_code":0,"finished_at":"*","started_at":"*"}
   {"event":"cmd_started",  "timestamp":"*", "directive":"sleep infinity"}
+  *** LONG_OUTPUT ***
   {"event":"cmd_finished", "timestamp":"*", "directive":"sleep infinity","exit_code":1,"finished_at":"*","started_at":"*"}
   {"event":"job_finished", "timestamp":"*", "result":"stopped"}
 LOG

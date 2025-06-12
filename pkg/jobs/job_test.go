@@ -31,10 +31,6 @@ func Test__EnvVarsAreAvailableToCommands(t *testing.T) {
 			{Name: "A", Value: base64.StdEncoding.EncodeToString([]byte("VALUE_A"))},
 			{Name: "B", Value: base64.StdEncoding.EncodeToString([]byte("VALUE_B"))},
 		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 		},
@@ -105,10 +101,6 @@ func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnPass(t *testing.T) {
 			{Directive: testsupport.EchoEnvVar("B")},
 			{Directive: testsupport.EchoEnvVar("C")},
 			{Directive: testsupport.EchoEnvVar("SEMAPHORE_JOB_RESULT")},
-		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
 		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
@@ -210,10 +202,6 @@ func Test__EnvVarsAreAvailableToEpilogueAlwaysAndOnFail(t *testing.T) {
 			{Directive: testsupport.EchoEnvVar("C")},
 			{Directive: testsupport.EchoEnvVar("SEMAPHORE_JOB_RESULT")},
 		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 		},
@@ -310,10 +298,6 @@ func Test__EpilogueOnPassOnlyExecutesOnSuccessfulJob(t *testing.T) {
 		EpilogueOnPassCommands: []api.Command{
 			{Directive: testsupport.Output("On epilogue on pass")},
 		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 		},
@@ -378,10 +362,6 @@ func Test__EpilogueOnFailOnlyExecutesOnFailedJob(t *testing.T) {
 		EpilogueOnPassCommands: []api.Command{
 			{Directive: testsupport.Output("On epilogue on pass")},
 		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 		},
@@ -437,10 +417,6 @@ func Test__UsingCommandAliases(t *testing.T) {
 		Commands: []api.Command{
 			{Directive: testsupport.Output("hello world"), Alias: "Display Hello World"},
 		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 		},
@@ -489,10 +465,6 @@ func Test__StopJob(t *testing.T) {
 		Commands: []api.Command{
 			{Directive: "sleep 60"},
 			{Directive: testsupport.Output("hello")},
-		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
 		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
@@ -545,10 +517,6 @@ func Test__StopJobWithExitCode(t *testing.T) {
 		Commands: []api.Command{
 			{Directive: testsupport.ReturnExitCodeCommand(130)},
 			{Directive: testsupport.Output("hello")},
-		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
 		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
@@ -603,10 +571,6 @@ func Test__StopJobWithExitCodeWithResultSetToPassed(t *testing.T) {
 			{Directive: testsupport.SetEnvVar("SEMAPHORE_JOB_RESULT", "passed")},
 			{Directive: testsupport.ReturnExitCodeCommand(130)},
 			{Directive: testsupport.Output("hello")},
-		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
 		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
@@ -664,10 +628,6 @@ func Test__StopJobWithExitCodeWithResultSetToFailed(t *testing.T) {
 			{Directive: testsupport.ReturnExitCodeCommand(130)},
 			{Directive: testsupport.Output("hello")},
 		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 		},
@@ -720,10 +680,6 @@ func Test__StopJobOnEpilogue(t *testing.T) {
 		},
 		EpilogueAlwaysCommands: []api.Command{
 			{Directive: "sleep 60"},
-		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
 		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
@@ -785,10 +741,6 @@ func Test__STTYRestoration(t *testing.T) {
 			{Directive: "stty echo"},
 			{Directive: "echo Hello World"},
 		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 		},
@@ -839,10 +791,6 @@ func Test__BackgroundJobIsKilledAfterJobIsDoneInWindows(t *testing.T) {
 			{Directive: "Start-Process ping -ArgumentList '-n','300','127.0.0.1'"},
 			{Directive: "sleep 5"},
 			{Directive: "(Get-Process ping -ErrorAction SilentlyContinue) -and ($true)"},
-		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
 		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
@@ -911,10 +859,6 @@ func Test__BackgroundJobIsKilledAfterJobIsDoneInNonWindows(t *testing.T) {
 			{Directive: "sleep 5"},
 			{Directive: "pgrep ping > /dev/null && true"},
 		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 		},
@@ -977,10 +921,6 @@ func Test__KillingRootBash(t *testing.T) {
 			{Directive: "sleep infinity &"},
 			{Directive: "exit 1"},
 		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 		},
@@ -1030,10 +970,6 @@ func Test__BashSetE(t *testing.T) {
 			{Directive: "sleep infinity &"},
 			{Directive: "set -e"},
 			{Directive: "false"},
-		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
 		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
@@ -1088,10 +1024,6 @@ func Test__BashSetPipefail(t *testing.T) {
 			{Directive: "set -eo pipefail"},
 			{Directive: "cat non_existant | sort"},
 		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 		},
@@ -1139,10 +1071,6 @@ func Test__UsePreJobHook(t *testing.T) {
 		EnvVars: []api.EnvVar{},
 		Commands: []api.Command{
 			{Directive: testsupport.Output("hello")},
-		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
 		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
@@ -1205,10 +1133,6 @@ func Test__UsePostJobHook(t *testing.T) {
 		},
 		EpilogueAlwaysCommands: []api.Command{
 			{Directive: testsupport.Output("On EpilogueAlways")},
-		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
 		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
@@ -1274,10 +1198,6 @@ func Test__PreJobHookHasAccessToEnvVars(t *testing.T) {
 		},
 		Commands: []api.Command{
 			{Directive: testsupport.Output("hello")},
-		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
 		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
@@ -1348,10 +1268,6 @@ func Test__PostJobHookHasAccessToEnvVars(t *testing.T) {
 		Commands: []api.Command{
 			{Directive: testsupport.Output("hello")},
 		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 		},
@@ -1416,10 +1332,6 @@ func Test__UsePreJobHookAndFailOnError(t *testing.T) {
 		EnvVars: []api.EnvVar{},
 		Commands: []api.Command{
 			{Directive: testsupport.Output("hello")},
-		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
 		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,

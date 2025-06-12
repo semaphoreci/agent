@@ -97,6 +97,7 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 		JobLogArchived: false,
 		Stopped:        false,
 		UploadJobLogs:  options.UploadJobLogs,
+		UserAgent:      options.UserAgent,
 	}
 
 	if options.Logger != nil {

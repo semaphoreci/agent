@@ -13,7 +13,7 @@ start_job <<-JSON
       "containers": [
         {
           "name": "main",
-          "image": "ruby:2.6",
+          "image": "registry.semaphoreci.com/ruby:2.6",
           "env_vars": [
             { "name": "FOO", "value": "#{`echo "bar" | base64 | tr -d '\n'`}" }
           ]

@@ -24,6 +24,6 @@ epilogue_commands:
   - directive: "echo 'hello world'"
 
 callbacks:
-  started: "https://httpbin.org/status/200"
-  finished: "https://httpbin.org/status/200"
-  teardown_finished: "https://httpbin.org/status/200"
+  started: "https://httpbingo.org/status/200"
+  finished: "https://httpbingo.org/status/200"
+  teardown_finished: "https://httpbingo.org/status/200"

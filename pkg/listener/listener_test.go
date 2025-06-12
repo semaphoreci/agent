@@ -280,10 +280,6 @@ func Test__ShutdownAfterJobFinished(t *testing.T) {
 		Commands: []api.Command{
 			{Directive: testsupport.Output("hello world")},
 		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 			URL:    loghubMockServer.URL(),
@@ -401,10 +397,6 @@ func Test__ShutdownAfterInterruptionNoGracePeriod(t *testing.T) {
 		Commands: []api.Command{
 			{Directive: "sleep 60"},
 		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 			URL:    loghubMockServer.URL(),
@@ -460,10 +452,6 @@ func Test__ShutdownAfterInterruptionWithGracePeriod(t *testing.T) {
 		JobID: "Test__ShutdownAfterJobFinished",
 		Commands: []api.Command{
 			{Directive: "sleep 15"},
-		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
 		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
@@ -555,10 +543,6 @@ func Test__ShutdownFromUpstreamWhileRunningJob(t *testing.T) {
 		Commands: []api.Command{
 			{Directive: "sleep 300"},
 		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 			URL:    loghubMockServer.URL(),
@@ -625,10 +609,6 @@ func Test__HostEnvVarsAreExposedToJob(t *testing.T) {
 			{Directive: testsupport.EchoEnvVar("IMPORTANT_HOST_VAR_A")},
 			{Directive: testsupport.EchoEnvVar("IMPORTANT_HOST_VAR_B")},
 			{Directive: testsupport.EchoEnvVar("IMPORTANT_HOST_VAR_C")},
-		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
 		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
@@ -746,10 +726,6 @@ func Test__LogTokenIsRefreshed(t *testing.T) {
 		Commands: []api.Command{
 			{Directive: testsupport.Output("hello")},
 		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 			URL:    loghubMockServer.URL(),
@@ -826,10 +802,6 @@ func Test__GetJobIsRetried(t *testing.T) {
 		Commands: []api.Command{
 			{Directive: testsupport.Output("hello")},
 		},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 			URL:    loghubMockServer.URL(),
@@ -878,10 +850,6 @@ func Test__ReportsFailedToFetchJob(t *testing.T) {
 	hubMockServer.AssignJob(&api.JobRequest{
 		JobID:    "Test__ReportsFailedToFetchJob",
 		Commands: []api.Command{},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 			URL:    loghubMockServer.URL(),
@@ -930,10 +898,6 @@ func Test__ReportsFailedToConstructJob(t *testing.T) {
 		JobID:    "Test__ReportsFailedToConstructJob",
 		Executor: "doesnotexist",
 		Commands: []api.Command{},
-		Callbacks: api.Callbacks{
-			Finished:         "https://httpbin.org/status/200",
-			TeardownFinished: "https://httpbin.org/status/200",
-		},
 		Logger: api.Logger{
 			Method: eventlogger.LoggerMethodPush,
 			URL:    loghubMockServer.URL(),

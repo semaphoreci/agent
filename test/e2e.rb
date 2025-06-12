@@ -139,5 +139,5 @@ def assert_artifact_is_not_available
 end
 
 def bad_callback_url
-  "https://httpbin.org/status/500"
+  "https://httpbingo.org/status/500"
 end

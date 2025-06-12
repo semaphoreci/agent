@@ -13,11 +13,11 @@ start_job <<-JSON
       "containers": [
         {
           "name": "main",
-          "image": "semaphoreci/ubuntu:18.04"
+          "image": "registry.semaphoreci.com/ubuntu:20.04"
         },
         {
           "name": "db",
-          "image": "postgres:9.6"
+          "image": "registry.semaphoreci.com/postgres:9.6"
         }
       ]
     },
