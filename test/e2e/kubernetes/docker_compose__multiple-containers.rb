@@ -25,11 +25,11 @@ start_job <<-JSON
       "containers": [
         {
           "name": "main",
-          "image": "ruby:3-slim"
+          "image": "registry.semaphoreci.com/ruby:3.0"
         },
         {
           "name": "redis",
-          "image": "redis:6"
+          "image": "registry.semaphoreci.com/redis:6.2"
         }
       ]
     },

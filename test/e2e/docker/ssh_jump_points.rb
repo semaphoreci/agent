@@ -49,7 +49,7 @@ start_job <<-JSON
       "containers": [
         {
           "name": "main",
-          "image": "ruby:2.6"
+          "image": "registry.semaphoreci.com/ruby:2.6"
         }
       ]
     },

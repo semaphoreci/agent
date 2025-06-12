@@ -25,7 +25,7 @@ start_job <<-JSON
       "containers": [
         {
           "name": "main",
-          "image": "ruby:3-slim",
+          "image": "registry.semaphoreci.com/ruby:3.0",
           "env_vars": [
             { "name": "FOO", "value": "#{`echo "bar" | base64 | tr -d '\n'`}" }
           ]

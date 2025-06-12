@@ -13,13 +13,13 @@ start_job <<-JSON
       "containers": [
         {
           "name": "main",
-          "image": "ruby:2.6"
+          "image": "registry.semaphoreci.com/ruby:2.6"
         },
         {
-            "name": "db",
-            "image": "postgres:9.6",
-            "user": "postgres",
-            "entrypoint": "/docker-entrypoint.sh"
+          "name": "db",
+          "image": "registry.semaphoreci.com/postgres:9.6",
+          "user": "postgres",
+          "entrypoint": "/docker-entrypoint.sh"
         }
       ]
     },
