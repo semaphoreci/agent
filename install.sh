@@ -81,6 +81,8 @@ create_launchd_daemon() {
   <dict>
     <key>SEMAPHORE_AGENT_LOG_FILE_PATH</key>
     <string>$AGENT_INSTALLATION_DIRECTORY/agent.log</string>
+    <key>PATH</key>
+    <string>/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin</string>
   </dict>
   <key>RunAtLoad</key>
   <false/>
