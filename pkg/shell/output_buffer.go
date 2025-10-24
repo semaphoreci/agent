@@ -171,6 +171,15 @@ func (b *OutputBuffer) flush() {
 		return
 	}
 
+	// Avoid splitting \r\n newlines across chunks by keeping the carriage return
+	// for the next flush when the following byte is a line feed.
+	if cutLength < len(b.bytes) && cutLength > 0 && b.bytes[cutLength-1] == '\r' && b.bytes[cutLength] == '\n' {
+		cutLength--
+		if cutLength <= 0 {
+			return
+		}
+	}
+
 	bytes := make([]byte, cutLength)
 	copy(bytes, b.bytes[0:cutLength])
 	b.bytes = b.bytes[cutLength:]

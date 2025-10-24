@@ -73,6 +73,24 @@ func Test__OutputBuffer__SimpleAscii__LongerThanMinimalCutLength(t *testing.T) {
 	}
 }
 
+func Test__OutputBuffer__DoesNotSplitCRLFNewlinesAcrossChunks(t *testing.T) {
+	output := []string{}
+	buffer, _ := NewOutputBuffer(func(s string) { output = append(output, s) })
+
+	input := strings.Repeat("a", OutputBufferDefaultCutLength-1) + "\r\nb"
+
+	buffer.Append([]byte(input))
+	time.Sleep(200 * time.Millisecond)
+	require.NoError(t, buffer.Close())
+
+	if assert.Len(t, output, 2) {
+		assert.Equal(t, strings.Repeat("a", OutputBufferDefaultCutLength-1), output[0])
+		assert.Equal(t, "\nb", output[1])
+	}
+
+	assert.Equal(t, strings.Join(output, ""), strings.ReplaceAll(input, "\r\n", "\n"))
+}
+
 func Test__OutputBuffer__SimpleAscii__ChunkIncreasesWhenClosed(t *testing.T) {
 	output := []string{}
 	buffer, _ := NewOutputBuffer(func(s string) { output = append(output, s) })
