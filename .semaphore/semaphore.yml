@@ -22,7 +22,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.23.8
+          - sem-version go 1.24.11
           - checkout
 
       jobs:
@@ -41,7 +41,7 @@ blocks:
           - checkout
           - mv ~/.ssh/security-toolbox ~/.ssh/id_rsa
           - sudo chmod 600 ~/.ssh/id_rsa
-          - sem-version go 1.23.8
+          - sem-version go 1.24.11
       jobs:
         - name: Check dependencies
           commands:
@@ -67,7 +67,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.23.8
+          - sem-version go 1.24.11
           - checkout
           - go version
           - go get
@@ -100,7 +100,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.23.8
+          - sem-version go 1.24.11
           - checkout
           - go version
           - go get
@@ -167,7 +167,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.23.8
+          - sem-version go 1.24.11
           - checkout
           - go version
           - go get
@@ -204,7 +204,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.23.8
+          - sem-version go 1.24.11
           - checkout
           - go version
           - go get
@@ -245,7 +245,7 @@ blocks:
 
       prologue:
         commands:
-          - sem-version go 1.23.8
+          - sem-version go 1.24.11
           - curl -sLO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64 && install minikube-linux-amd64 /tmp/
           - /tmp/minikube-linux-amd64 config set WantUpdateNotification false
           - /tmp/minikube-linux-amd64 start --driver=docker

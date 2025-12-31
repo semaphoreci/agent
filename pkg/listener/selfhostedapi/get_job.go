@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/semaphoreci/agent/pkg/api"
+	api "github.com/semaphoreci/agent/pkg/api"
 )
 
 func (a *API) GetJobPath(jobID string) string {

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	versions "github.com/hashicorp/go-version"
-	"github.com/semaphoreci/agent/pkg/api"
+	api "github.com/semaphoreci/agent/pkg/api"
 	log "github.com/sirupsen/logrus"
 )
 

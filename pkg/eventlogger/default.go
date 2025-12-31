@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/semaphoreci/agent/pkg/api"
+	api "github.com/semaphoreci/agent/pkg/api"
 )
 
 const LoggerMethodPull = "pull"

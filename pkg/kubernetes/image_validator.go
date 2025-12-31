@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/semaphoreci/agent/pkg/api"
+	api "github.com/semaphoreci/agent/pkg/api"
 )
 
 type ImageValidator struct {
