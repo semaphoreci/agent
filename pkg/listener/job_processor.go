@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/semaphoreci/agent/pkg/api"
+	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	"github.com/semaphoreci/agent/pkg/kubernetes"

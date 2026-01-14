@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/semaphoreci/agent/pkg/api"
+	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
 	testsupport "github.com/semaphoreci/agent/test/support"

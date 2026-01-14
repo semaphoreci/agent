@@ -1,4 +1,4 @@
-package api
+package agentapi
 
 import (
 	"encoding/base64"

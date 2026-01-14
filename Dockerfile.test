@@ -4,6 +4,9 @@ RUN apt-get update && \
   apt-get install curl -y && \
   curl -sSL https://get.docker.com/ | sh && \
   apt-get install -y ssh docker-compose-plugin && \
+  # Install standalone docker-compose for backward compatibility
+  curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && \
+  chmod +x /usr/local/bin/docker-compose && \
   # pin pyyaml to 5.3.1 until https://github.com/yaml/pyyaml/issues/724 is fixed
   pip install pyyaml==5.3.1 && \
   pip install awscli
@@ -29,4 +32,4 @@ ADD build/agent /app/agent
 
 WORKDIR /app
 
-CMD service ssh restart && ./agent serve --port 30000
+CMD ["sh", "-c", "service ssh restart && ./agent serve --port 30000"]

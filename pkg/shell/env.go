@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/semaphoreci/agent/pkg/api"
+	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 )
 

@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/semaphoreci/agent/pkg/api"
+	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/stretchr/testify/assert"
 )
 
