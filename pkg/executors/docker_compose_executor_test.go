@@ -184,3 +184,73 @@ func Test__DockerComposeExecutor__StopingRunningJob(t *testing.T) {
 		"Exit Code: 1",
 	})
 }
+
+func Test__DockerComposeExecutor__composeExecutableAndArgs(t *testing.T) {
+	testCases := []struct {
+		name         string
+		version      string
+		expectedExec string
+		expectedArgs []string
+	}{
+		{
+			name:         "v1 legacy standalone",
+			version:      "1.29.2",
+			expectedExec: "docker-compose",
+			expectedArgs: []string{},
+		},
+		{
+			name:         "v2 plugin",
+			version:      "v2.20.0",
+			expectedExec: "docker",
+			expectedArgs: []string{"compose"},
+		},
+		{
+			name:         "v2 plugin with build metadata",
+			version:      "v2.21.0-desktop.1",
+			expectedExec: "docker",
+			expectedArgs: []string{"compose"},
+		},
+		{
+			name:         "v3 plugin",
+			version:      "v3.0.0",
+			expectedExec: "docker",
+			expectedArgs: []string{"compose"},
+		},
+		{
+			name:         "v4 plugin",
+			version:      "v4.0.0",
+			expectedExec: "docker",
+			expectedArgs: []string{"compose"},
+		},
+		{
+			name:         "v5 plugin",
+			version:      "v5.0.0",
+			expectedExec: "docker",
+			expectedArgs: []string{"compose"},
+		},
+		{
+			name:         "v5 plugin with build metadata",
+			version:      "v5.1.0-desktop.1",
+			expectedExec: "docker",
+			expectedArgs: []string{"compose"},
+		},
+		{
+			name:         "future v10 plugin",
+			version:      "v10.0.0",
+			expectedExec: "docker",
+			expectedArgs: []string{"compose"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := &DockerComposeExecutor{
+				dockerComposeVersion: tc.version,
+			}
+
+			exec, args := e.composeExecutableAndArgs()
+			assert.Equal(t, tc.expectedExec, exec)
+			assert.Equal(t, tc.expectedArgs, args)
+		})
+	}
+}

@@ -14,13 +14,18 @@ func Test__DockerComposeVersion(t *testing.T) {
 		t.Skip()
 	}
 
-	v1Version, err := DockerComposeCLIVersion()
+	// Test plugin version (v2+) - should have "v" prefix
+	pluginVersion, err := DockerComposePluginVersion()
 	assert.NoError(t, err)
-	assert.Contains(t, v1Version, "1.")
+	assert.True(t, len(pluginVersion) > 0 && pluginVersion[0] == 'v',
+		"Docker Compose plugin version should start with 'v', got: %s", pluginVersion)
 
-	v2Version, err := DockerComposePluginVersion()
-	assert.NoError(t, err)
-	assert.Contains(t, v2Version, "v2.")
+	// Test legacy CLI version if available - should NOT have "v" prefix
+	cliVersion, err := DockerComposeCLIVersion()
+	if err == nil {
+		assert.True(t, len(cliVersion) > 0 && cliVersion[0] != 'v',
+			"Docker Compose CLI version should not start with 'v', got: %s", cliVersion)
+	}
 }
 
 func Test__NewDockerConfig(t *testing.T) {
