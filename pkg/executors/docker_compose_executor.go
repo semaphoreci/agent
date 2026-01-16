@@ -206,7 +206,9 @@ func (e *DockerComposeExecutor) Start() int {
 }
 
 func (e *DockerComposeExecutor) composeExecutableAndArgs() (string, []string) {
-	if strings.HasPrefix(e.dockerComposeVersion, "v2") {
+	// Docker Compose plugin (v2+) returns versions with "v" prefix (e.g., v2.20.0, v5.0.0)
+	// Legacy standalone docker-compose (v1) returns versions without "v" prefix (e.g., 1.29.2)
+	if strings.HasPrefix(e.dockerComposeVersion, "v") {
 		return "docker", []string{"compose"}
 	}
 
