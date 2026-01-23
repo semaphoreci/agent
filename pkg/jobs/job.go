@@ -686,7 +686,12 @@ func (job *Job) uploadLogsAsArtifact(trimmed bool) {
 		return
 	}
 
-	args := []string{"push", "job", file, "-d", "agent/job_logs.txt"}
+	artifactPath := "agent/job_logs.txt"
+	if strings.HasSuffix(file, ".gz") {
+		artifactPath = artifactPath + ".gz"
+	}
+
+	args := []string{"push", "job", file, "-d", artifactPath}
 
 	// #nosec
 	cmd := exec.Command(path, args...)
