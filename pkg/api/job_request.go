@@ -165,7 +165,7 @@ func (c *ImagePullCredentials) ToCmdEnvVars() ([]string, error) {
 		name := env.Name
 		value, err := env.Decode()
 		if err != nil {
-			return envs, fmt.Errorf("error decoding '%s': %v", env.Name, err)
+			return envs, fmt.Errorf("error o decoding '%s': %v", env.Name, err)
 		}
 
 		envs = append(envs, fmt.Sprintf("%s=%s", name, string(value)))
