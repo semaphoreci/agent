@@ -140,7 +140,11 @@ func (l *FileBackend) Read(startingLineNumber, maxLines int, writer io.Writer) (
 
 		// Otherwise, we advance to the next line and stream the current line.
 		lineNumber++
-		fmt.Fprint(writer, line)
+		_, err = fmt.Fprint(writer, line)
+		if err != nil {
+			_ = fd.Close()
+			return lineNumber, err
+		}
 		linesStreamed++
 
 		// if we have streamed the number of lines we want, we stop.

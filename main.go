@@ -435,7 +435,7 @@ func RunSingleJob(httpClient *http.Client) {
 		panic(err)
 	}
 
-	job.JobLogArchived = true
+	job.SetLogArchivalStatus(jobs.JobLogArchivalStatusCompleted)
 
 	job.Run()
 }

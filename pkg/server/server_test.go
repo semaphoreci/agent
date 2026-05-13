@@ -3,7 +3,9 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -12,6 +14,8 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	api "github.com/semaphoreci/agent/pkg/api"
+	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
+	jobs "github.com/semaphoreci/agent/pkg/jobs"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -186,6 +190,66 @@ func Test__RunJobAcceptsSameJobAgain(t *testing.T) {
 	assert.Equal(t, totalReq-1, countBodies(bodies, "job is already running"))
 }
 
+func Test__HTTPServerTimeouts(t *testing.T) {
+	server := newHTTPServer("0.0.0.0:1234", http.NewServeMux())
+
+	assert.Equal(t, defaultReadHeaderTimeout, server.ReadHeaderTimeout)
+	assert.Equal(t, defaultWriteTimeout, server.WriteTimeout)
+	assert.Equal(t, defaultReadTimeout, server.ReadTimeout)
+	assert.Equal(t, defaultIdleTimeout, server.IdleTimeout)
+}
+
+func Test__JobLogsArchivatorStatusIsSetOnlyOnSuccessfulStream(t *testing.T) {
+	dummyKey := "dummykey"
+	testServer := NewServer(ServerConfig{
+		HTTPClient: http.DefaultClient,
+		JWTSecret:  []byte(dummyKey),
+	})
+
+	token, err := generateToken(dummyKey)
+	if !assert.NoError(t, err) {
+		return
+	}
+
+	t.Run("stream succeeds -> archived flag is true", func(t *testing.T) {
+		testServer.ActiveJob = &jobs.Job{
+			Request: &api.JobRequest{JobID: "job-success"},
+			Logger: &eventlogger.Logger{
+				Backend: staticReadBackend{line: "{\"event\":\"job_started\"}\n"},
+			},
+		}
+
+		req, _ := http.NewRequest("GET", "/jobs/job-success/log", nil)
+		req.Header.Add("Authorization", "Token "+token)
+		req.Header.Add("X-Client-Name", "archivator")
+
+		rr := httptest.NewRecorder()
+		testServer.router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, jobs.JobLogArchivalStatusCompleted, testServer.ActiveJob.GetLogArchivalStatus())
+	})
+
+	t.Run("stream fails -> archival status is failed", func(t *testing.T) {
+		testServer.ActiveJob = &jobs.Job{
+			Request: &api.JobRequest{JobID: "job-fail"},
+			Logger: &eventlogger.Logger{
+				Backend: staticReadBackend{err: errors.New("stream failed")},
+			},
+		}
+
+		req, _ := http.NewRequest("GET", "/jobs/job-fail/log", nil)
+		req.Header.Add("Authorization", "Token "+token)
+		req.Header.Add("X-Client-Name", "archivator")
+
+		rr := httptest.NewRecorder()
+		testServer.router.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusInternalServerError, rr.Code)
+		assert.Equal(t, jobs.JobLogArchivalStatusFailed, testServer.ActiveJob.GetLogArchivalStatus())
+	})
+}
+
 func getAgentStatus(t *testing.T, testServer *Server, token string) string {
 	req, _ := http.NewRequest("GET", "/status", nil)
 	req.Header.Add("Authorization", "Token "+token)
@@ -264,4 +328,38 @@ func generateToken(key string) (string, error) {
 	})
 
 	return token.SignedString([]byte(key))
+}
+
+type staticReadBackend struct {
+	line string
+	err  error
+}
+
+func (b staticReadBackend) Open() error {
+	return nil
+}
+
+func (b staticReadBackend) Write(interface{}) error {
+	return nil
+}
+
+func (b staticReadBackend) Read(startFrom, maxLines int, writer io.Writer) (int, error) {
+	if b.err != nil {
+		return startFrom, b.err
+	}
+
+	_, err := io.WriteString(writer, b.line)
+	return startFrom + 1, err
+}
+
+func (b staticReadBackend) Iterate(func(event []byte) error) error {
+	return nil
+}
+
+func (b staticReadBackend) Close() error {
+	return nil
+}
+
+func (b staticReadBackend) CloseWithOptions(eventlogger.CloseOptions) error {
+	return nil
 }

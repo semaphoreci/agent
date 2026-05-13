@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
@@ -34,6 +35,18 @@ const JobStopped = "stopped"
 const MinSizeForCompression = 1024 * 1024
 const DefaultSizeForCompression = 1024 * 1024 * 100
 const MaxSizeForCompression = 1024 * 1024 * 1024
+const DefaultLogArchivalPendingWaitTimeout = 300 * time.Second
+const DefaultLogArchivalFailedWaitTimeout = 15 * time.Second
+const MaxLogArchivalWaitTimeout = 3600 * time.Second
+
+type JobLogArchivalStatus string
+
+const (
+	JobLogArchivalStatusPending   JobLogArchivalStatus = "pending"
+	JobLogArchivalStatusCompleted JobLogArchivalStatus = "completed"
+	JobLogArchivalStatusFailed    JobLogArchivalStatus = "failed"
+	JobLogArchivalStatusTimedOut  JobLogArchivalStatus = "timed_out"
+)
 
 type Job struct {
 	Client  *http.Client
@@ -42,11 +55,12 @@ type Job struct {
 
 	Executor executors.Executor
 
-	JobLogArchived bool
-	Stopped        bool
-	Finished       bool
-	UploadJobLogs  string
-	UserAgent      string
+	logArchivalStatus     JobLogArchivalStatus
+	logArchivalStatusLock sync.RWMutex
+	Stopped               bool
+	Finished              bool
+	UploadJobLogs         string
+	UserAgent             string
 }
 
 type JobOptions struct {
@@ -92,12 +106,12 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 	}
 
 	job := &Job{
-		Client:         options.Client,
-		Request:        options.Request,
-		JobLogArchived: false,
-		Stopped:        false,
-		UploadJobLogs:  options.UploadJobLogs,
-		UserAgent:      options.UserAgent,
+		Client:            options.Client,
+		Request:           options.Request,
+		logArchivalStatus: JobLogArchivalStatusPending,
+		Stopped:           false,
+		UploadJobLogs:     options.UploadJobLogs,
+		UserAgent:         options.UserAgent,
 	}
 
 	if options.Logger != nil {
@@ -171,6 +185,118 @@ type RunOptions struct {
 	SourcePreJobHook      bool
 	OnJobFinished         func(selfhostedapi.JobResult)
 	CallbackRetryAttempts int
+}
+
+func (job *Job) SetLogArchivalStatus(status JobLogArchivalStatus) {
+	job.logArchivalStatusLock.Lock()
+	defer job.logArchivalStatusLock.Unlock()
+
+	job.logArchivalStatus = status
+}
+
+func (job *Job) GetLogArchivalStatus() JobLogArchivalStatus {
+	job.logArchivalStatusLock.RLock()
+	defer job.logArchivalStatusLock.RUnlock()
+
+	if job.logArchivalStatus == "" {
+		return JobLogArchivalStatusPending
+	}
+
+	return job.logArchivalStatus
+}
+
+func (job *Job) waitForLogArchival(pendingTimeout, failedTimeout, pollInterval time.Duration) JobLogArchivalStatus {
+	pendingDeadline := time.Now().Add(pendingTimeout)
+	failedDeadline := time.Time{}
+
+	for {
+		status := job.GetLogArchivalStatus()
+		if status == JobLogArchivalStatusCompleted || status == JobLogArchivalStatusTimedOut {
+			return status
+		}
+
+		if status == JobLogArchivalStatusFailed {
+			if failedDeadline.IsZero() {
+				failedDeadline = time.Now().Add(failedTimeout)
+			}
+
+			if time.Now().After(failedDeadline) {
+				return JobLogArchivalStatusFailed
+			}
+		}
+
+		if status == JobLogArchivalStatusPending && time.Now().After(pendingDeadline) {
+			job.SetLogArchivalStatus(JobLogArchivalStatusTimedOut)
+			return JobLogArchivalStatusTimedOut
+		}
+
+		time.Sleep(pollInterval)
+	}
+}
+
+func (job *Job) logArchivalPendingWaitTimeout() time.Duration {
+	fromEnv := os.Getenv("SEMAPHORE_AGENT_LOG_ARCHIVAL_PENDING_WAIT_TIMEOUT")
+	if fromEnv == "" {
+		// Backward-compatible fallback
+		fromEnv = os.Getenv("SEMAPHORE_AGENT_LOG_ARCHIVAL_WAIT_TIMEOUT")
+	}
+
+	if fromEnv == "" {
+		return DefaultLogArchivalPendingWaitTimeout
+	}
+
+	n, err := strconv.ParseInt(fromEnv, 10, 64)
+	if err != nil {
+		log.Errorf(
+			"Error parsing SEMAPHORE_AGENT_LOG_ARCHIVAL_PENDING_WAIT_TIMEOUT: %v - using default of %s",
+			err,
+			DefaultLogArchivalPendingWaitTimeout,
+		)
+		return DefaultLogArchivalPendingWaitTimeout
+	}
+
+	timeout := time.Duration(n) * time.Second
+	if timeout <= 0 || timeout > MaxLogArchivalWaitTimeout {
+		log.Errorf(
+			"Invalid SEMAPHORE_AGENT_LOG_ARCHIVAL_PENDING_WAIT_TIMEOUT %s, must be in range 1s-%s, using default %s",
+			timeout,
+			MaxLogArchivalWaitTimeout,
+			DefaultLogArchivalPendingWaitTimeout,
+		)
+		return DefaultLogArchivalPendingWaitTimeout
+	}
+
+	return timeout
+}
+
+func (job *Job) logArchivalFailedWaitTimeout() time.Duration {
+	fromEnv := os.Getenv("SEMAPHORE_AGENT_LOG_ARCHIVAL_FAILED_WAIT_TIMEOUT")
+	if fromEnv == "" {
+		return DefaultLogArchivalFailedWaitTimeout
+	}
+
+	n, err := strconv.ParseInt(fromEnv, 10, 64)
+	if err != nil {
+		log.Errorf(
+			"Error parsing SEMAPHORE_AGENT_LOG_ARCHIVAL_FAILED_WAIT_TIMEOUT: %v - using default of %s",
+			err,
+			DefaultLogArchivalFailedWaitTimeout,
+		)
+		return DefaultLogArchivalFailedWaitTimeout
+	}
+
+	timeout := time.Duration(n) * time.Second
+	if timeout <= 0 || timeout > MaxLogArchivalWaitTimeout {
+		log.Errorf(
+			"Invalid SEMAPHORE_AGENT_LOG_ARCHIVAL_FAILED_WAIT_TIMEOUT %s, must be in range 1s-%s, using default %s",
+			timeout,
+			MaxLogArchivalWaitTimeout,
+			DefaultLogArchivalFailedWaitTimeout,
+		)
+		return DefaultLogArchivalFailedWaitTimeout
+	}
+
+	return timeout
 }
 
 func (o *RunOptions) GetPreJobHookWarning() string {
@@ -490,9 +616,9 @@ func (job *Job) Teardown(result string, epiloguesExecuted bool, callbackRetryAtt
 
 /*
  * For hosted jobs, we use callbacks:
- * 1. Send finished callback and log job_finished event
- * 2. Wait for archivator to collect all the logs
- * 3. Send teardown_finished callback and close the logger
+ * 1. Send finished callback and log job_finished event.
+ * 2. Wait for archivator to reach a terminal archival state (completed/failed/timed_out).
+ * 3. Send teardown_finished callback and close the logger.
  */
 func (job *Job) teardownWithCallbacks(result string, callbackRetryAttempts int) error {
 	err := job.SendFinishedCallback(result, callbackRetryAttempts)
@@ -504,15 +630,21 @@ func (job *Job) teardownWithCallbacks(result string, callbackRetryAttempts int) 
 	job.Logger.LogJobFinished(result)
 	log.Debug("Waiting for archivator")
 
-	for {
-		if job.JobLogArchived {
-			break
-		} else {
-			time.Sleep(1000 * time.Millisecond)
-		}
+	archivalStatus := job.waitForLogArchival(
+		job.logArchivalPendingWaitTimeout(),
+		job.logArchivalFailedWaitTimeout(),
+		time.Second,
+	)
+	switch archivalStatus {
+	case JobLogArchivalStatusCompleted:
+		log.Debug("Archivator finished")
+	case JobLogArchivalStatusFailed:
+		log.Warn("Archivator log streaming failed - continuing teardown")
+	case JobLogArchivalStatusTimedOut:
+		log.Warn("Timed out waiting for archivator log fetch - continuing teardown")
+	default:
+		log.Warnf("Unexpected log archival status '%s' - continuing teardown", archivalStatus)
 	}
-
-	log.Debug("Archivator finished")
 
 	// The job already finished, but executor is still open.
 	// We use the open executor to upload the job logs as

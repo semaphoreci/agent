@@ -2,6 +2,7 @@ package eventlogger
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -45,6 +46,23 @@ func Test__LogsArePushedToFile(t *testing.T) {
 		fmt.Sprintf(`{"event":"job_finished","timestamp":%d,"result":"passed"}`, timestamp),
 		"", // newline at the end of the file
 	}, logs)
+
+	err = fileBackend.Close()
+	assert.Nil(t, err)
+}
+
+func Test__ReadReturnsErrorFromWriter(t *testing.T) {
+	tmpFileName := filepath.Join(os.TempDir(), fmt.Sprintf("logs_%d.json", time.Now().UnixNano()))
+	fileBackend, err := NewFileBackend(tmpFileName, DefaultMaxSizeInBytes)
+	assert.Nil(t, err)
+	assert.Nil(t, fileBackend.Open())
+
+	timestamp := int(time.Now().Unix())
+	assert.Nil(t, fileBackend.Write(&JobStartedEvent{Timestamp: timestamp, Event: "job_started"}))
+
+	writerErr := errors.New("write failed")
+	_, err = fileBackend.Read(0, 1000, errorWriter{err: writerErr})
+	assert.Equal(t, writerErr, err)
 
 	err = fileBackend.Close()
 	assert.Nil(t, err)
@@ -130,4 +148,12 @@ func Test__CloseWithOptions(t *testing.T) {
 		assert.Nil(t, err)
 		assert.False(t, logsWereTrimmed)
 	})
+}
+
+type errorWriter struct {
+	err error
+}
+
+func (w errorWriter) Write(p []byte) (n int, err error) {
+	return 0, w.err
 }
