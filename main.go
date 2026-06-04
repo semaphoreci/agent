@@ -101,8 +101,8 @@ func getLogFilePath() string {
 		return filepath.Join(os.TempDir(), "agent_log")
 	}
 
-	parentDirectory := path.Dir(logFilePath)
-	err := os.MkdirAll(parentDirectory, 0640)
+	parentDirectory := filepath.Clean(path.Dir(logFilePath))
+	err := os.MkdirAll(parentDirectory, 0750)
 	if err != nil {
 		log.Panicf("Could not create directories to place log file in '%s': %v", logFilePath, err)
 	}

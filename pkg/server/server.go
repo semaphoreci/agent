@@ -159,7 +159,7 @@ func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 	if s.ActiveJob == nil {
 		log.Warnf("Attempt to fetch logs for '%s' before any job is received", jobID)
 		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, `{"message": "job %s is not running"}`, jobID)
+		fmt.Fprint(w, `{"message": "job is not running"}`)
 		return
 	}
 
@@ -169,7 +169,7 @@ func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 	if runningJobID != jobID {
 		log.Warnf("Attempt to fetch logs for '%s', but job '%s' is the one running", jobID, runningJobID)
 		w.WriteHeader(http.StatusForbidden)
-		fmt.Fprintf(w, `{"message": "job %s is not running"}`, jobID)
+		fmt.Fprint(w, `{"message": "job is not running"}`)
 		return
 	}
 
