@@ -1392,7 +1392,7 @@ func Test__WaitForLogArchivalStatus(t *testing.T) {
 		job := &Job{}
 		job.SetLogArchivalStatus(JobLogArchivalStatusCompleted)
 
-		status := job.waitForLogArchival(100*time.Millisecond, 50*time.Millisecond, 10*time.Millisecond)
+		status := job.waitForLogArchival(50*time.Millisecond, 10*time.Millisecond)
 		assert.Equal(t, JobLogArchivalStatusCompleted, status)
 	})
 
@@ -1405,23 +1405,30 @@ func Test__WaitForLogArchivalStatus(t *testing.T) {
 			job.SetLogArchivalStatus(JobLogArchivalStatusCompleted)
 		}()
 
-		status := job.waitForLogArchival(500*time.Millisecond, 100*time.Millisecond, 10*time.Millisecond)
+		status := job.waitForLogArchival(100*time.Millisecond, 10*time.Millisecond)
 		assert.Equal(t, JobLogArchivalStatusCompleted, status)
 	})
 
-	t.Run("returns timed_out instead of waiting forever", func(t *testing.T) {
+	t.Run("waits indefinitely while pending and exits when completed", func(t *testing.T) {
 		job := &Job{}
 
-		status := job.waitForLogArchival(50*time.Millisecond, 50*time.Millisecond, 10*time.Millisecond)
-		assert.Equal(t, JobLogArchivalStatusTimedOut, status)
-		assert.Equal(t, JobLogArchivalStatusTimedOut, job.GetLogArchivalStatus())
+		// Completed arrives well after the failed-state grace window would have
+		// elapsed; a pending job must keep waiting regardless and never give up
+		// (so logs are not lost during a prolonged archivator outage).
+		go func() {
+			time.Sleep(80 * time.Millisecond)
+			job.SetLogArchivalStatus(JobLogArchivalStatusCompleted)
+		}()
+
+		status := job.waitForLogArchival(20*time.Millisecond, 10*time.Millisecond)
+		assert.Equal(t, JobLogArchivalStatusCompleted, status)
 	})
 
 	t.Run("returns failed after failed-state grace timeout", func(t *testing.T) {
 		job := &Job{}
 		job.SetLogArchivalStatus(JobLogArchivalStatusFailed)
 
-		status := job.waitForLogArchival(500*time.Millisecond, 50*time.Millisecond, 10*time.Millisecond)
+		status := job.waitForLogArchival(50*time.Millisecond, 10*time.Millisecond)
 		assert.Equal(t, JobLogArchivalStatusFailed, status)
 	})
 }

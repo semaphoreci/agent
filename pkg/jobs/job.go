@@ -35,8 +35,13 @@ const JobStopped = "stopped"
 const MinSizeForCompression = 1024 * 1024
 const DefaultSizeForCompression = 1024 * 1024 * 100
 const MaxSizeForCompression = 1024 * 1024 * 1024
-const DefaultLogArchivalPendingWaitTimeout = 300 * time.Second
-const DefaultLogArchivalFailedWaitTimeout = 15 * time.Second
+// Must comfortably exceed loghub archivator's worst-case in-process retry budget
+// after a failed fetch. Loghub retries up to 10 times with attempt*1s backoff and
+// a 10s curl --max-time per attempt: backoff (1+2+...+9 = 45s) plus up to 9*10s of
+// curl time ≈ 135s. The window must cover that so a slow retry can finish streaming
+// before the agent tears down the job. Override via
+// SEMAPHORE_AGENT_LOG_ARCHIVAL_FAILED_WAIT_TIMEOUT if loghub's retry budget changes.
+const DefaultLogArchivalFailedWaitTimeout = 150 * time.Second
 const MaxLogArchivalWaitTimeout = 3600 * time.Second
 
 type JobLogArchivalStatus string
@@ -45,7 +50,6 @@ const (
 	JobLogArchivalStatusPending   JobLogArchivalStatus = "pending"
 	JobLogArchivalStatusCompleted JobLogArchivalStatus = "completed"
 	JobLogArchivalStatusFailed    JobLogArchivalStatus = "failed"
-	JobLogArchivalStatusTimedOut  JobLogArchivalStatus = "timed_out"
 )
 
 type Job struct {
@@ -205,13 +209,22 @@ func (job *Job) GetLogArchivalStatus() JobLogArchivalStatus {
 	return job.logArchivalStatus
 }
 
-func (job *Job) waitForLogArchival(pendingTimeout, failedTimeout, pollInterval time.Duration) JobLogArchivalStatus {
-	pendingDeadline := time.Now().Add(pendingTimeout)
+// waitForLogArchival blocks until the loghub archivator reaches a terminal state.
+//
+// While the archivator has never attempted a fetch (Pending), we wait
+// indefinitely. For hosted jobs the job_finished event stays queued, so the
+// archivator will eventually fetch once its backend recovers - bounding this
+// would risk discarding the job's logs during a prolonged archivator outage.
+//
+// Once the archivator has engaged but a fetch failed (Failed), we know it is
+// alive and retrying, so we wait only failedTimeout for a retry to succeed
+// before giving up and continuing teardown.
+func (job *Job) waitForLogArchival(failedTimeout, pollInterval time.Duration) JobLogArchivalStatus {
 	failedDeadline := time.Time{}
 
 	for {
 		status := job.GetLogArchivalStatus()
-		if status == JobLogArchivalStatusCompleted || status == JobLogArchivalStatusTimedOut {
+		if status == JobLogArchivalStatusCompleted {
 			return status
 		}
 
@@ -225,48 +238,8 @@ func (job *Job) waitForLogArchival(pendingTimeout, failedTimeout, pollInterval t
 			}
 		}
 
-		if status == JobLogArchivalStatusPending && time.Now().After(pendingDeadline) {
-			job.SetLogArchivalStatus(JobLogArchivalStatusTimedOut)
-			return JobLogArchivalStatusTimedOut
-		}
-
 		time.Sleep(pollInterval)
 	}
-}
-
-func (job *Job) logArchivalPendingWaitTimeout() time.Duration {
-	fromEnv := os.Getenv("SEMAPHORE_AGENT_LOG_ARCHIVAL_PENDING_WAIT_TIMEOUT")
-	if fromEnv == "" {
-		// Backward-compatible fallback
-		fromEnv = os.Getenv("SEMAPHORE_AGENT_LOG_ARCHIVAL_WAIT_TIMEOUT")
-	}
-
-	if fromEnv == "" {
-		return DefaultLogArchivalPendingWaitTimeout
-	}
-
-	n, err := strconv.ParseInt(fromEnv, 10, 64)
-	if err != nil {
-		log.Errorf(
-			"Error parsing SEMAPHORE_AGENT_LOG_ARCHIVAL_PENDING_WAIT_TIMEOUT: %v - using default of %s",
-			err,
-			DefaultLogArchivalPendingWaitTimeout,
-		)
-		return DefaultLogArchivalPendingWaitTimeout
-	}
-
-	timeout := time.Duration(n) * time.Second
-	if timeout <= 0 || timeout > MaxLogArchivalWaitTimeout {
-		log.Errorf(
-			"Invalid SEMAPHORE_AGENT_LOG_ARCHIVAL_PENDING_WAIT_TIMEOUT %s, must be in range 1s-%s, using default %s",
-			timeout,
-			MaxLogArchivalWaitTimeout,
-			DefaultLogArchivalPendingWaitTimeout,
-		)
-		return DefaultLogArchivalPendingWaitTimeout
-	}
-
-	return timeout
 }
 
 func (job *Job) logArchivalFailedWaitTimeout() time.Duration {
@@ -617,7 +590,9 @@ func (job *Job) Teardown(result string, epiloguesExecuted bool, callbackRetryAtt
 /*
  * For hosted jobs, we use callbacks:
  * 1. Send finished callback and log job_finished event.
- * 2. Wait for archivator to reach a terminal archival state (completed/failed/timed_out).
+ * 2. Wait for archivator to reach a terminal archival state (completed, or failed
+ *    after a bounded retry window). A job the archivator never reaches stays
+ *    pending and waits indefinitely so its logs are not lost.
  * 3. Send teardown_finished callback and close the logger.
  */
 func (job *Job) teardownWithCallbacks(result string, callbackRetryAttempts int) error {
@@ -631,7 +606,6 @@ func (job *Job) teardownWithCallbacks(result string, callbackRetryAttempts int) 
 	log.Debug("Waiting for archivator")
 
 	archivalStatus := job.waitForLogArchival(
-		job.logArchivalPendingWaitTimeout(),
 		job.logArchivalFailedWaitTimeout(),
 		time.Second,
 	)
@@ -640,8 +614,6 @@ func (job *Job) teardownWithCallbacks(result string, callbackRetryAttempts int) 
 		log.Debug("Archivator finished")
 	case JobLogArchivalStatusFailed:
 		log.Warn("Archivator log streaming failed - continuing teardown")
-	case JobLogArchivalStatusTimedOut:
-		log.Warn("Timed out waiting for archivator log fetch - continuing teardown")
 	default:
 		log.Warnf("Unexpected log archival status '%s' - continuing teardown", archivalStatus)
 	}
