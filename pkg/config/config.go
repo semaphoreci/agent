@@ -29,9 +29,31 @@ const (
 	KubernetesPodStartTimeout  = "kubernetes-pod-start-timeout"
 	KubernetesLabels           = "kubernetes-labels"
 	KubernetesDefaultImage     = "kubernetes-default-image"
+
+	KubernetesExecutionStrategy = "kubernetes-execution-strategy"
 )
 
 const DefaultKubernetesPodStartTimeout = 300
+
+// The Kubernetes executor can run job commands inside the job pod in two ways:
+//
+//   - "exec" (default): the agent runs `kubectl exec` to spawn a new shell bound
+//     to the streaming connection. If that connection is interrupted (e.g. a
+//     Konnectivity tunnel reset during cluster scaling), the exec'd process is
+//     killed and the job fails.
+//   - "attach": the main container runs a long-lived login shell as PID 1, and
+//     the agent `kubectl attach`es to it. The shell (and any running command) is
+//     not bound to the connection, so it survives a dropped connection - the
+//     prerequisite for re-attaching instead of failing the job.
+const (
+	KubernetesExecutionStrategyExec   = "exec"
+	KubernetesExecutionStrategyAttach = "attach"
+)
+
+var ValidKubernetesExecutionStrategies = []string{
+	KubernetesExecutionStrategyExec,
+	KubernetesExecutionStrategyAttach,
+}
 
 type ImagePullPolicy string
 
@@ -87,6 +109,7 @@ var ValidConfigKeys = []string{
 	KubernetesPodStartTimeout,
 	KubernetesLabels,
 	KubernetesDefaultImage,
+	KubernetesExecutionStrategy,
 }
 
 type HostEnvVar struct {

@@ -32,6 +32,7 @@ type Config struct {
 	Labels                    map[string]string
 	PodPollingInterval        time.Duration
 	DefaultImage              string
+	ExecutionStrategy         string
 }
 
 func (c *Config) LabelMap() map[string]string {
@@ -397,7 +398,7 @@ func (c *KubernetesClient) containers(apiContainers []api.Container) ([]corev1.C
 
 	return []corev1.Container{}, fmt.Errorf(
 		"no containers specified in Semaphore YAML, and no default container is provided",
-		)
+	)
 }
 
 func (c *KubernetesClient) buildMainContainer(mainContainerFromAPI *api.Container) corev1.Container {
@@ -411,7 +412,23 @@ func (c *KubernetesClient) buildMainContainer(mainContainerFromAPI *api.Containe
 	mainContainer.Name = "main"
 	mainContainer.Image = mainContainerFromAPI.Image
 	mainContainer.Env = append(mainContainer.Env, c.convertEnvVars(mainContainerFromAPI.EnvVars)...)
-	mainContainer.Command = []string{"bash", "-c", "sleep infinity"}
+
+	// How the main container stays alive depends on the execution strategy.
+	if c.config.ExecutionStrategy == config.KubernetesExecutionStrategyAttach {
+		// For the "attach" strategy, PID 1 is a long-lived login shell that reads
+		// commands from its stdin. The agent `kubectl attach`es to it to run the
+		// job. Keeping stdin open (StdinOnce=false) lets the agent re-attach
+		// without the shell receiving EOF and exiting, so the shell - and any
+		// command it is running - survives a dropped connection.
+		mainContainer.Command = []string{"bash", "--login"}
+		mainContainer.Stdin = true
+		mainContainer.StdinOnce = false
+		mainContainer.TTY = true
+	} else {
+		// For the "exec" strategy, PID 1 just idles; the agent runs `kubectl exec`
+		// to spawn the shell that runs the job.
+		mainContainer.Command = []string{"bash", "-c", "sleep infinity"}
+	}
 
 	// We append the volume mount for the environment variables secret,
 	// to the list of volume mounts configured.

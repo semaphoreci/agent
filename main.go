@@ -140,6 +140,11 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		fmt.Sprintf("Timeout for the pod to be ready, in seconds. Default is %d.", config.DefaultKubernetesPodStartTimeout),
 	)
 	_ = pflag.String(config.KubernetesDefaultImage, "", "Default image to use in Kubernetes executor if no containers are specified in the job request")
+	_ = pflag.String(
+		config.KubernetesExecutionStrategy,
+		config.KubernetesExecutionStrategyExec,
+		"How the Kubernetes executor runs job commands: 'exec' (default) or 'attach'",
+	)
 
 	pflag.Parse()
 
@@ -178,6 +183,16 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 
 	if viper.GetInt(config.KubernetesPodStartTimeout) < 0 {
 		log.Fatal("Kubernetes pod start timeout can't be negative. Exiting...")
+	}
+
+	executionStrategy := viper.GetString(config.KubernetesExecutionStrategy)
+	if executionStrategy != config.KubernetesExecutionStrategyExec &&
+		executionStrategy != config.KubernetesExecutionStrategyAttach {
+		log.Fatalf(
+			"Invalid --%s '%s'. Valid values are 'exec' and 'attach'. Exiting...",
+			config.KubernetesExecutionStrategy,
+			executionStrategy,
+		)
 	}
 
 	scheme := "https"
@@ -230,6 +245,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		KubernetesPodStartTimeoutSeconds: viper.GetInt(config.KubernetesPodStartTimeout),
 		KubernetesLabels:                 kubernetesLabels,
 		KubernetesDefaultImage:           viper.GetString(config.KubernetesDefaultImage),
+		KubernetesExecutionStrategy:      viper.GetString(config.KubernetesExecutionStrategy),
 	}
 
 	go func() {

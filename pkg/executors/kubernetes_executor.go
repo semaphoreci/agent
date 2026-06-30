@@ -33,6 +33,9 @@ type KubernetesExecutor struct {
 	// We need to keep track if the initial environment has already
 	// been exposed or not, because ExportEnvVars() gets called twice.
 	initialEnvironmentExposed bool
+
+	// executionStrategy is "exec" or "attach"; see config.KubernetesExecutionStrategy.
+	executionStrategy string
 }
 
 func NewKubernetesExecutor(jobRequest *api.JobRequest, logger *eventlogger.Logger, k8sConfig kubernetes.Config) (*KubernetesExecutor, error) {
@@ -52,9 +55,10 @@ func NewKubernetesExecutor(jobRequest *api.JobRequest, logger *eventlogger.Logge
 	}
 
 	return &KubernetesExecutor{
-		k8sClient:  k8sClient,
-		jobRequest: jobRequest,
-		logger:     logger,
+		k8sClient:         k8sClient,
+		jobRequest:        jobRequest,
+		logger:            logger,
+		executionStrategy: k8sConfig.ExecutionStrategy,
 	}, nil
 }
 
@@ -144,15 +148,18 @@ func (e *KubernetesExecutor) Start() int {
 
 	// #nosec
 	executable := "kubectl"
-	args := []string{
-		"exec",
-		"-it",
-		e.podName,
-		"-c",
-		"main",
-		"--",
-		"bash",
-		"--login",
+
+	// With the "attach" strategy we attach to the long-lived login shell running
+	// as PID 1 in the main container (see KubernetesClient.buildMainContainer),
+	// instead of spawning a new shell with `kubectl exec`. The attached shell is
+	// not tied to this connection, so it - and any command it is running -
+	// survives a dropped connection, which is the basis for re-attaching instead
+	// of failing the job.
+	var args []string
+	if e.executionStrategy == config.KubernetesExecutionStrategyAttach {
+		args = []string{"attach", "-i", "-t", e.podName, "-c", "main"}
+	} else {
+		args = []string{"exec", "-it", e.podName, "-c", "main", "--", "bash", "--login"}
 	}
 
 	shell, err := shell.NewShellFromExecAndArgs(executable, args, os.TempDir())

@@ -52,6 +52,7 @@ type Config struct {
 	KubernetesPodStartTimeoutSeconds int
 	KubernetesLabels                 map[string]string
 	KubernetesDefaultImage           string
+	KubernetesExecutionStrategy      string
 }
 
 func Start(httpClient *http.Client, config Config) (*Listener, error) {

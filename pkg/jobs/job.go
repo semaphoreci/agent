@@ -63,6 +63,7 @@ type JobOptions struct {
 	KubernetesLabels                 map[string]string
 	KubernetesImageValidator         *kubernetes.ImageValidator
 	KubernetesDefaultImage           string
+	KubernetesExecutionStrategy      string
 	UploadJobLogs                    string
 	RefreshTokenFn                   func() (string, error)
 	UserAgent                        string
@@ -144,6 +145,7 @@ func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOpti
 			Labels:                    jobOptions.KubernetesLabels,
 			PodPollingInterval:        time.Second,
 			DefaultImage:              jobOptions.KubernetesDefaultImage,
+			ExecutionStrategy:         jobOptions.KubernetesExecutionStrategy,
 		})
 	}
 
