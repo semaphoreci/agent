@@ -261,6 +261,10 @@ blocks:
           commands:
             - "make e2e TEST=kubernetes/$TEST"
           matrix:
+            - env_var: KUBERNETES_EXECUTION_STRATEGY
+              values:
+                - exec
+                - attach
             - env_var: TEST
               values:
                 - shell__not-allowed

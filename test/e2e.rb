@@ -47,6 +47,13 @@ else
   raise "Testing Mode not set"
 end
 
+# Allow the CI matrix to run the Kubernetes e2e tests under both execution
+# strategies (exec and attach) by setting KUBERNETES_EXECUTION_STRATEGY.
+# It only applies when the Kubernetes executor is in use.
+if ENV["KUBERNETES_EXECUTION_STRATEGY"] && $AGENT_CONFIG && $AGENT_CONFIG["kubernetes-executor"]
+  $AGENT_CONFIG["kubernetes-execution-strategy"] = ENV["KUBERNETES_EXECUTION_STRATEGY"]
+end
+
 $strategy.boot_up_agent
 
 def start_job(request)

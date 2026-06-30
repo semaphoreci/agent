@@ -9,6 +9,7 @@ import (
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	"github.com/semaphoreci/agent/pkg/config"
 	assert "github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -233,6 +234,58 @@ func Test__CreateImagePullSecret(t *testing.T) {
 	})
 }
 
+func Test__ExecutionStrategy(t *testing.T) {
+	imageValidator, _ := NewImageValidator([]string{})
+	podName := "semaphore-job-123"
+	envSecretName := "mysecret"
+	jobRequest := &api.JobRequest{
+		Compose: api.Compose{Containers: []api.Container{{Name: "main", Image: "my-image"}}},
+	}
+
+	t.Run("exec strategy (default) - main container idles with sleep infinity", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{})
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:      "default",
+			ImageValidator: imageValidator,
+		})
+
+		assert.NoError(t, client.CreatePod(podName, envSecretName, "", jobRequest))
+
+		pod, err := clientset.CoreV1().Pods("default").Get(context.Background(), podName, v1.GetOptions{})
+		assert.NoError(t, err)
+
+		if assert.Len(t, pod.Spec.Containers, 1) {
+			main := pod.Spec.Containers[0]
+			assert.Equal(t, []string{"bash", "-c", "sleep infinity"}, main.Command)
+			assert.False(t, main.Stdin)
+			assert.False(t, main.StdinOnce)
+			assert.False(t, main.TTY)
+		}
+	})
+
+	t.Run("attach strategy - main container runs a long-lived shell reading stdin", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{})
+		client, _ := NewKubernetesClient(clientset, Config{
+			Namespace:         "default",
+			ImageValidator:    imageValidator,
+			ExecutionStrategy: config.KubernetesExecutionStrategyAttach,
+		})
+
+		assert.NoError(t, client.CreatePod(podName, envSecretName, "", jobRequest))
+
+		pod, err := clientset.CoreV1().Pods("default").Get(context.Background(), podName, v1.GetOptions{})
+		assert.NoError(t, err)
+
+		if assert.Len(t, pod.Spec.Containers, 1) {
+			main := pod.Spec.Containers[0]
+			assert.Equal(t, []string{"bash", "--login"}, main.Command)
+			assert.True(t, main.Stdin, "stdin must be open for kubectl attach")
+			assert.False(t, main.StdinOnce, "stdin must stay open so the agent can re-attach")
+			assert.True(t, main.TTY)
+		}
+	})
+}
+
 func Test__CreatePod(t *testing.T) {
 	t.Run("no containers from YAML -> error", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
@@ -259,7 +312,7 @@ func Test__CreatePod(t *testing.T) {
 		client, _ := NewKubernetesClient(clientset, Config{
 			Namespace:      "default",
 			ImageValidator: imageValidator,
-			DefaultImage: "default-image",
+			DefaultImage:   "default-image",
 		})
 
 		_ = client.LoadPodSpec()
@@ -338,7 +391,7 @@ func Test__CreatePod(t *testing.T) {
 			Namespace:                 "default",
 			PodSpecDecoratorConfigMap: "pod-spec",
 			ImageValidator:            imageValidator,
-			DefaultImage: "default-image",
+			DefaultImage:              "default-image",
 		})
 
 		if !assert.NoError(t, err) {

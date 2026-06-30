@@ -116,6 +116,22 @@ func (e *KubernetesExecutor) Prepare() int {
 	return 0
 }
 
+// kubectlCommand returns the kubectl executable and arguments used to open the
+// shell session for the job, based on the execution strategy.
+//
+// With "attach", we attach to the long-lived login shell running as PID 1 in the
+// main container (see KubernetesClient.buildMainContainer) instead of spawning a
+// new shell with `kubectl exec`. The attached shell is not tied to this
+// connection, so it - and any command it is running - survives a dropped
+// connection, which is the basis for re-attaching instead of failing the job.
+func kubectlCommand(executionStrategy, podName string) (string, []string) {
+	if executionStrategy == config.KubernetesExecutionStrategyAttach {
+		return "kubectl", []string{"attach", "-i", "-t", podName, "-c", "main"}
+	}
+
+	return "kubectl", []string{"exec", "-it", podName, "-c", "main", "--", "bash", "--login"}
+}
+
 func (e *KubernetesExecutor) Start() int {
 	commandStartedAt := int(time.Now().Unix())
 	directive := "Starting shell session..."
@@ -147,20 +163,7 @@ func (e *KubernetesExecutor) Start() int {
 	e.logger.LogCommandOutput("Starting a new bash session in the pod...\n")
 
 	// #nosec
-	executable := "kubectl"
-
-	// With the "attach" strategy we attach to the long-lived login shell running
-	// as PID 1 in the main container (see KubernetesClient.buildMainContainer),
-	// instead of spawning a new shell with `kubectl exec`. The attached shell is
-	// not tied to this connection, so it - and any command it is running -
-	// survives a dropped connection, which is the basis for re-attaching instead
-	// of failing the job.
-	var args []string
-	if e.executionStrategy == config.KubernetesExecutionStrategyAttach {
-		args = []string{"attach", "-i", "-t", e.podName, "-c", "main"}
-	} else {
-		args = []string{"exec", "-it", e.podName, "-c", "main", "--", "bash", "--login"}
-	}
+	executable, args := kubectlCommand(e.executionStrategy, e.podName)
 
 	shell, err := shell.NewShellFromExecAndArgs(executable, args, os.TempDir())
 	if err != nil {
