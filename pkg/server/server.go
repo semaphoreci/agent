@@ -25,6 +25,13 @@ import (
 
 const DefaultCallbackRetryAttempts = 300
 
+var (
+	defaultReadHeaderTimeout = 5 * time.Second
+	defaultWriteTimeout      = 30 * time.Second
+	defaultReadTimeout       = 10 * time.Second
+	defaultIdleTimeout       = 30 * time.Second
+)
+
 type Server struct {
 	Logfile    io.Writer
 	ActiveJob  *jobs.Job
@@ -101,19 +108,22 @@ func (s *Server) Serve() {
 	log.Infof("Agent %s listening on https://%s\n", s.Config.Version, address)
 
 	loggedRouter := handlers.LoggingHandler(s.Logfile, s.router)
-
-	server := &http.Server{
-		Addr:              address,
-		ReadHeaderTimeout: 5 * time.Second,
-		WriteTimeout:      5 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		IdleTimeout:       30 * time.Second,
-		Handler:           loggedRouter,
-	}
+	server := newHTTPServer(address, loggedRouter)
 
 	err := server.ListenAndServeTLS(s.Config.TLSCertPath, s.Config.TLSKeyPath)
 	if err != nil {
 		panic(err)
+	}
+}
+
+func newHTTPServer(address string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              address,
+		ReadHeaderTimeout: defaultReadHeaderTimeout,
+		WriteTimeout:      defaultWriteTimeout,
+		ReadTimeout:       defaultReadTimeout,
+		IdleTimeout:       defaultIdleTimeout,
+		Handler:           handler,
 	}
 }
 
@@ -149,7 +159,7 @@ func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 	if s.ActiveJob == nil {
 		log.Warnf("Attempt to fetch logs for '%s' before any job is received", jobID)
 		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, `{"message": "job %s is not running"}`, jobID)
+		fmt.Fprint(w, `{"message": "job is not running"}`)
 		return
 	}
 
@@ -159,7 +169,7 @@ func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 	if runningJobID != jobID {
 		log.Warnf("Attempt to fetch logs for '%s', but job '%s' is the one running", jobID, runningJobID)
 		w.WriteHeader(http.StatusForbidden)
-		fmt.Fprintf(w, `{"message": "job %s is not running"}`, jobID)
+		fmt.Fprint(w, `{"message": "job is not running"}`)
 		return
 	}
 
@@ -168,16 +178,22 @@ func (s *Server) JobLogs(w http.ResponseWriter, r *http.Request) {
 		startFromLine = 0
 	}
 
+	isArchivator := r.Header.Get("X-Client-Name") == "archivator"
+
 	_, err = s.ActiveJob.Logger.Backend.Read(startFromLine, math.MaxInt32, w)
 	if err != nil {
 		log.Errorf("Error while streaming logs: %v", err)
+		if isArchivator {
+			s.ActiveJob.SetLogArchivalStatus(jobs.JobLogArchivalStatusFailed)
+		}
 
 		http.Error(w, err.Error(), 500)
 		fmt.Fprintf(w, `{"message": "%s"}`, err)
+		return
 	}
 
-	if r.Header.Get("X-Client-Name") == "archivator" {
-		s.ActiveJob.JobLogArchived = true
+	if isArchivator {
+		s.ActiveJob.SetLogArchivalStatus(jobs.JobLogArchivalStatusCompleted)
 	}
 }
 

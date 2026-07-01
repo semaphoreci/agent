@@ -66,7 +66,12 @@ func (e *DockerComposeExecutor) Prepare() int {
 		return 1
 	}
 
-	err := os.MkdirAll(e.tmpDirectory, os.ModePerm)
+	// This directory is bind-mounted read-only into the job container (see the
+	// `-v` mount in startBashShell), whose process may run as a non-root user, so
+	// it must stay world-traversable for that user to read the command files.
+	// We drop world-write (0777 -> 0755) but keep read/execute for that reason.
+	// #nosec G301
+	err := os.MkdirAll(e.tmpDirectory, 0755)
 	if err != nil {
 		return 1
 	}
