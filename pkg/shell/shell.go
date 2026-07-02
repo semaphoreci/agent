@@ -204,11 +204,11 @@ func (s *Shell) silencePromptAndDisablePS1() error {
 		log.Debugf("(tty) %s\n", text)
 
 		if strings.Contains(text, "executable file not found") {
-			return fmt.Errorf(text)
+			return fmt.Errorf("%s", text)
 		}
 
 		if strings.Contains(text, "The container name \"/main\" is already in use") {
-			return fmt.Errorf(text)
+			return fmt.Errorf("%s", text)
 		}
 
 		if !strings.Contains(text, "echo") && strings.Contains(text, everythingIsReadyMark) {
