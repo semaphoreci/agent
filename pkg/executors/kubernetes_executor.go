@@ -314,7 +314,7 @@ func (e *KubernetesExecutor) InjectFiles(files []api.File) int {
 		if exitCode != 0 {
 			errMessage := fmt.Sprintf("Error injecting file %s: failed to created parent directory %s: %s\n", destPath, parentDir, output)
 			e.logger.LogCommandOutput(errMessage)
-			log.Errorf(errMessage)
+			log.Errorf("%s", errMessage)
 			return exitCode
 		}
 
@@ -323,7 +323,7 @@ func (e *KubernetesExecutor) InjectFiles(files []api.File) int {
 		if exitCode != 0 {
 			errMessage := fmt.Sprintf("Error injecting file %s: %s\n", destPath, output)
 			e.logger.LogCommandOutput(errMessage)
-			log.Errorf(errMessage)
+			log.Errorf("%s", errMessage)
 			return exitCode
 		}
 
@@ -332,7 +332,7 @@ func (e *KubernetesExecutor) InjectFiles(files []api.File) int {
 		if exitCode != 0 {
 			errMessage := fmt.Sprintf("Error injecting file %s: error setting file mode %s: %s\n", destPath, file.Mode, output)
 			e.logger.LogCommandOutput(errMessage)
-			log.Errorf(errMessage)
+			log.Errorf("%s", errMessage)
 			return exitCode
 		}
 	}
