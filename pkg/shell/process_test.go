@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -9,16 +10,24 @@ import (
 	"time"
 )
 
-// scanHarness drives Process.scan() without a real bash/PTY. The shell's TTY
-// is an os.Pipe, so a test can script exactly which bytes arrive in each read
-// (by writing a chunk, then pausing long enough for scan to consume it and
-// block on the next read). scan runs in a goroutine so a lost end marker shows
-// up as a timeout instead of hanging the test process.
+// scanHarness drives Process.scan() without a real bash/PTY by replacing the
+// process's read source with a channel. Each chunk the test writes is returned
+// as exactly one read() call, so read boundaries are deterministic - no sleeps,
+// no reliance on pipe scheduling. scan runs in a goroutine so a lost end marker
+// shows up as a timeout instead of hanging the test process.
+//
+// Handshake: before every read, scan signals readReady, then blocks receiving
+// the next chunk. write() waits for that signal before sending, guaranteeing
+// the chunk lands in the read scan is about to perform. While scan is parked
+// waiting for a chunk it is not touching inputBuffer, so a test may inspect
+// inputBuffer between readReady and the next write without racing the scanner.
 type scanHarness struct {
-	p        *Process
-	reader   *os.File
-	writer   *os.File
-	scanErr  chan error
+	p         *Process
+	scanErr   chan error
+	chunks    chan []byte
+	readReady chan struct{}
+	closeOnce sync.Once
+
 	outputMu sync.Mutex
 	output   strings.Builder
 }
@@ -26,18 +35,13 @@ type scanHarness struct {
 func newScanHarness(t *testing.T) *scanHarness {
 	t.Helper()
 
-	reader, writer, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("os.Pipe: %v", err)
-	}
-
 	h := &scanHarness{
-		reader:  reader,
-		writer:  writer,
-		scanErr: make(chan error, 1),
+		scanErr:   make(chan error, 1),
+		chunks:    make(chan []byte),
+		readReady: make(chan struct{}, 1),
 	}
 
-	shell := &Shell{TTY: reader, ExitSignal: make(chan string, 1)}
+	shell := &Shell{ExitSignal: make(chan string, 1)}
 	h.p = NewProcess(Config{
 		Shell:       shell,
 		StoragePath: os.TempDir(),
@@ -48,9 +52,19 @@ func newScanHarness(t *testing.T) *scanHarness {
 		},
 	})
 
+	h.p.readSource = func() ([]byte, error) {
+		h.readReady <- struct{}{}
+		chunk, ok := <-h.chunks
+		if !ok {
+			return nil, io.EOF
+		}
+		return chunk, nil
+	}
+
+	// If a test bails out before feeding a completing marker, unblock the
+	// parked scanner so its goroutine exits instead of leaking.
 	t.Cleanup(func() {
-		_ = h.writer.Close()
-		_ = h.reader.Close()
+		h.closeOnce.Do(func() { close(h.chunks) })
 	})
 
 	return h
@@ -60,14 +74,21 @@ func (h *scanHarness) run() {
 	go func() { h.scanErr <- h.p.scan() }()
 }
 
+// awaitRead blocks until scan is parked waiting for its next read().
+func (h *scanHarness) awaitRead() {
+	<-h.readReady
+}
+
+// feed hands scan the bytes for the read it is currently waiting on. It must be
+// called only after awaitRead (write() does both).
+func (h *scanHarness) feed(chunk string) {
+	h.chunks <- []byte(chunk)
+}
+
 func (h *scanHarness) write(t *testing.T, chunk string) {
 	t.Helper()
-	if _, err := h.writer.WriteString(chunk); err != nil {
-		t.Fatalf("writing chunk to pty pipe: %v", err)
-	}
-	// Give scan time to consume this chunk and block on the next read, so the
-	// following chunk lands in a separate read() call.
-	time.Sleep(60 * time.Millisecond)
+	h.awaitRead()
+	h.feed(chunk)
 }
 
 func (h *scanHarness) collectedOutput() string {
@@ -112,6 +133,42 @@ func Test__Scan_CompletesWhenStrayControlBytePrecedesEndMarker(t *testing.T) {
 	}
 }
 
+// When a stray \001, ordinary command output, and the complete end marker all
+// arrive in a single read, scan must locate the *whole* marker (not the first
+// \001) so the output before the marker is published rather than discarded.
+// Only the marker itself is stripped.
+func Test__Scan_PreservesOutputAroundStrayControlByteInSameRead(t *testing.T) {
+	h := newScanHarness(t)
+	p := h.p
+	h.run()
+
+	h.write(t, "\001 "+p.startMark+"\r\n")
+
+	// One read: a stray \001 inside ordinary output, followed by the complete
+	// real end marker. "hello\001world " is genuine output; the marker begins
+	// at the second \001 (the only \001 followed by " <endMark>").
+	h.write(t, "hello\001world \001 "+p.endMark+" 0\r\n")
+
+	select {
+	case err := <-h.scanErr:
+		if err != nil {
+			t.Fatalf("scan returned error: %v", err)
+		}
+		if p.ExitCode != 0 {
+			t.Fatalf("expected exit code 0, got %d", p.ExitCode)
+		}
+		out := h.collectedOutput()
+		if !strings.Contains(out, "hello\001world ") {
+			t.Fatalf("ordinary output around the stray \\001 was lost: %q", out)
+		}
+		if strings.Contains(out, p.endMark) {
+			t.Fatalf("end marker leaked into job output: %q", out)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("scan did not complete when a stray \\001 preceded the end marker in one read")
+	}
+}
+
 // A pathological stream of \001 bytes with no completing marker must not grow
 // the input buffer without bound: the retained partial-marker tail is capped.
 func Test__Scan_BoundsBufferOnRepeatedControlBytes(t *testing.T) {
@@ -127,12 +184,15 @@ func Test__Scan_BoundsBufferOnRepeatedControlBytes(t *testing.T) {
 		h.write(t, "\001"+strings.Repeat("Y", len(p.endMark)+20))
 	}
 
-	if got := len(p.inputBuffer); got > len(p.endMark)+10 {
-		t.Fatalf("input buffer not bounded: %d bytes retained (max %d)", got, len(p.endMark)+10)
+	// Wait until scan has consumed all of the above and parked on the next
+	// read. It is not touching inputBuffer now, so this read is race-free.
+	h.awaitRead()
+	if got := len(p.inputBuffer); got > p.maxEndMarkerLen() {
+		t.Fatalf("input buffer not bounded: %d bytes retained (max %d)", got, p.maxEndMarkerLen())
 	}
 
 	// A real marker still completes afterwards.
-	h.write(t, "\001 "+p.endMark+" 0\r\n")
+	h.feed("\001 " + p.endMark + " 0\r\n")
 
 	select {
 	case err := <-h.scanErr:
