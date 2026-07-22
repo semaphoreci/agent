@@ -52,6 +52,7 @@ type Process struct {
 	Pid               int
 	startMark         string
 	endMark           string
+	commandStartRegex *regexp.Regexp
 	commandEndRegex   *regexp.Regexp
 	inputBuffer       []byte
 	outputBuffer      *OutputBuffer
@@ -66,6 +67,7 @@ func randomMagicMark() string {
 func NewProcess(config Config) *Process {
 	startMark := randomMagicMark() + "-start"
 	endMark := randomMagicMark() + "-end"
+	commandStartRegex := regexp.MustCompile(startMark + `\r?\n`)
 	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d+)` + "[\r\n]+")
 	outputBuffer, _ := NewOutputBuffer(config.OnOutput)
 
@@ -76,6 +78,7 @@ func NewProcess(config Config) *Process {
 		ExitCode:          1,
 		startMark:         startMark,
 		endMark:           endMark,
+		commandStartRegex: commandStartRegex,
 		commandEndRegex:   commandEndRegex,
 		outputBuffer:      outputBuffer,
 		UseBase64Encoding: config.UseBase64Encoding,
@@ -92,6 +95,40 @@ func (p *Process) EnvironmentFilePath() string {
 
 func (p *Process) flushInputAll() {
 	p.flushInputBufferTill(len(p.inputBuffer))
+}
+
+// flushInputBufferKeepingMarkerTail is used in buffering mode when the buffer
+// holds a \001 (a possible end-marker start) but no complete end marker has
+// matched yet. It flushes buffered output but retains a trailing slice that
+// could be a not-yet-complete end marker: everything from the LAST \001 onward.
+//
+// The leading \001 that put us in buffering mode may be a stray byte from the
+// command's own output (e.g. binary data printed to the log), with the real
+// marker arriving right after it. Flushing the whole buffer here would leak a
+// partially-received real marker into the job output and the marker would
+// never be recognized (the original hang). Keeping the tail from the last
+// \001 preserves the partial marker across reads.
+//
+// The tail is capped at maxEndMarkerLen: a real marker is never longer than
+// that, so if the tail already exceeds it the leading \001 cannot be a partial
+// marker and the whole buffer is safe to flush. This keeps memory bounded even
+// under a pathological stream of \001 bytes.
+func (p *Process) flushInputBufferKeepingMarkerTail() {
+	lastMark := strings.LastIndex(string(p.inputBuffer), "\001")
+
+	if lastMark < 0 || len(p.inputBuffer)-lastMark > p.maxEndMarkerLen() {
+		p.flushInputAll()
+		return
+	}
+
+	p.flushInputBufferTill(lastMark)
+}
+
+// maxEndMarkerLen is the largest number of bytes a complete end marker can
+// occupy: "\001 " + endMark + " " + exit code digits + line terminator. The
+// +10 slack covers the prefix, separators, exit code, and CR/LF.
+func (p *Process) maxEndMarkerLen() int {
+	return len(p.endMark) + 10
 }
 
 func (p *Process) flushInputBufferTill(index int) {
@@ -415,20 +452,22 @@ func (p *Process) waitForStartMarker() error {
 		}
 
 		//
-		// If the inputBuffer has a start marker, the wait is done
+		// If the inputBuffer has a start marker, the wait is done.
 		//
-		index := strings.Index(string(p.inputBuffer), p.startMark+"\r\n")
-
-		if index >= 0 {
+		// The marker's line terminator may be \r\n or a bare \n (a previous
+		// command can leave the PTY in -onlcr mode), so we match \r?\n rather
+		// than a literal \r\n.
+		//
+		if loc := p.commandStartRegex.FindStringIndex(string(p.inputBuffer)); loc != nil {
 			//
-			// Cut everything from the buffer before the marker
+			// Cut everything from the buffer up to and including the marker.
 			// Example:
 			//
 			// buffer before: some test <***marker**> rest of the test
 			// buffer after :  rest of the test
 			//
 
-			p.inputBuffer = p.inputBuffer[index+len(p.startMark)+2 : len(p.inputBuffer)]
+			p.inputBuffer = p.inputBuffer[loc[1]:]
 
 			break
 		}
@@ -471,12 +510,15 @@ func (p *Process) scan() error {
 
 			//
 			// The buffer is much longer than the end mark, at least by 10
-			// characters.
+			// characters, but still doesn't match the full end marker.
 			//
-			// If it is not matching the full end mark, it is safe to dump.
+			// The leading \001 was therefore a stray byte, not our marker, so
+			// it is safe to dump the buffered output. We keep only the tail
+			// from the last \001, which may be a real marker that split across
+			// reads - flushing it here would lose the marker and hang the job.
 			//
-			if len(p.inputBuffer) >= len(p.endMark)+10 {
-				p.flushInputAll()
+			if len(p.inputBuffer) >= p.maxEndMarkerLen() {
+				p.flushInputBufferKeepingMarkerTail()
 			}
 		} else {
 			p.flushInputAll()
