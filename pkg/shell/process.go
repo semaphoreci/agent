@@ -58,6 +58,10 @@ type Process struct {
 	outputBuffer      *OutputBuffer
 	SysProcAttr       *syscall.SysProcAttr
 	UseBase64Encoding bool
+
+	// readSource, when non-nil, replaces reading from the shell TTY. Tests set
+	// it to drive scan() one read at a time with deterministic read boundaries.
+	readSource func() ([]byte, error)
 }
 
 func randomMagicMark() string {
@@ -68,7 +72,12 @@ func NewProcess(config Config) *Process {
 	startMark := randomMagicMark() + "-start"
 	endMark := randomMagicMark() + "-end"
 	commandStartRegex := regexp.MustCompile(startMark + `\r?\n`)
-	commandEndRegex := regexp.MustCompile(endMark + " " + `(\d+)` + "[\r\n]+")
+
+	// The end marker is emitted as `\001 <endMark> <exit code>\n` (see
+	// constructShellInstruction). Matching it *including* the \001 prefix lets
+	// scan locate the complete marker anywhere in the buffer and flush anything
+	// before it - even a stray \001 - as ordinary output rather than dropping it.
+	commandEndRegex := regexp.MustCompile("\001 " + endMark + " " + `(\d+)` + "[\r\n]+")
 	outputBuffer, _ := NewOutputBuffer(config.OnOutput)
 
 	return &Process{
@@ -424,6 +433,12 @@ func (p *Process) readNonPTY(reader *io.PipeReader, done chan bool) {
 
 // Read state from shell into the inputBuffer
 func (p *Process) read() error {
+	if p.readSource != nil {
+		data, err := p.readSource()
+		p.inputBuffer = append(p.inputBuffer, data...)
+		return err
+	}
+
 	buffer := make([]byte, p.readBufferSize())
 
 	log.Debug("Reading started")
@@ -493,29 +508,37 @@ func (p *Process) scan() error {
 	exitCode := ""
 
 	for {
+		//
+		// A complete end marker (with its \001 prefix) ends the command.
+		// Matching the whole marker means anything before it - including a
+		// stray \001 emitted by the command's own output - is flushed as
+		// ordinary output instead of being discarded.
+		//
+		buffered := string(p.inputBuffer)
+		if loc := p.commandEndRegex.FindStringSubmatchIndex(buffered); loc != nil {
+			exitCode = buffered[loc[2]:loc[3]]
+			log.Debug("End marker detected. Exit code: ", exitCode)
+
+			// Everything before the marker is genuine command output.
+			p.flushInputBufferTill(loc[0])
+			break
+		}
+
 		if index := p.endMarkerHeaderIndex(); index >= 0 {
-			if index > 0 {
-				// publish everything until the end mark
-				p.flushInputBufferTill(index)
-			}
-
+			//
+			// A \001 is present but no complete marker has arrived yet - it may
+			// still be streaming in across reads. Flush everything before the
+			// first \001 as ordinary output and stay in buffering mode.
+			//
 			log.Debug("Start of end marker detected, entering buffering mode.")
-
-			if match := p.commandEndRegex.FindStringSubmatch(string(p.inputBuffer)); len(match) == 2 {
-				log.Debug("End marker detected. Exit code: ", match[1])
-
-				exitCode = match[1]
-				break
-			}
+			p.flushInputBufferTill(index)
 
 			//
-			// The buffer is much longer than the end mark, at least by 10
-			// characters, but still doesn't match the full end marker.
-			//
-			// The leading \001 was therefore a stray byte, not our marker, so
-			// it is safe to dump the buffered output. We keep only the tail
-			// from the last \001, which may be a real marker that split across
-			// reads - flushing it here would lose the marker and hang the job.
+			// The buffer has grown past the longest possible marker without
+			// matching, so the leading \001 was a stray byte. Flush it, keeping
+			// only the tail from the last \001, which may be a real marker that
+			// split across reads - flushing it here would lose the marker and
+			// hang the job.
 			//
 			if len(p.inputBuffer) >= p.maxEndMarkerLen() {
 				p.flushInputBufferKeepingMarkerTail()
