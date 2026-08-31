@@ -11,6 +11,7 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	assert "github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -790,6 +791,58 @@ func Test__CreatePod(t *testing.T) {
 			"semaphoreci.com/agent-type": "s1-test",
 		})
 	})
+
+	t.Run("with image volume from pod spec", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{
+			podSpecWithImageVolume("default"),
+		})
+
+		imageValidator, _ := NewImageValidator([]string{})
+		client, err := NewKubernetesClient(clientset, Config{
+			Namespace:                 "default",
+			PodSpecDecoratorConfigMap: "pod-spec",
+			ImageValidator:            imageValidator,
+		})
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		_ = client.LoadPodSpec()
+		podName := "mypod"
+
+		assert.NoError(t, client.CreatePod(podName, "myenvsecret", "", &api.JobRequest{
+			Compose: api.Compose{Containers: []api.Container{{Name: "main", Image: "my-image"}}},
+		}))
+
+		pod, err := clientset.CoreV1().
+			Pods("default").
+			Get(context.Background(), podName, v1.GetOptions{})
+
+		assert.NoError(t, err)
+
+		var volume *corev1.Volume
+		for i := range pod.Spec.Volumes {
+			if pod.Spec.Volumes[i].Name == "deps" {
+				volume = &pod.Spec.Volumes[i]
+			}
+		}
+
+		if !assert.NotNil(t, volume) {
+			return
+		}
+
+		if !assert.NotNil(t, volume.Image) {
+			return
+		}
+
+		assert.Equal(t, "registry.example.com/deps:abc123", volume.Image.Reference)
+		assert.Equal(t, corev1.PullIfNotPresent, volume.Image.PullPolicy)
+		assert.Contains(t, pod.Spec.Containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      "deps",
+			MountPath: "/deps",
+		})
+	})
 }
 
 func Test__WaitForPod(t *testing.T) {
@@ -870,11 +923,11 @@ func Test_DeletePod(t *testing.T) {
 	assert.NoError(t, client.DeletePod(podName))
 
 	// pod does not exist anymore
-	pod, err := clientset.CoreV1().
+	_, err := clientset.CoreV1().
 		Pods("default").
 		Get(context.Background(), podName, v1.GetOptions{})
 	assert.Error(t, err)
-	assert.Nil(t, pod)
+	assert.True(t, apierrors.IsNotFound(err))
 }
 
 func Test_DeleteSecret(t *testing.T) {
@@ -891,11 +944,11 @@ func Test_DeleteSecret(t *testing.T) {
 	assert.NoError(t, client.DeleteSecret(secretName))
 
 	// secret does not exist anymore
-	pod, err := clientset.CoreV1().
+	_, err := clientset.CoreV1().
 		Secrets("default").
 		Get(context.Background(), secretName, v1.GetOptions{})
 	assert.Error(t, err)
-	assert.Nil(t, pod)
+	assert.True(t, apierrors.IsNotFound(err))
 }
 
 func newFakeClientset(objects []runtime.Object) kubernetes.Interface {
@@ -965,6 +1018,26 @@ func podSpecWithResources(namespace string) *corev1.ConfigMap {
             cpu: 50m
             memory: 50Mi
        `,
+		},
+	}
+}
+
+func podSpecWithImageVolume(namespace string) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: v1.ObjectMeta{Name: "pod-spec", Namespace: namespace},
+		Data: map[string]string{
+			"pod": `
+        volumes:
+          - name: deps
+            image:
+              reference: registry.example.com/deps:abc123
+              pullPolicy: IfNotPresent
+      `,
+			"mainContainer": `
+        volumeMounts:
+          - name: deps
+            mountPath: /deps
+      `,
 		},
 	}
 }
