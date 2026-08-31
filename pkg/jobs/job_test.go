@@ -15,6 +15,7 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
+	executors "github.com/semaphoreci/agent/pkg/executors"
 	testsupport "github.com/semaphoreci/agent/test/support"
 	"github.com/stretchr/testify/assert"
 )
@@ -1431,4 +1432,56 @@ func Test__WaitForLogArchivalStatus(t *testing.T) {
 		status := job.waitForLogArchival(50*time.Millisecond, 10*time.Millisecond)
 		assert.Equal(t, JobLogArchivalStatusFailed, status)
 	})
+}
+
+// stubExecutor lets us drive RunWithOptions without a real shell/container.
+// Prepare() fails (executor never boots); RunCommandWithOptions records whether
+// it was reached, which is our proxy for "the post-job hook was attempted".
+type stubExecutor struct {
+	runCommandCalled bool
+}
+
+func (s *stubExecutor) Prepare() int                                        { return 1 }
+func (s *stubExecutor) Start() int                                          { return 0 }
+func (s *stubExecutor) ExportEnvVars([]api.EnvVar, []config.HostEnvVar) int { return 0 }
+func (s *stubExecutor) InjectFiles([]api.File) int                          { return 0 }
+func (s *stubExecutor) RunCommand(string, bool, string) int                 { return 0 }
+func (s *stubExecutor) RunCommandWithOptions(executors.CommandOptions) int {
+	s.runCommandCalled = true
+	return 0
+}
+func (s *stubExecutor) GetOutputFromCommand(string) (string, int) { return "", 0 }
+func (s *stubExecutor) Stop() int                                 { return 0 }
+func (s *stubExecutor) Cleanup() int                              { return 0 }
+
+func Test__PostJobHookSkippedWhenExecutorFailsToPrepare(t *testing.T) {
+	testLogger, _ := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		EnvVars:  []api.EnvVar{},
+		Commands: []api.Command{},
+		Logger:   api.Logger{Method: eventlogger.LoggerMethodPush},
+	}
+
+	job, err := NewJobWithOptions(&JobOptions{Request: request, Client: http.DefaultClient, Logger: testLogger})
+	assert.Nil(t, err)
+
+	stub := &stubExecutor{}
+	job.Executor = stub
+
+	hook, _ := testsupport.TempFileWithExtension()
+	defer os.Remove(hook)
+
+	// The hook path must be non-empty, or runPostJobHook returns early and never
+	// reaches the executor — so with it set, the executorRunning guard is what
+	// keeps the hook from running after the failed boot.
+	job.RunWithOptions(RunOptions{
+		EnvVars:               []config.HostEnvVar{},
+		PostJobHookPath:       hook,
+		OnJobFinished:         nil,
+		CallbackRetryAttempts: 1,
+	})
+
+	assert.True(t, job.Finished)
+	assert.False(t, stub.runCommandCalled,
+		"post-job hook must not run when the executor failed to prepare")
 }
