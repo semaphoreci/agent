@@ -6,6 +6,7 @@ import (
 	"math"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -38,7 +39,7 @@ type OutputBuffer struct {
 	Consumer     func(string)
 	bytes        []byte
 	mu           sync.Mutex
-	done         bool
+	done         atomic.Bool
 	lastAppend   *time.Time
 	flushTimeout time.Duration
 }
@@ -73,6 +74,8 @@ func (b *OutputBuffer) Append(bytes []byte) {
 }
 
 func (b *OutputBuffer) IsEmpty() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	return len(b.bytes) == 0
 }
 
@@ -80,7 +83,7 @@ func (b *OutputBuffer) Flush() {
 	backoffStrategy := b.exponentialBackoff()
 
 	for {
-		if b.done {
+		if b.done.Load() {
 			log.Debugf("The output buffer was closed - stopping")
 			break
 		}
@@ -157,7 +160,7 @@ func (b *OutputBuffer) flush() {
 	 *       is because we are cutting it here to fit it into the chunk.
 	 */
 
-	if !b.done || (b.done && cutLength == chunkSize) {
+	if !b.done.Load() || (b.done.Load() && cutLength == chunkSize) {
 		for i := 0; i < 4; i++ {
 			if utf8.Valid(b.bytes[0:cutLength]) {
 				break
@@ -227,7 +230,7 @@ func (b *OutputBuffer) timeSinceLastAppend() time.Duration {
 func (b *OutputBuffer) chunkSize() int {
 	// If the output buffer was already closed, we should
 	// use bigger chunks to make sure we can flush everything left in time.
-	if b.done {
+	if b.done.Load() {
 		return OutputBufferDefaultCutLength * 10
 	}
 
@@ -235,7 +238,7 @@ func (b *OutputBuffer) chunkSize() int {
 }
 
 func (b *OutputBuffer) Close() error {
-	b.done = true
+	b.done.Store(true)
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), b.flushTimeout)
 	defer cancelFunc()
