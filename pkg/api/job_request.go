@@ -146,11 +146,77 @@ func NewRequestFromYamlFile(path string) (*JobRequest, error) {
 }
 
 func (e *EnvVar) Decode() ([]byte, error) {
-	return base64.StdEncoding.DecodeString(e.Value)
+	value, err := base64.StdEncoding.DecodeString(e.Value)
+	if err != nil {
+		return value, fmt.Errorf("error decoding '%s' (%s): %v", e.Name, describeBase64Value(e.Value), err)
+	}
+
+	return value, nil
 }
 
 func (f *File) Decode() ([]byte, error) {
-	return base64.StdEncoding.DecodeString(f.Content)
+	content, err := base64.StdEncoding.DecodeString(f.Content)
+	if err != nil {
+		return content, fmt.Errorf("error decoding '%s' (%s): %v", f.Path, describeBase64Value(f.Content), err)
+	}
+
+	return content, nil
+}
+
+/*
+ * Describes why base64.StdEncoding might reject a value, without ever
+ * including the value itself, since env vars and files hold secrets.
+ * The base64 error alone only points at a byte offset, which is not enough
+ * to tell a truncated value from one encoded with the wrong alphabet.
+ */
+var newLines = strings.NewReplacer("\r", "", "\n", "")
+
+func describeBase64Value(value string) string {
+	description := fmt.Sprintf("length %d", len(value))
+
+	if strings.ContainsAny(value, "-_") {
+		description += ", url-safe alphabet"
+	}
+
+	// \r and \n are ignored by the decoder, so they don't count towards padding.
+	if len(newLines.Replace(value))%4 != 0 {
+		description += ", not padded to a multiple of 4"
+	}
+
+	if strings.ContainsAny(value, " \t\r\n") {
+		description += ", contains whitespace"
+	}
+
+	return description
+}
+
+/*
+ * Decodes every env var and file in the job request, reporting all the ones
+ * that are not valid base64. Only the fields that are always decoded when a
+ * job runs are checked here: container env vars, image pull credentials and
+ * SSH public keys are decoded conditionally (or with the error ignored),
+ * so a bad value there does not necessarily break the job.
+ */
+func (j *JobRequest) ValidateEncoding() error {
+	errs := []string{}
+
+	for _, envVar := range j.EnvVars {
+		if _, err := envVar.Decode(); err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+
+	for _, file := range j.Files {
+		if _, err := file.Decode(); err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("%s", strings.Join(errs, "; "))
+	}
+
+	return nil
 }
 
 const ImagePullCredentialsStrategyDockerHub = "DockerHub"
@@ -165,7 +231,7 @@ func (c *ImagePullCredentials) ToCmdEnvVars() ([]string, error) {
 		name := env.Name
 		value, err := env.Decode()
 		if err != nil {
-			return envs, fmt.Errorf("error decoding '%s': %v", env.Name, err)
+			return envs, err
 		}
 
 		envs = append(envs, fmt.Sprintf("%s=%s", name, string(value)))
@@ -179,7 +245,7 @@ func (c *ImagePullCredentials) FindFile(path string) (string, error) {
 		if f.Path == path {
 			v, err := f.Decode()
 			if err != nil {
-				return "", fmt.Errorf("error decoding '%s': %v", path, err)
+				return "", err
 			}
 
 			return string(v), nil
@@ -198,7 +264,7 @@ func findEnvVar(envVars []EnvVar, varName string) (string, error) {
 		if envVar.Name == varName {
 			v, err := envVar.Decode()
 			if err != nil {
-				return "", fmt.Errorf("error decoding '%s': %v", varName, err)
+				return "", err
 			}
 
 			return string(v), nil

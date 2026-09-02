@@ -40,7 +40,7 @@ func Test__CreateEnvironment(t *testing.T) {
 		assertValueExists(t, env, "B", "BBB")
 	})
 
-	t.Run("var from job request not properly encoded => error", func(t *testing.T) {
+	t.Run("var from job request not properly encoded => error names the var", func(t *testing.T) {
 		varsFromRequest := []api.EnvVar{
 			{Name: "A", Value: "AAA"},
 		}
@@ -48,6 +48,7 @@ func Test__CreateEnvironment(t *testing.T) {
 		env, err := CreateEnvironment(varsFromRequest, []config.HostEnvVar{})
 		assert.NotNil(t, err)
 		assert.Nil(t, env)
+		assert.ErrorContains(t, err, "error decoding 'A'")
 	})
 
 	t.Run("var is overwritten by subsequent var in request", func(t *testing.T) {
