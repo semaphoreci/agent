@@ -120,6 +120,29 @@ func Test__ShellExecutor__EnvVars(t *testing.T) {
 	})
 }
 
+func Test__ShellExecutor__UndecodableEnvVarIsNamedInJobLog(t *testing.T) {
+	e, testLoggerBackend := setupShellExecutor(t, true)
+	assert.Equal(t, 1, e.ExportEnvVars(
+		[]api.EnvVar{
+			{Name: "A", Value: base64.StdEncoding.EncodeToString([]byte("AAA"))},
+			{Name: "SEMAPHORE_GIT_SHA", Value: "abc$def"},
+		},
+		[]config.HostEnvVar{},
+	))
+
+	assert.Zero(t, e.Stop())
+	assert.Zero(t, e.Cleanup())
+
+	simplifiedEvents, err := testLoggerBackend.SimplifiedEvents(true, false)
+	assert.Nil(t, err)
+
+	assert.Equal(t, []string{
+		"directive: Exporting environment variables",
+		"Failed to export environment variables: error decoding 'SEMAPHORE_GIT_SHA' (length 7, not padded to a multiple of 4): illegal base64 data at input byte 3\n",
+		"Exit Code: 1",
+	}, simplifiedEvents)
+}
+
 func Test__ShellExecutor__InjectFiles(t *testing.T) {
 	e, testLoggerBackend := setupShellExecutor(t, true)
 	homeDir, _ := os.UserHomeDir()

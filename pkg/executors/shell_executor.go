@@ -120,6 +120,8 @@ func (e *ShellExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config
 
 	environment, err := shell.CreateEnvironment(envVars, hostEnvVars)
 	if err != nil {
+		log.Errorf("Error creating environment: %v", err)
+		e.Logger.LogCommandOutput(fmt.Sprintf("Failed to export environment variables: %v\n", err))
 		exitCode = 1
 		return exitCode
 	}
