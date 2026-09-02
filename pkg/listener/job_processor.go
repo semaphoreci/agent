@@ -22,6 +22,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+/*
+ * A job payload that fails to decode is almost always persistent, server-side
+ * data, so we only re-fetch it a couple of times, with a short wait.
+ */
+const validateJobPayloadAttempts = 3
+const validateJobPayloadDelay = time.Second
+
 func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, config Config) (*JobProcessor, error) {
 	p := &JobProcessor{
 		HTTPClient:                       httpClient,
@@ -202,6 +209,8 @@ func (p *JobProcessor) RunJob(jobID string) {
 		return
 	}
 
+	jobRequest = p.refetchIfEncodingIsInvalid(jobID, jobRequest)
+
 	job, err := jobs.NewJobWithOptions(&jobs.JobOptions{
 		Request:                          jobRequest,
 		Client:                           p.HTTPClient,
@@ -240,6 +249,46 @@ func (p *JobProcessor) RunJob(jobID string) {
 		CallbackRetryAttempts: p.CallbackRetryAttempts,
 		OnJobFinished:         p.JobFinished,
 	})
+}
+
+/*
+ * A job payload might carry env vars or files that are not valid base64,
+ * in which case the job dies before checkout and there is nothing to run.
+ * Since the corruption might have happened in transit, we give the payload
+ * a few more chances before using it.
+ *
+ * A payload that stays invalid is used anyway: the job then fails in the
+ * executor, which names the offending variable in the job log. Failing here
+ * instead would report a failed job before the job logger exists, leaving
+ * no job log at all for whoever needs to debug it.
+ */
+func (p *JobProcessor) refetchIfEncodingIsInvalid(jobID string, jobRequest *api.JobRequest) *api.JobRequest {
+	err := retry.RetryWithConstantWait(retry.RetryOptions{
+		Task:                 "Validate job payload",
+		MaxAttempts:          validateJobPayloadAttempts,
+		DelayBetweenAttempts: validateJobPayloadDelay,
+		Fn: func() error {
+			err := jobRequest.ValidateEncoding()
+			if err == nil {
+				return nil
+			}
+
+			newJobRequest, getJobErr := p.APIClient.GetJob(jobID)
+			if getJobErr != nil {
+				log.Errorf("Could not re-fetch job %s: %v", jobID, getJobErr)
+				return err
+			}
+
+			jobRequest = newJobRequest
+			return err
+		},
+	})
+
+	if err != nil {
+		log.Errorf("Job %s has an invalid payload - running it anyway: %v", jobID, err)
+	}
+
+	return jobRequest
 }
 
 func (p *JobProcessor) getJobWithRetries(jobID string) (*api.JobRequest, error) {

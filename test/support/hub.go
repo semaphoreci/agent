@@ -27,6 +27,8 @@ type HubMockServer struct {
 	RegisterAttempts          int
 	GetJobAttemptRejections   int
 	GetJobAttempts            int
+	BadJobRequest             *api.JobRequest
+	BadJobAttempts            int
 	ShouldShutdown            bool
 	Disconnected              bool
 	RunningJob                bool
@@ -234,15 +236,22 @@ func (m *HubMockServer) handleGetJobRequest(w http.ResponseWriter, r *http.Reque
 	if m.GetJobAttempts < m.GetJobAttemptRejections {
 		fmt.Printf("[HUB MOCK] Get job, Attempts: %d, Rejections: %d, rejecting...\n", m.GetJobAttempts, m.GetJobAttemptRejections)
 		w.WriteHeader(500)
+		return
 	}
 
-	if m.JobRequest == nil {
+	jobRequest := m.JobRequest
+	if m.BadJobRequest != nil && m.GetJobAttempts <= m.BadJobAttempts {
+		fmt.Printf("[HUB MOCK] Get job, Attempts: %d, serving bad job request...\n", m.GetJobAttempts)
+		jobRequest = m.BadJobRequest
+	}
+
+	if jobRequest == nil {
 		fmt.Printf("[HUB MOCK] No jobRequest in use\n")
 		w.WriteHeader(404)
 		return
 	}
 
-	response, err := json.Marshal(m.JobRequest)
+	response, err := json.Marshal(jobRequest)
 	if err != nil {
 		fmt.Printf("[HUB MOCK] Error marshaling job request: %v\n", err)
 		w.WriteHeader(500)
@@ -262,6 +271,13 @@ func (m *HubMockServer) AssignJob(jobRequest *api.JobRequest) {
 
 func (m *HubMockServer) RejectRegisterAttempts(times int) {
 	m.RegisterAttemptRejections = times
+}
+
+// Serves jobRequest for the first N GetJob attempts,
+// and whatever was passed to AssignJob() afterwards.
+func (m *HubMockServer) AssignBadJobFor(times int, jobRequest *api.JobRequest) {
+	m.BadJobAttempts = times
+	m.BadJobRequest = jobRequest
 }
 
 func (m *HubMockServer) RejectGetJobAttempts(times int) {
