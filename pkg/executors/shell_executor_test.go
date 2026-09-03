@@ -253,10 +253,15 @@ func Test__ShellExecutor__InjectFiles(t *testing.T) {
 
 func Test__ShellExecutor__UndecodableFileIsNamedInJobLog(t *testing.T) {
 	e, testLoggerBackend := setupShellExecutor(t, true)
-	assert.Equal(t, 1, e.InjectFiles([]api.File{
-		{Path: "/tmp/repro-10631", Content: "abc$def", Mode: "0644"},
-	}))
+	homeDir, _ := os.UserHomeDir()
 
+	file := api.File{
+		Path:    filepath.Join(os.TempDir(), "undecodable-file.txt"),
+		Content: "abc$def",
+		Mode:    "0644",
+	}
+
+	assert.Equal(t, 1, e.InjectFiles([]api.File{file}))
 	assert.Zero(t, e.Stop())
 	assert.Zero(t, e.Cleanup())
 
@@ -265,8 +270,11 @@ func Test__ShellExecutor__UndecodableFileIsNamedInJobLog(t *testing.T) {
 
 	assert.Equal(t, []string{
 		"directive: Injecting Files",
-		"Injecting /tmp/repro-10631 with file mode 0644\n",
-		"Failed to decode the content of the file: error decoding '/tmp/repro-10631' (length 7, not padded to a multiple of 4): illegal base64 data at input byte 3\n",
+		fmt.Sprintf("Injecting %s with file mode 0644\n", file.NormalizePath(homeDir)),
+		fmt.Sprintf(
+			"Failed to decode the content of the file: error decoding '%s' (length 7, not padded to a multiple of 4): illegal base64 data at input byte 3\n",
+			file.Path,
+		),
 		"Exit Code: 1",
 	}, simplifiedEvents)
 }
