@@ -523,10 +523,20 @@ func (job *Job) runPostJobHook(options RunOptions) {
 	log.Errorf("Error executing post-job hook - hook return exit code %d", exitCode)
 }
 
-func (job *Job) handleEpilogues(result string) {
-	envVars := []api.EnvVar{
-		{Name: "SEMAPHORE_JOB_RESULT", Value: base64.RawStdEncoding.EncodeToString([]byte(result))},
+/*
+ * The value is decoded by api.EnvVar.Decode, which uses the standard padded
+ * encoding, so it has to be encoded the same way. RawStdEncoding used to work
+ * here only because "passed" and "failed" are 6 bytes and need no padding.
+ */
+func jobResultEnvVar(result string) api.EnvVar {
+	return api.EnvVar{
+		Name:  "SEMAPHORE_JOB_RESULT",
+		Value: base64.StdEncoding.EncodeToString([]byte(result)),
 	}
+}
+
+func (job *Job) handleEpilogues(result string) {
+	envVars := []api.EnvVar{jobResultEnvVar(result)}
 
 	exitCode := job.Executor.ExportEnvVars(envVars, []config.HostEnvVar{})
 	if exitCode != 0 {
