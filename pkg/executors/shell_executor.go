@@ -50,7 +50,8 @@ func (e *ShellExecutor) setUpSSHJumpPoint() int {
 	err := InjectEntriesToAuthorizedKeys(e.jobRequest.SSHPublicKeys)
 
 	if err != nil {
-		log.Errorf("Failed to inject authorized keys: %+v", err)
+		log.Errorf("Failed to inject authorized keys: %v", err)
+		e.Logger.LogCommandOutput(fmt.Sprintf("Failed to inject authorized keys: %v\n", err))
 		return 1
 	}
 

@@ -169,6 +169,34 @@ func Test__DecodeNamesTheOffendingValue(t *testing.T) {
 	})
 }
 
+func Test__PublicKeyDecodeNamesThePosition(t *testing.T) {
+	t.Run("decode error identifies the key by position", func(t *testing.T) {
+		key := PublicKey("abc$def")
+
+		_, err := key.DecodeAt(2)
+		assert.ErrorContains(t, err, "error decoding SSH public key #2")
+		assert.ErrorContains(t, err, "length 7, not padded to a multiple of 4")
+		assert.ErrorContains(t, err, "illegal base64 data")
+	})
+
+	t.Run("decode error does not leak the key material", func(t *testing.T) {
+		key := PublicKey("ssh-rsa AAAAB3NzaC1yc2EAAAA-not-base64")
+
+		_, err := key.DecodeAt(0)
+		assert.Error(t, err)
+		assert.NotContains(t, err.Error(), "ssh-rsa")
+		assert.NotContains(t, err.Error(), "AAAAB3")
+	})
+
+	t.Run("valid key decodes", func(t *testing.T) {
+		key := PublicKey(base64.StdEncoding.EncodeToString([]byte("ssh-rsa AAAA")))
+
+		v, err := key.DecodeAt(0)
+		assert.NoError(t, err)
+		assert.Equal(t, "ssh-rsa AAAA", string(v))
+	})
+}
+
 func Test__DescribeBase64Value(t *testing.T) {
 	t.Run("reports the shape, never the content", func(t *testing.T) {
 		assert.Equal(t, "length 0", describeBase64Value(""))

@@ -92,6 +92,23 @@ func (p *PublicKey) Decode() ([]byte, error) {
 	return base64.StdEncoding.DecodeString(string(*p))
 }
 
+/*
+ * A public key has no name to report, so a decode failure is identified by
+ * its position in the job request. The key material itself is never logged:
+ * these are the keys used to authorize SSH access into the job.
+ */
+func (p *PublicKey) DecodeAt(index int) ([]byte, error) {
+	key, err := p.Decode()
+	if err != nil {
+		return key, fmt.Errorf(
+			"error decoding SSH public key #%d (%s): %v",
+			index, describeBase64Value(string(*p)), err,
+		)
+	}
+
+	return key, nil
+}
+
 type JobRequest struct {
 	JobID         string      `json:"job_id" yaml:"job_id"`
 	Executor      string      `json:"executor" yaml:"executor"`

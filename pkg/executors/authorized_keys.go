@@ -36,8 +36,8 @@ func InjectEntriesToAuthorizedKeys(keys []api.PublicKey) error {
 		return err
 	}
 
-	for _, key := range keys {
-		authorizedKeysEntry, err := key.Decode()
+	for index, key := range keys {
+		authorizedKeysEntry, err := key.DecodeAt(index)
 		if err != nil {
 			_ = authorizedKeys.Close()
 			return err
