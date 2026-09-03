@@ -444,7 +444,8 @@ func (e *DockerComposeExecutor) injectImagePullSecretsForGCR(envVars []api.EnvVa
 		content, err := f.Decode()
 
 		if err != nil {
-			e.Logger.LogCommandOutput("Failed to decode the content of the file.\n")
+			log.Errorf("Failed to decode the content of the file: %v", err)
+			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to decode the content of the file: %v\n", err))
 			return 1
 		}
 
@@ -666,9 +667,10 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 		content, err := f.Decode()
 
 		if err != nil {
-			e.Logger.LogCommandOutput("Failed to decode the content of the file.\n")
+			log.Errorf("Failed to decode the content of the file: %v", err)
+			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to decode the content of the file: %v\n", err))
 			exitCode = 1
-			return exitCode
+			break
 		}
 
 		tmpPath := fmt.Sprintf("%s/file", e.tmpDirectory)

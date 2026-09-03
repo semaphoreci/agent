@@ -223,7 +223,7 @@ func (c *KubernetesClient) CreateSecret(name string, jobRequest *api.JobRequest)
 		encodedPath := base64.RawURLEncoding.EncodeToString([]byte(file.Path))
 		content, err := file.Decode()
 		if err != nil {
-			return fmt.Errorf("error decoding file '%s': %v", file.Path, err)
+			return err
 		}
 
 		data[encodedPath] = string(content)

@@ -191,9 +191,10 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 
 		content, err := f.Decode()
 		if err != nil {
-			e.Logger.LogCommandOutput("Failed to decode the content of the file.\n")
+			log.Errorf("Failed to decode the content of the file: %v", err)
+			e.Logger.LogCommandOutput(fmt.Sprintf("Failed to decode the content of the file: %v\n", err))
 			exitCode = 1
-			return exitCode
+			break
 		}
 
 		parentDir := filepath.Dir(destPath)
