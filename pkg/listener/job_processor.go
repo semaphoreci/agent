@@ -35,7 +35,7 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		APIClient:                        apiClient,
 		UserAgent:                        config.UserAgent,
 		LastSuccessfulSync:               time.Now(),
-		forceSyncCh:                      make(chan bool),
+		forceSyncCh:                      make(chan bool, 1),
 		State:                            selfhostedapi.AgentStateWaitingForJobs,
 		DisconnectRetryAttempts:          100,
 		GetJobRetryAttempts:              config.GetJobRetryLimit,
@@ -403,7 +403,7 @@ func (p *JobProcessor) StopJob(jobID string) {
 		log.Infof("Job %s was stopped before it started running", jobID)
 		p.State = selfhostedapi.AgentStateFinishedJob
 		p.CurrentJobResult = selfhostedapi.JobResultStopped
-		p.forceSyncCh <- true
+		p.forceSync()
 		return
 	}
 
@@ -416,8 +416,22 @@ func (p *JobProcessor) JobFinished(result selfhostedapi.JobResult) {
 	p.mutex.Lock()
 	p.State = selfhostedapi.AgentStateFinishedJob
 	p.CurrentJobResult = result
-	p.forceSyncCh <- true
 	p.mutex.Unlock()
+
+	p.forceSync()
+}
+
+/*
+ * SyncLoop only drains this channel between syncs, so a blocking send would
+ * wait for the sync in flight - and Sync() needs the mutex the callers of this
+ * function may be holding. The channel is buffered and the send never blocks:
+ * a nudge that cannot be queued is one that is already queued.
+ */
+func (p *JobProcessor) forceSync() {
+	select {
+	case p.forceSyncCh <- true:
+	default:
+	}
 }
 
 func (p *JobProcessor) WaitForJobs() {
@@ -443,7 +457,7 @@ func (p *JobProcessor) SetupInterruptHandler() {
 		p.InterruptedAt = time.Now().Unix()
 		p.mutex.Unlock()
 
-		p.forceSyncCh <- true
+		p.forceSync()
 	}()
 }
 
