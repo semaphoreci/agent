@@ -73,14 +73,29 @@ func (b *OutputBuffer) Append(bytes []byte) {
 }
 
 func (b *OutputBuffer) IsEmpty() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	return len(b.bytes) == 0
+}
+
+/*
+ * Close() is called from the goroutine that owns the buffer, while the flush
+ * loop runs in its own - so the flag they coordinate through needs the mutex.
+ * chunkSize() reads it directly because flush() already holds the lock.
+ */
+func (b *OutputBuffer) isDone() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.done
 }
 
 func (b *OutputBuffer) Flush() {
 	backoffStrategy := b.exponentialBackoff()
 
 	for {
-		if b.done {
+		if b.isDone() {
 			log.Debugf("The output buffer was closed - stopping")
 			break
 		}
@@ -235,7 +250,9 @@ func (b *OutputBuffer) chunkSize() int {
 }
 
 func (b *OutputBuffer) Close() error {
+	b.mu.Lock()
 	b.done = true
+	b.mu.Unlock()
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), b.flushTimeout)
 	defer cancelFunc()
