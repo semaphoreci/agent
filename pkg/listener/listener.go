@@ -26,6 +26,8 @@ type Config struct {
 	Endpoint                         string
 	RegisterRetryLimit               int
 	GetJobRetryLimit                 int
+	ValidatePayloadAttempts          int
+	ValidatePayloadDelay             time.Duration
 	CallbackRetryLimit               int
 	Token                            string
 	Scheme                           string

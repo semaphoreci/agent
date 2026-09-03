@@ -26,8 +26,8 @@ import (
  * A job payload that fails to decode is almost always persistent, server-side
  * data, so we only re-fetch it a couple of times, with a short wait.
  */
-const validateJobPayloadAttempts = 3
-const validateJobPayloadDelay = time.Second
+const defaultValidatePayloadAttempts = 3
+const defaultValidatePayloadDelay = time.Second
 
 func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, config Config) (*JobProcessor, error) {
 	p := &JobProcessor{
@@ -39,6 +39,8 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		State:                            selfhostedapi.AgentStateWaitingForJobs,
 		DisconnectRetryAttempts:          100,
 		GetJobRetryAttempts:              config.GetJobRetryLimit,
+		ValidatePayloadAttempts:          orDefaultInt(config.ValidatePayloadAttempts, defaultValidatePayloadAttempts),
+		ValidatePayloadDelay:             orDefaultDuration(config.ValidatePayloadDelay, defaultValidatePayloadDelay),
 		CallbackRetryAttempts:            config.CallbackRetryLimit,
 		ShutdownHookPath:                 config.ShutdownHookPath,
 		PreJobHookPath:                   config.PreJobHookPath,
@@ -84,6 +86,8 @@ type JobProcessor struct {
 	// Job processor config
 	DisconnectRetryAttempts          int
 	GetJobRetryAttempts              int
+	ValidatePayloadAttempts          int
+	ValidatePayloadDelay             time.Duration
 	CallbackRetryAttempts            int
 	ShutdownHookPath                 string
 	PreJobHookPath                   string
@@ -105,13 +109,29 @@ type JobProcessor struct {
 	KubernetesDefaultImage           string
 }
 
+func orDefaultInt(value, defaultValue int) int {
+	if value <= 0 {
+		return defaultValue
+	}
+
+	return value
+}
+
+func orDefaultDuration(value, defaultValue time.Duration) time.Duration {
+	if value <= 0 {
+		return defaultValue
+	}
+
+	return value
+}
+
 func (p *JobProcessor) Start() {
 	go p.SyncLoop()
 }
 
 func (p *JobProcessor) SyncLoop() {
 	for {
-		if p.StopSync {
+		if p.syncStopped() {
 			break
 		}
 
@@ -129,13 +149,23 @@ func (p *JobProcessor) SyncLoop() {
 	}
 }
 
+func (p *JobProcessor) syncStopped() bool {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	return p.StopSync
+}
+
 func (p *JobProcessor) Sync() time.Duration {
+	// Snapshot the state under the lock, but never hold it across the request.
+	p.mutex.Lock()
 	request := &selfhostedapi.SyncRequest{
 		State:         p.State,
 		JobID:         p.CurrentJobID,
 		JobResult:     p.CurrentJobResult,
 		InterruptedAt: p.InterruptedAt,
 	}
+	p.mutex.Unlock()
 
 	response, err := p.APIClient.Sync(request)
 	if err != nil {
@@ -199,10 +229,12 @@ func (p *JobProcessor) ProcessSyncResponse(response *selfhostedapi.SyncResponse)
 }
 
 func (p *JobProcessor) RunJob(jobID string) {
+	p.mutex.Lock()
 	p.State = selfhostedapi.AgentStateStartingJob
 	p.CurrentJobID = jobID
+	p.mutex.Unlock()
 
-	jobRequest, err := p.getJobWithRetries(p.CurrentJobID)
+	jobRequest, err := p.getJobWithRetries(jobID)
 	if err != nil {
 		log.Errorf("Could not get job %s: %v", jobID, err)
 		p.JobFinished(selfhostedapi.JobResultFailed)
@@ -237,8 +269,18 @@ func (p *JobProcessor) RunJob(jobID string) {
 		return
 	}
 
+	p.mutex.Lock()
+
+	// A stop-job may have arrived while the payload was being fetched.
+	if p.State == selfhostedapi.AgentStateFinishedJob {
+		p.mutex.Unlock()
+		log.Infof("Job %s was stopped while it was being fetched - not running it", jobID)
+		return
+	}
+
 	p.State = selfhostedapi.AgentStateRunningJob
 	p.CurrentJob = job
+	p.mutex.Unlock()
 
 	go job.RunWithOptions(jobs.RunOptions{
 		EnvVars:               p.EnvVars,
@@ -263,32 +305,60 @@ func (p *JobProcessor) RunJob(jobID string) {
  * no job log at all for whoever needs to debug it.
  */
 func (p *JobProcessor) refetchIfEncodingIsInvalid(jobID string, jobRequest *api.JobRequest) *api.JobRequest {
-	err := retry.RetryWithConstantWait(retry.RetryOptions{
-		Task:                 "Validate job payload",
-		MaxAttempts:          validateJobPayloadAttempts,
-		DelayBetweenAttempts: validateJobPayloadDelay,
-		Fn: func() error {
-			err := jobRequest.ValidateEncoding()
-			if err == nil {
-				return nil
-			}
+	for attempt := 1; ; attempt++ {
+		err := jobRequest.ValidateEncoding()
+		if err == nil {
+			return jobRequest
+		}
 
-			newJobRequest, getJobErr := p.APIClient.GetJob(jobID)
-			if getJobErr != nil {
-				log.Errorf("Could not re-fetch job %s: %v", jobID, getJobErr)
-				return err
-			}
+		/*
+		 * Give up on the payload we just validated, rather than fetching one
+		 * more and running the job on a request nobody looked at.
+		 */
+		if attempt >= p.ValidatePayloadAttempts {
+			log.Errorf(
+				"Job %s still has an invalid payload after %d attempts - running it anyway: %v",
+				jobID, attempt, err,
+			)
 
-			jobRequest = newJobRequest
-			return err
-		},
-	})
+			return jobRequest
+		}
 
-	if err != nil {
-		log.Errorf("Job %s has an invalid payload - running it anyway: %v", jobID, err)
+		delay := p.validatePayloadDelay()
+		log.Warnf(
+			"Job %s has an invalid payload (attempt %d/%d) - re-fetching in %v: %v",
+			jobID, attempt, p.ValidatePayloadAttempts, delay, err,
+		)
+
+		time.Sleep(delay)
+
+		newJobRequest, getJobErr := p.APIClient.GetJob(jobID)
+		if getJobErr != nil {
+			log.Errorf("Could not re-fetch job %s: %v", jobID, getJobErr)
+			continue
+		}
+
+		jobRequest = newJobRequest
+	}
+}
+
+/*
+ * The payload is invalid for every agent served by the same endpoint, so
+ * without jitter a fleet re-fetches in synchronized waves against a hub that
+ * is already misbehaving.
+ */
+func (p *JobProcessor) validatePayloadDelay() time.Duration {
+	millis := int(p.ValidatePayloadDelay.Milliseconds())
+	if millis <= 1 {
+		return p.ValidatePayloadDelay
 	}
 
-	return jobRequest
+	jittered, err := random.DurationInRange(millis*3/4, millis*5/4)
+	if err != nil {
+		return p.ValidatePayloadDelay
+	}
+
+	return *jittered
 }
 
 func (p *JobProcessor) getJobWithRetries(jobID string) (*api.JobRequest, error) {
@@ -323,6 +393,20 @@ func (p *JobProcessor) StopJob(jobID string) {
 	}
 
 	p.CurrentJobID = jobID
+
+	/*
+	 * The job payload is still being fetched, so there is no job to stop yet.
+	 * We report it as stopped and let RunJob find out before it starts running
+	 * anything - dereferencing the job here used to panic the whole agent.
+	 */
+	if p.CurrentJob == nil {
+		log.Infof("Job %s was stopped before it started running", jobID)
+		p.State = selfhostedapi.AgentStateFinishedJob
+		p.CurrentJobResult = selfhostedapi.JobResultStopped
+		p.forceSyncCh <- true
+		return
+	}
+
 	p.State = selfhostedapi.AgentStateStoppingJob
 
 	p.CurrentJob.Stop()
@@ -337,6 +421,9 @@ func (p *JobProcessor) JobFinished(result selfhostedapi.JobResult) {
 }
 
 func (p *JobProcessor) WaitForJobs() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
 	p.CurrentJobID = ""
 	p.CurrentJob = nil
 	p.CurrentJobResult = ""
@@ -352,13 +439,19 @@ func (p *JobProcessor) SetupInterruptHandler() {
 
 		// When we receive an interruption signal
 		// we tell the API about it, and let it tell the agent when to shut down.
+		p.mutex.Lock()
 		p.InterruptedAt = time.Now().Unix()
+		p.mutex.Unlock()
+
 		p.forceSyncCh <- true
 	}()
 }
 
 func (p *JobProcessor) disconnect() {
+	p.mutex.Lock()
 	p.StopSync = true
+	p.mutex.Unlock()
+
 	log.Info("Disconnecting the Agent from Semaphore")
 
 	err := retry.RetryWithConstantWait(retry.RetryOptions{

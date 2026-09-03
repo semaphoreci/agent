@@ -40,7 +40,42 @@ func Test__JobPayloadWithUndecodableEnvVarIsRefetched(t *testing.T) {
 
 	assert.Nil(t, hubMockServer.WaitUntilFinishedJob(12, 5*time.Second))
 	assert.Equal(t, selfhostedapi.JobResult(selfhostedapi.JobResultPassed), hubMockServer.GetLastJobResult())
-	assert.Equal(t, 2, hubMockServer.GetJobAttempts)
+	assert.Equal(t, 2, hubMockServer.GetGetJobAttempts())
+
+	listener.Stop()
+	hubMockServer.Close()
+	loghubMockServer.Close()
+}
+
+// The last attempt must decide on a payload it actually validated. Fetching a
+// fresh payload on the way out meant the job ran on an unvalidated request
+// while the agent log blamed the previous one.
+func Test__JobPayloadIsNotRefetchedOnTheFinalAttempt(t *testing.T) {
+	testsupport.SetupTestLogs()
+
+	loghubMockServer := testsupport.NewLoghubMockServer()
+	loghubMockServer.Init()
+
+	hubMockServer := testsupport.NewHubMockServer()
+	hubMockServer.Init()
+	hubMockServer.UseLogsURL(loghubMockServer.URL())
+
+	listener, err := Start(http.DefaultClient, newListenerConfig(hubMockServer))
+	assert.Nil(t, err)
+
+	// bad for the initial fetch and both re-fetches, good afterwards
+	hubMockServer.AssignBadJobFor(3, jobRequestWithGitSHA(loghubMockServer.URL(), "abc$def"))
+	hubMockServer.AssignJob(jobRequestWithGitSHA(
+		loghubMockServer.URL(),
+		base64.StdEncoding.EncodeToString([]byte("1234567")),
+	))
+
+	assert.Nil(t, hubMockServer.WaitUntilFinishedJob(12, 5*time.Second))
+
+	// The payload never validated, so the job has to fail - and the agent must
+	// not have spent a fourth fetch on a payload it would never look at.
+	assert.Equal(t, selfhostedapi.JobResult(selfhostedapi.JobResultFailed), hubMockServer.GetLastJobResult())
+	assert.Equal(t, 3, hubMockServer.GetGetJobAttempts())
 
 	listener.Stop()
 	hubMockServer.Close()
@@ -67,7 +102,7 @@ func Test__JobPayloadWithUndecodableEnvVarStillProducesJobLog(t *testing.T) {
 
 	assert.Nil(t, hubMockServer.WaitUntilFinishedJob(12, 5*time.Second))
 	assert.Equal(t, selfhostedapi.JobResult(selfhostedapi.JobResultFailed), hubMockServer.GetLastJobResult())
-	assert.Greater(t, hubMockServer.GetJobAttempts, 1)
+	assert.Greater(t, hubMockServer.GetGetJobAttempts(), 1)
 
 	eventObjects, err := eventlogger.TransformToObjects(loghubMockServer.GetLogs())
 	assert.Nil(t, err)
@@ -94,12 +129,14 @@ func newListenerConfig(hubMockServer *testsupport.HubMockServer) Config {
 		Token:              "token",
 		RegisterRetryLimit: 5,
 		GetJobRetryLimit:   5,
-		Scheme:             "http",
-		EnvVars:            []config.HostEnvVar{},
-		FileInjections:     []config.FileInjection{},
-		UploadJobLogs:      config.UploadJobLogsConditionNever,
-		AgentVersion:       testsupport.AgentVersionExpected,
-		UserAgent:          fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
+		// keep the re-fetch delay out of the test's wall clock
+		ValidatePayloadDelay: time.Millisecond,
+		Scheme:               "http",
+		EnvVars:              []config.HostEnvVar{},
+		FileInjections:       []config.FileInjection{},
+		UploadJobLogs:        config.UploadJobLogsConditionNever,
+		AgentVersion:         testsupport.AgentVersionExpected,
+		UserAgent:            fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
 	}
 }
 

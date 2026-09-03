@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
@@ -17,6 +18,8 @@ import (
 var AgentVersionExpected = "v1.0.2"
 
 type HubMockServer struct {
+	// Guards the fields written by the HTTP handlers and read by tests.
+	mutex                     sync.Mutex
 	Server                    *httptest.Server
 	Handler                   http.Handler
 	JobRequest                *api.JobRequest
@@ -29,6 +32,8 @@ type HubMockServer struct {
 	GetJobAttempts            int
 	BadJobRequest             *api.JobRequest
 	BadJobAttempts            int
+	GetJobDelay               time.Duration
+	StopJobWhenStartingJob    bool
 	ShouldShutdown            bool
 	Disconnected              bool
 	RunningJob                bool
@@ -75,6 +80,9 @@ func (m *HubMockServer) Init() {
 }
 
 func (m *HubMockServer) handleRefreshRequest(w http.ResponseWriter, r *http.Request) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	fmt.Printf("[HUB MOCK] Received refresh request.\n")
 	refreshTokenResponse := &selfhostedapi.RefreshTokenResponse{
 		Token: "new-token",
@@ -92,6 +100,9 @@ func (m *HubMockServer) handleRefreshRequest(w http.ResponseWriter, r *http.Requ
 }
 
 func (m *HubMockServer) handleRegisterRequest(w http.ResponseWriter, r *http.Request) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	m.RegisterAttempts++
 	if m.RegisterAttempts < m.RegisterAttemptRejections {
 		fmt.Printf("[HUB MOCK] Attempts: %d, Rejections: %d, rejecting...\n", m.RegisterAttempts, m.RegisterAttemptRejections)
@@ -150,6 +161,9 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 
 	fmt.Printf("[HUB MOCK] Received sync request: %v\n", request)
 
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	syncResponse := selfhostedapi.SyncResponse{
 		Action:        selfhostedapi.AgentActionContinue,
 		NextSyncAfter: 1000,
@@ -177,6 +191,12 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 
 		if m.JobRequest != nil {
 			syncResponse.Action = selfhostedapi.AgentActionRunJob
+			syncResponse.JobID = m.JobRequest.JobID
+		}
+
+	case selfhostedapi.AgentStateStartingJob:
+		if m.StopJobWhenStartingJob && m.JobRequest != nil {
+			syncResponse.Action = selfhostedapi.AgentActionStopJob
 			syncResponse.JobID = m.JobRequest.JobID
 		}
 
@@ -232,6 +252,14 @@ func (m *HubMockServer) handleSyncRequest(w http.ResponseWriter, r *http.Request
 }
 
 func (m *HubMockServer) handleGetJobRequest(w http.ResponseWriter, r *http.Request) {
+	// Deliberately outside the lock: this exists to keep the agent waiting.
+	if m.GetJobDelay > 0 {
+		time.Sleep(m.GetJobDelay)
+	}
+
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	m.GetJobAttempts++
 	if m.GetJobAttempts < m.GetJobAttemptRejections {
 		fmt.Printf("[HUB MOCK] Get job, Attempts: %d, Rejections: %d, rejecting...\n", m.GetJobAttempts, m.GetJobAttemptRejections)
@@ -262,25 +290,48 @@ func (m *HubMockServer) handleGetJobRequest(w http.ResponseWriter, r *http.Reque
 }
 
 func (m *HubMockServer) UseLogsURL(URL string) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	m.LogsURL = URL
 }
 
 func (m *HubMockServer) AssignJob(jobRequest *api.JobRequest) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	m.JobRequest = jobRequest
 }
 
 func (m *HubMockServer) RejectRegisterAttempts(times int) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	m.RegisterAttemptRejections = times
 }
 
 // Serves jobRequest for the first N GetJob attempts,
 // and whatever was passed to AssignJob() afterwards.
 func (m *HubMockServer) AssignBadJobFor(times int, jobRequest *api.JobRequest) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	m.BadJobAttempts = times
 	m.BadJobRequest = jobRequest
 }
 
+// GetJobAttempts is written by the HTTP handler, so tests read it through here.
+func (m *HubMockServer) GetGetJobAttempts() int {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	return m.GetJobAttempts
+}
+
 func (m *HubMockServer) RejectGetJobAttempts(times int) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	m.GetJobAttemptRejections = times
 }
 
@@ -298,7 +349,7 @@ func (m *HubMockServer) WaitUntilRunningJob(attempts int, wait time.Duration) er
 		MaxAttempts:          attempts,
 		DelayBetweenAttempts: wait,
 		Fn: func() error {
-			if !m.RunningJob {
+			if !m.runningJob() {
 				return fmt.Errorf("still not running job")
 			}
 
@@ -313,7 +364,7 @@ func (m *HubMockServer) WaitUntilFinishedJob(attempts int, wait time.Duration) e
 		MaxAttempts:          attempts,
 		DelayBetweenAttempts: wait,
 		Fn: func() error {
-			if !m.FinishedJob {
+			if !m.finishedJob() {
 				return fmt.Errorf("still not finished job")
 			}
 
@@ -328,7 +379,7 @@ func (m *HubMockServer) WaitUntilDisconnected(attempts int, wait time.Duration) 
 		MaxAttempts:          attempts,
 		DelayBetweenAttempts: wait,
 		Fn: func() error {
-			if !m.Disconnected {
+			if !m.disconnected() {
 				return fmt.Errorf("still not disconnected")
 			}
 
@@ -343,7 +394,7 @@ func (m *HubMockServer) WaitUntilRegistered() error {
 		MaxAttempts:          10,
 		DelayBetweenAttempts: time.Second,
 		Fn: func() error {
-			if m.RegisterRequest == nil {
+			if m.GetRegisterRequest() == nil {
 				return fmt.Errorf("still not registered")
 			}
 
@@ -353,14 +404,44 @@ func (m *HubMockServer) WaitUntilRegistered() error {
 }
 
 func (m *HubMockServer) GetLastJobResult() selfhostedapi.JobResult {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	return m.JobResult
 }
 
+func (m *HubMockServer) runningJob() bool {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	return m.RunningJob
+}
+
+func (m *HubMockServer) finishedJob() bool {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	return m.FinishedJob
+}
+
+func (m *HubMockServer) disconnected() bool {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	return m.Disconnected
+}
+
 func (m *HubMockServer) GetRegisterRequest() *selfhostedapi.RegisterRequest {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	return m.RegisterRequest
 }
 
 func (m *HubMockServer) ScheduleShutdown() {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	m.ShouldShutdown = true
 }
 
