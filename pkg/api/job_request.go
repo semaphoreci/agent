@@ -163,19 +163,25 @@ func (f *File) Decode() ([]byte, error) {
 	return content, nil
 }
 
+var newLines = strings.NewReplacer("\r", "", "\n", "")
+
 /*
  * Describes why base64.StdEncoding might reject a value, without ever
  * including the value itself, since env vars and files hold secrets.
  * The base64 error alone only points at a byte offset, which is not enough
  * to tell a truncated value from one encoded with the wrong alphabet.
  */
-var newLines = strings.NewReplacer("\r", "", "\n", "")
-
 func describeBase64Value(value string) string {
 	description := fmt.Sprintf("length %d", len(value))
 
-	if strings.ContainsAny(value, "-_") {
-		description += ", url-safe alphabet"
+	/*
+	 * Only claim the url-safe alphabet when the value is rejected by the
+	 * standard one and accepted by the url-safe one - that combination is
+	 * what points at a producer using the wrong encoder. Plaintext holding
+	 * a '-' (a branch name, a date) decodes as neither.
+	 */
+	if !decodesAs(base64.StdEncoding, value) && decodesAs(base64.URLEncoding, value) {
+		description += ", valid as url-safe base64"
 	}
 
 	// \r and \n are ignored by the decoder, so they don't count towards padding.
@@ -190,12 +196,22 @@ func describeBase64Value(value string) string {
 	return description
 }
 
+func decodesAs(encoding *base64.Encoding, value string) bool {
+	_, err := encoding.DecodeString(value)
+	return err == nil
+}
+
 /*
  * Decodes every env var and file in the job request, reporting all the ones
  * that are not valid base64. Only the fields that are always decoded when a
- * job runs are checked here: container env vars, image pull credentials and
- * SSH public keys are decoded conditionally (or with the error ignored),
- * so a bad value there does not necessarily break the job.
+ * job runs are checked here: container env vars and image pull credentials are
+ * decoded conditionally, or with the error ignored, so a bad value there does
+ * not necessarily break the job.
+ *
+ * SSH public keys are a known gap rather than a safe omission: a key that
+ * fails to decode does fail the job on the docker-compose executor. They are
+ * left out because PublicKey has no name to report, so there is nothing
+ * useful to say about which key is broken.
  */
 func (j *JobRequest) ValidateEncoding() error {
 	errs := []string{}

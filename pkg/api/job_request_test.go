@@ -175,7 +175,15 @@ func Test__DescribeBase64Value(t *testing.T) {
 		assert.Equal(t, "length 8", describeBase64Value("aGVsbG8="))
 
 		// url-safe alphabet: '-' and '_' are illegal in std encoding
-		assert.Equal(t, "length 4, url-safe alphabet", describeBase64Value("-_-_"))
+		assert.Equal(t, "length 4, valid as url-safe base64", describeBase64Value("-_-_"))
+
+		// plaintext that merely contains a hyphen is not url-safe base64,
+		// and saying so would point at the wrong culprit
+		assert.Equal(
+			t,
+			"length 18, not padded to a multiple of 4",
+			describeBase64Value("super-secret-value"),
+		)
 
 		// unpadded values are not a multiple of 4 characters long
 		assert.Equal(t, "length 7, not padded to a multiple of 4", describeBase64Value("aGVsbG8"))
@@ -191,7 +199,7 @@ func Test__DescribeBase64Value(t *testing.T) {
 
 		assert.Equal(
 			t,
-			"length 6, url-safe alphabet, not padded to a multiple of 4",
+			"length 6, not padded to a multiple of 4",
 			describeBase64Value("aGV-b8"),
 		)
 	})
@@ -249,7 +257,9 @@ func Test__ValidateEncoding(t *testing.T) {
 		)
 	})
 
-	t.Run("conditionally decoded fields are not validated", func(t *testing.T) {
+	// SSH public keys are a known gap: a bad key is fatal on the docker-compose
+	// executor, but it is not validated here and PublicKey.Decode carries no name.
+	t.Run("container env vars and image pull credentials are out of scope", func(t *testing.T) {
 		request := JobRequest{
 			SSHPublicKeys: []PublicKey{"abc$def"},
 			Compose: Compose{

@@ -32,7 +32,7 @@ func Test__JobFailsWithNamedEnvVarWhenValueIsNotDecodable(t *testing.T) {
 		},
 		"url-safe alphabet": {
 			value:           base64.URLEncoding.EncodeToString([]byte{0xfb, 0xff, 0xbf}),
-			expectedDetails: "length 4, url-safe alphabet",
+			expectedDetails: "length 4, valid as url-safe base64",
 		},
 		"unpadded": {
 			value:           base64.RawStdEncoding.EncodeToString([]byte("hello")),
