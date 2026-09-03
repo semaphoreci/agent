@@ -3,6 +3,7 @@ package agentapi
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"io/ioutil"
@@ -101,7 +102,7 @@ func (p *PublicKey) DecodeAt(index int) ([]byte, error) {
 	key, err := p.Decode()
 	if err != nil {
 		return key, fmt.Errorf(
-			"error decoding SSH public key #%d (%s): %v",
+			"error decoding SSH public key #%d (%s): %w",
 			index, describeBase64Value(string(*p)), err,
 		)
 	}
@@ -165,7 +166,7 @@ func NewRequestFromYamlFile(path string) (*JobRequest, error) {
 func (e *EnvVar) Decode() ([]byte, error) {
 	value, err := base64.StdEncoding.DecodeString(e.Value)
 	if err != nil {
-		return value, fmt.Errorf("error decoding '%s' (%s): %v", e.Name, describeBase64Value(e.Value), err)
+		return value, fmt.Errorf("error decoding '%s' (%s): %w", e.Name, describeBase64Value(e.Value), err)
 	}
 
 	return value, nil
@@ -174,7 +175,7 @@ func (e *EnvVar) Decode() ([]byte, error) {
 func (f *File) Decode() ([]byte, error) {
 	content, err := base64.StdEncoding.DecodeString(f.Content)
 	if err != nil {
-		return content, fmt.Errorf("error decoding '%s' (%s): %v", f.Path, describeBase64Value(f.Content), err)
+		return content, fmt.Errorf("error decoding '%s' (%s): %w", f.Path, describeBase64Value(f.Content), err)
 	}
 
 	return content, nil
@@ -231,25 +232,26 @@ func decodesAs(encoding *base64.Encoding, value string) bool {
  * useful to say about which key is broken.
  */
 func (j *JobRequest) ValidateEncoding() error {
-	errs := []string{}
-
-	for _, envVar := range j.EnvVars {
-		if _, err := envVar.Decode(); err != nil {
-			errs = append(errs, err.Error())
+	errs := []error{}
+	collect := func(_ []byte, err error) {
+		if err != nil {
+			errs = append(errs, err)
 		}
+	}
+
+	// env vars first: they are exported before files are injected,
+	// so this reports offenders in the order a job hits them.
+	for _, envVar := range j.EnvVars {
+		collect(envVar.Decode())
 	}
 
 	for _, file := range j.Files {
-		if _, err := file.Decode(); err != nil {
-			errs = append(errs, err.Error())
-		}
+		collect(file.Decode())
 	}
 
-	if len(errs) > 0 {
-		return fmt.Errorf("%s", strings.Join(errs, "; "))
-	}
-
-	return nil
+	// errors.Join returns nil for an empty slice, and keeps every offender
+	// reachable through errors.Is/errors.As instead of flattening to a string.
+	return errors.Join(errs...)
 }
 
 const ImagePullCredentialsStrategyDockerHub = "DockerHub"

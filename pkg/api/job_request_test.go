@@ -2,6 +2,7 @@ package agentapi
 
 import (
 	"encoding/base64"
+	"errors"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -268,6 +269,25 @@ func Test__ValidateEncoding(t *testing.T) {
 		assert.ErrorContains(t, err, "error decoding 'BAD_TWO'")
 		assert.ErrorContains(t, err, "error decoding 'd/e/f'")
 		assert.NotContains(t, err.Error(), "GOOD")
+	})
+
+	t.Run("every offender stays individually reachable", func(t *testing.T) {
+		request := JobRequest{
+			EnvVars: []EnvVar{
+				{Name: "BAD_ONE", Value: "abc$def"},
+				{Name: "BAD_TWO", Value: "-_-_"},
+			},
+			Files: []File{{Path: "d/e/f", Content: "abc$def"}},
+		}
+
+		err := request.ValidateEncoding()
+		joined, ok := err.(interface{ Unwrap() []error })
+		assert.True(t, ok, "expected the errors to be joined, not flattened")
+		assert.Len(t, joined.Unwrap(), 3)
+
+		// the underlying base64 error survives the wrapping
+		var corrupt base64.CorruptInputError
+		assert.True(t, errors.As(err, &corrupt))
 	})
 
 	t.Run("env vars are reported before files", func(t *testing.T) {
