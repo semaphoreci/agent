@@ -274,6 +274,9 @@ blocks:
                 - private_image_gcr
                 - private_image_ecr_no_account_id
                 - private_image_ecr_with_account_id
+                - job_stopping
+                - job_stopping_during_boot
+                - job_stopping_from_inside
 
 after_pipeline:
   task:
