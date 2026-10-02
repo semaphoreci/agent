@@ -258,3 +258,96 @@ func Test__AgentPodName(t *testing.T) {
 		assert.Equal(t, "agent-pod-from-env", agentPodName())
 	})
 }
+
+const postJobHookAlias = "Running the post-job hook configured in the agent"
+
+// Counts post-job hook runs, and still runs them on the wrapped executor.
+type hookCountingExecutor struct {
+	*bootExecutor
+	hookRuns int32
+}
+
+func (e *hookCountingExecutor) RunCommandWithOptions(options executors.CommandOptions) int {
+	if options.Alias == postJobHookAlias {
+		atomic.AddInt32(&e.hookRuns, 1)
+	}
+
+	return e.bootExecutor.RunCommandWithOptions(options)
+}
+
+func newJobWithHookCounter(t *testing.T) (*Job, *hookCountingExecutor) {
+	job, executor := newJobWithBootExecutor(t, []api.Command{{Directive: testsupport.Output("hello")}})
+	counter := &hookCountingExecutor{bootExecutor: executor}
+	job.Executor = counter
+	return job, counter
+}
+
+func runWithPostJobHook(t *testing.T, job *Job) chan selfhostedapi.JobResult {
+	hook, err := os.CreateTemp(t.TempDir(), "post-job-hook-*")
+	assert.NoError(t, err)
+	_, err = hook.WriteString("echo post-job hook\n")
+	assert.NoError(t, err)
+	assert.NoError(t, hook.Close())
+
+	results := make(chan selfhostedapi.JobResult, 1)
+	go job.RunWithOptions(RunOptions{
+		EnvVars:               []config.HostEnvVar{},
+		PostJobHookPath:       hook.Name(),
+		CallbackRetryAttempts: 1,
+		OnJobFinished:         func(result selfhostedapi.JobResult) { results <- result },
+	})
+
+	return results
+}
+
+func Test__PostJobHookNeedsARunningExecutor(t *testing.T) {
+	t.Run("stopped during Prepare -> stopped, hook skipped, Stop returns", func(t *testing.T) {
+		job, executor := newJobWithHookCounter(t)
+		prepareStarted := make(chan struct{})
+		executor.prepare = func() int {
+			close(prepareStarted)
+			return executor.untilStopped()
+		}
+
+		results := runWithPostJobHook(t, job)
+		<-prepareStarted
+
+		stopped := make(chan struct{})
+		go func() {
+			job.Stop()
+			close(stopped)
+		}()
+
+		select {
+		case <-stopped:
+		case <-time.After(10 * time.Second):
+			t.Fatal("Stop() did not return")
+		}
+
+		assert.Equal(t, selfhostedapi.JobResult(JobStopped), waitForResult(t, results))
+		assert.Equal(t, int32(0), atomic.LoadInt32(&executor.hookRuns))
+	})
+
+	t.Run("Prepare fails without a stop -> failed, hook skipped", func(t *testing.T) {
+		job, executor := newJobWithHookCounter(t)
+		executor.prepare = func() int { return 1 }
+
+		assert.Equal(t, selfhostedapi.JobResult(JobFailed), waitForResult(t, runWithPostJobHook(t, job)))
+		assert.Equal(t, int32(0), atomic.LoadInt32(&executor.hookRuns))
+	})
+
+	t.Run("Start fails without a stop -> failed, hook skipped", func(t *testing.T) {
+		job, executor := newJobWithHookCounter(t)
+		executor.start = func() int { return 1 }
+
+		assert.Equal(t, selfhostedapi.JobResult(JobFailed), waitForResult(t, runWithPostJobHook(t, job)))
+		assert.Equal(t, int32(0), atomic.LoadInt32(&executor.hookRuns))
+	})
+
+	t.Run("executor boots -> hook runs once", func(t *testing.T) {
+		job, executor := newJobWithHookCounter(t)
+
+		assert.Equal(t, selfhostedapi.JobResult(JobPassed), waitForResult(t, runWithPostJobHook(t, job)))
+		assert.Equal(t, int32(1), atomic.LoadInt32(&executor.hookRuns))
+	})
+}

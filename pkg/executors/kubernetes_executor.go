@@ -424,6 +424,12 @@ func (e *KubernetesExecutor) RunCommand(command string, silent bool, alias strin
 // Similar to RunCommand(), but instead of displaying the output
 // of the commands in the job log, we return them to the caller.
 func (e *KubernetesExecutor) GetOutputFromCommand(command string) (string, int) {
+	// The executor never started, or gave up starting because it was stopped.
+	if e.Shell == nil {
+		log.Error("Cannot run command: no shell session")
+		return "", 1
+	}
+
 	out := bytes.Buffer{}
 	p := e.Shell.NewProcessWithConfig(shell.Config{
 		UseBase64Encoding: true,
@@ -440,6 +446,12 @@ func (e *KubernetesExecutor) GetOutputFromCommand(command string) (string, int) 
 }
 
 func (e *KubernetesExecutor) RunCommandWithOptions(options CommandOptions) int {
+	// The executor never started, or gave up starting because it was stopped.
+	if e.Shell == nil {
+		log.Error("Cannot run command: no shell session")
+		return 1
+	}
+
 	directive := options.Command
 	if options.Alias != "" {
 		directive = options.Alias

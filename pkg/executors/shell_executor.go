@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
@@ -25,6 +26,15 @@ type ShellExecutor struct {
 	hasSSHJumpPoint         bool
 	shouldUpdateBashProfile bool
 	cleanupAfterClose       []string
+
+	// Stop() runs on a different goroutine than Prepare() and Start().
+	// Once stopped, the executor does not boot anymore, and a shell
+	// started concurrently with the stop is closed instead of used.
+	mu      sync.Mutex
+	stopped bool
+
+	// Creates the shell session. Replaced in tests.
+	newShell func(storagePath string) (*shell.Shell, error)
 }
 
 func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger, selfHosted bool) *ShellExecutor {
@@ -38,7 +48,18 @@ func NewShellExecutor(request *api.JobRequest, logger *eventlogger.Logger, selfH
 	}
 }
 
+func (e *ShellExecutor) isStopped() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.stopped
+}
+
 func (e *ShellExecutor) Prepare() int {
+	if e.isStopped() {
+		log.Info("Job was stopped before the executor was prepared")
+		return 1
+	}
+
 	if !e.hasSSHJumpPoint {
 		return 0
 	}
@@ -74,21 +95,50 @@ func (e *ShellExecutor) setUpSSHJumpPoint() int {
 }
 
 func (e *ShellExecutor) Start() int {
-	sh, err := shell.NewShell(e.tmpDirectory)
+	if e.isStopped() {
+		log.Info("Job was stopped before its shell started")
+		return 1
+	}
+
+	newShell := e.newShell
+	if newShell == nil {
+		newShell = shell.NewShell
+	}
+
+	sh, err := newShell(e.tmpDirectory)
 	if err != nil {
 		log.Debug(sh)
 		return 1
 	}
 
-	e.Shell = sh
-
-	err = e.Shell.Start()
+	err = sh.Start()
 	if err != nil {
 		log.Error(err)
+		closeShell(sh)
 		return 1
 	}
 
+	e.mu.Lock()
+	if e.stopped {
+		e.mu.Unlock()
+		log.Info("Job was stopped while its shell was starting")
+		closeShell(sh)
+		return 1
+	}
+
+	e.Shell = sh
+	e.mu.Unlock()
 	return 0
+}
+
+func closeShell(sh *shell.Shell) {
+	if err := sh.Close(); err != nil {
+		log.Errorf("Error closing shell: %v", err)
+	}
+
+	if err := sh.Terminate(); err != nil {
+		log.Errorf("Error terminating shell: %v", err)
+	}
 }
 
 func (e *ShellExecutor) envFileName() string {
@@ -240,6 +290,12 @@ func (e *ShellExecutor) InjectFiles(files []api.File) int {
 }
 
 func (e *ShellExecutor) GetOutputFromCommand(command string) (string, int) {
+	// The executor never started, or gave up starting because it was stopped.
+	if e.Shell == nil {
+		log.Error("Cannot run command: no shell session")
+		return "", 1
+	}
+
 	out := bytes.Buffer{}
 	p := e.Shell.NewProcessWithOutput(command, func(output string) {
 		out.WriteString(output)
@@ -260,6 +316,12 @@ func (e *ShellExecutor) RunCommand(command string, silent bool, alias string) in
 }
 
 func (e *ShellExecutor) RunCommandWithOptions(options CommandOptions) int {
+	// The executor never started, or gave up starting because it was stopped.
+	if e.Shell == nil {
+		log.Error("Cannot run command: no shell session")
+		return 1
+	}
+
 	directive := options.Command
 	if options.Alias != "" {
 		directive = options.Alias
@@ -295,14 +357,19 @@ func (e *ShellExecutor) RunCommandWithOptions(options CommandOptions) int {
 func (e *ShellExecutor) Stop() int {
 	log.Debug("Starting the process killing procedure")
 
+	e.mu.Lock()
+	e.stopped = true
+	sh := e.Shell
+	e.mu.Unlock()
+
 	// The job can be stopped before its shell is started.
-	if e.Shell != nil {
-		err := e.Shell.Close()
+	if sh != nil {
+		err := sh.Close()
 		if err != nil {
 			log.Error(err)
 		}
 
-		err = e.Shell.Terminate()
+		err = sh.Terminate()
 		if err != nil {
 			log.Errorf("Error terminating shell: %v", err)
 			return 1

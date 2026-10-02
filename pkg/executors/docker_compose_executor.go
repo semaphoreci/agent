@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	watchman "github.com/renderedtext/go-watchman"
@@ -36,6 +37,15 @@ type DockerComposeExecutor struct {
 	exposeKvmDevice           bool
 	fileInjections            []config.FileInjection
 	FailOnMissingFiles        bool
+
+	// Stop() runs on a different goroutine than Prepare() and Start().
+	// Once stopped, the executor does not boot anymore, and a shell
+	// started concurrently with the stop is closed instead of used.
+	mu      sync.Mutex
+	stopped bool
+
+	// Creates the shell session in the main container. Replaced in tests.
+	newShell func(executable string, args []string, storagePath string) (*shell.Shell, error)
 }
 
 type DockerComposeExecutorOptions struct {
@@ -60,7 +70,18 @@ func NewDockerComposeExecutor(request *api.JobRequest, logger *eventlogger.Logge
 	}
 }
 
+func (e *DockerComposeExecutor) isStopped() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.stopped
+}
+
 func (e *DockerComposeExecutor) Prepare() int {
+	if e.isStopped() {
+		log.Info("Job was stopped before the executor was prepared")
+		return 1
+	}
+
 	if runtime.GOOS == "windows" {
 		log.Error("docker-compose executor is not supported in Windows")
 		return 1
@@ -193,6 +214,11 @@ func (e *DockerComposeExecutor) setUpSSHJumpPoint() int {
 }
 
 func (e *DockerComposeExecutor) Start() int {
+	if e.isStopped() {
+		log.Info("Job was stopped before its containers started")
+		return 1
+	}
+
 	exitCode := e.injectImagePullSecrets()
 	if exitCode != 0 {
 		log.Error("[SHELL] Failed to set up image pull secrets")
@@ -203,6 +229,12 @@ func (e *DockerComposeExecutor) Start() int {
 	if exitCode != 0 {
 		log.Error("Failed to pull images")
 		return exitCode
+	}
+
+	// Pulling images takes a while, and the job could be stopped meanwhile.
+	if e.isStopped() {
+		log.Info("Job was stopped before its containers started")
+		return 1
 	}
 
 	exitCode = e.startBashSession()
@@ -255,7 +287,12 @@ func (e *DockerComposeExecutor) startBashSession() int {
 		"bash",
 	)
 
-	shell, err := shell.NewShellFromExecAndArgs(executable, args, e.tmpDirectory)
+	newShell := e.newShell
+	if newShell == nil {
+		newShell = shell.NewShellFromExecAndArgs
+	}
+
+	shell, err := newShell(executable, args, e.tmpDirectory)
 	if err != nil {
 		log.Errorf("Failed to start stateful shell err: %+v", err)
 
@@ -273,11 +310,23 @@ func (e *DockerComposeExecutor) startBashSession() int {
 		e.Logger.LogCommandOutput("Failed to start the docker image\n")
 		e.Logger.LogCommandOutput(err.Error())
 
+		closeShell(shell)
+		exitCode = 1
+		return exitCode
+	}
+
+	e.mu.Lock()
+	if e.stopped {
+		e.mu.Unlock()
+		log.Info("Job was stopped while its shell was starting")
+		e.Logger.LogCommandOutput("Job was stopped while the docker image was starting.\n")
+		closeShell(shell)
 		exitCode = 1
 		return exitCode
 	}
 
 	e.Shell = shell
+	e.mu.Unlock()
 
 	return exitCode
 }
@@ -721,6 +770,12 @@ func (e *DockerComposeExecutor) InjectFiles(files []api.File) int {
 }
 
 func (e *DockerComposeExecutor) GetOutputFromCommand(command string) (string, int) {
+	// The executor never started, or gave up starting because it was stopped.
+	if e.Shell == nil {
+		log.Error("Cannot run command: no shell session")
+		return "", 1
+	}
+
 	out := bytes.Buffer{}
 	p := e.Shell.NewProcessWithOutput(command, func(output string) {
 		out.WriteString(output)
@@ -740,6 +795,12 @@ func (e *DockerComposeExecutor) RunCommand(command string, silent bool, alias st
 }
 
 func (e *DockerComposeExecutor) RunCommandWithOptions(options CommandOptions) int {
+	// The executor never started, or gave up starting because it was stopped.
+	if e.Shell == nil {
+		log.Error("Cannot run command: no shell session")
+		return 1
+	}
+
 	directive := options.Command
 	if options.Alias != "" {
 		directive = options.Alias
@@ -775,8 +836,13 @@ func (e *DockerComposeExecutor) RunCommandWithOptions(options CommandOptions) in
 func (e *DockerComposeExecutor) Stop() int {
 	log.Debug("Starting the process killing procedure")
 
-	if e.Shell != nil {
-		err := e.Shell.Close()
+	e.mu.Lock()
+	e.stopped = true
+	sh := e.Shell
+	e.mu.Unlock()
+
+	if sh != nil {
+		err := sh.Close()
 		if err != nil {
 			log.Errorf("Process killing procedure returned an error %+v\n", err)
 		}

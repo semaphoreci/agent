@@ -465,3 +465,29 @@ func Test__KubernetesExecutor__StopBetweenPrepareAndStart(t *testing.T) {
 	assert.Equal(t, 1, returnsWithin(t, 2*time.Second, e.Start))
 	assert.Equal(t, gets, countJobPodGets(clientset), "Start() waited for the pod of a stopped job")
 }
+
+func Test__KubernetesExecutor__CommandsWithoutShell(t *testing.T) {
+	t.Run("stopped before it started -> commands fail, no panic", func(t *testing.T) {
+		clientset := fake.NewSimpleClientset(agentPodObject())
+		e := newK8sExecutor(t, clientset)
+		assert.Equal(t, 0, e.Stop())
+		assert.Equal(t, 1, e.Prepare())
+
+		assert.NotZero(t, e.RunCommandWithOptions(CommandOptions{Command: "echo hello", Alias: "post-job hook"}))
+		assert.NotZero(t, e.RunCommand("echo hello", false, ""))
+		_, code := e.GetOutputFromCommand("echo hello")
+		assert.NotZero(t, code)
+	})
+
+	t.Run("Prepare failed without a stop -> commands fail, no panic", func(t *testing.T) {
+		clientset := fake.NewSimpleClientset(agentPodObject())
+		clientset.PrependReactor("create", "pods", func(action k8stesting.Action) (bool, runtime.Object, error) {
+			return true, nil, apierrors.NewForbidden(corev1.Resource("pods"), "", nil)
+		})
+
+		e := newK8sExecutor(t, clientset)
+		assert.Equal(t, 1, e.Prepare())
+		assert.NotZero(t, e.RunCommandWithOptions(CommandOptions{Command: "echo hello"}))
+		assert.Equal(t, 0, e.Stop())
+	})
+}

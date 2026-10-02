@@ -397,7 +397,12 @@ func (job *Job) RunWithOptions(options RunOptions) {
 
 	// The post-job hook executes after the job's commands finished,
 	// so they do not influence the job's result, just like the epilogues.
-	job.runPostJobHook(options)
+	// It needs a running executor: one that never booted has no shell.
+	if executorRunning {
+		job.runPostJobHook(options)
+	} else if options.PostJobHookPath != "" {
+		log.Info("Executor did not boot up - skipping post-job hook")
+	}
 
 	result, err := job.Teardown(result, epiloguesExecuted, options.CallbackRetryAttempts)
 	if err != nil {
