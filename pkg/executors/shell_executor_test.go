@@ -450,6 +450,11 @@ func Test__ShellExecutor__StopBeforeStart(t *testing.T) {
 }
 
 func Test__ShellExecutor__StopAfterStart(t *testing.T) {
+	// On Windows there is no boot process to wait on, so ExitSignal never fires.
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
 	e, _ := setupShellExecutor(t, true)
 	sh := e.Shell
 	assert.Zero(t, e.Stop())
