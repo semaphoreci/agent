@@ -197,3 +197,81 @@ func Test__ShutdownStopsRunningJob(t *testing.T) {
 		assert.Equal(t, int32(1), atomic.LoadInt32(disconnects))
 	})
 }
+
+// A hub that holds the job description until released,
+// like a slow API while the agent is starting a job.
+func newSlowJobHub(t *testing.T, release chan struct{}) (*selfhostedapi.API, chan struct{}) {
+	requested := make(chan struct{}, 1)
+	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/jobs/") {
+			requested <- struct{}{}
+			<-release
+			_, _ = w.Write([]byte(`{"job_id": "slow-job", "commands": [{"directive": "echo hello"}], "logger": {"method": "pull"}}`))
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	t.Cleanup(hub.Close)
+	return selfhostedapi.New(http.DefaultClient, "http", strings.TrimPrefix(hub.URL, "http://"), "token", "test"), requested
+}
+
+func newRunJobTestProcessor(apiClient *selfhostedapi.API) *JobProcessor {
+	return &JobProcessor{
+		APIClient:               apiClient,
+		HTTPClient:              http.DefaultClient,
+		DisconnectRetryAttempts: 1,
+		GetJobRetryAttempts:     1,
+		CallbackRetryAttempts:   1,
+		ExitOnShutdown:          false,
+		State:                   selfhostedapi.AgentStateWaitingForJobs,
+		forceSyncCh:             make(chan bool, 1),
+	}
+}
+
+func Test__ShutdownWhileStartingJob(t *testing.T) {
+	t.Run("shutdown while the job is being fetched -> job is not run", func(t *testing.T) {
+		release := make(chan struct{})
+		apiClient, requested := newSlowJobHub(t, release)
+		p := newRunJobTestProcessor(apiClient)
+
+		runJobDone := make(chan struct{})
+		go func() {
+			p.RunJob("slow-job")
+			close(runJobDone)
+		}()
+
+		<-requested
+		shutdownReturnsWithin(t, p, 10*time.Second)
+		close(release)
+
+		select {
+		case <-runJobDone:
+		case <-time.After(10 * time.Second):
+			t.Fatal("RunJob() did not return")
+		}
+
+		p.jobMu.Lock()
+		defer p.jobMu.Unlock()
+		assert.Nil(t, p.CurrentJob, "a job was started after the shutdown")
+		assert.NotEqual(t, selfhostedapi.AgentStateRunningJob, p.State)
+	})
+
+	t.Run("no shutdown -> job is run", func(t *testing.T) {
+		release := make(chan struct{})
+		close(release)
+		apiClient, _ := newSlowJobHub(t, release)
+		p := newRunJobTestProcessor(apiClient)
+
+		p.RunJob("slow-job")
+
+		p.jobMu.Lock()
+		job := p.CurrentJob
+		p.jobMu.Unlock()
+
+		if assert.NotNil(t, job) {
+			assert.Eventually(t, job.IsFinished, 30*time.Second, 100*time.Millisecond)
+		}
+	})
+}
