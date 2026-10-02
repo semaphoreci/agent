@@ -431,8 +431,9 @@ func Test__CreateOutcomeUnknown(t *testing.T) {
 
 func Test__OwnerReferenceLookupLogLevel(t *testing.T) {
 	levels := func(fn func()) []log.Level {
+		previous := log.StandardLogger().ReplaceHooks(make(log.LevelHooks))
+		defer log.StandardLogger().ReplaceHooks(previous)
 		hook := logtest.NewLocal(log.StandardLogger())
-		defer log.StandardLogger().ReplaceHooks(make(log.LevelHooks))
 
 		fn()
 		result := []log.Level{}
