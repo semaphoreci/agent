@@ -121,6 +121,9 @@ func (p *JobProcessor) SyncLoop() {
 
 		// Here, we wait for the delay sent in the API to pass
 		// or we sync again before the delay has passed, if needed.
+		// This select also runs once after a Sync() that shut the agent
+		// down: a job stopped by Shutdown() reports its result through
+		// JobFinished(), which holds p.mutex until forceSyncCh is read.
 		select {
 		case <-p.forceSyncCh:
 			log.Debug("Forcing sync due to state change")
