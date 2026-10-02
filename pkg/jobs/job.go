@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
@@ -69,6 +70,9 @@ type Job struct {
 	// The executor is stopped exactly once per job, either by Stop(),
 	// or at the end of the job, whichever comes first.
 	executorStopOnce sync.Once
+
+	// Finished, but safe to read from other goroutines.
+	finished atomic.Bool
 }
 
 type JobOptions struct {
@@ -416,6 +420,7 @@ func (job *Job) RunWithOptions(options RunOptions) {
 	job.stopExecutor()
 
 	job.Finished = true
+	job.finished.Store(true)
 	if options.OnJobFinished != nil {
 		options.OnJobFinished(selfhostedapi.JobResult(result))
 	}
@@ -855,6 +860,11 @@ func (job *Job) uploadLogsAsArtifact(trimmed bool) {
 	}
 
 	log.Info("Successfully uploaded job logs as artifact")
+}
+
+// IsFinished reports if the job finished running, from any goroutine.
+func (job *Job) IsFinished() bool {
+	return job.finished.Load()
 }
 
 func (job *Job) Stop() {

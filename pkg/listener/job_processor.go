@@ -332,8 +332,18 @@ func (p *JobProcessor) disconnect() {
 	}
 }
 
+// How long Shutdown() waits for the running job to stop.
+// Stopping a Kubernetes job takes at most about a minute.
+// A variable so tests don't need to wait for it.
+var jobStopOnShutdownTimeout = 90 * time.Second
+
 func (p *JobProcessor) Shutdown(reason ShutdownReason, code int) {
 	p.ShutdownReason = reason
+
+	// The agent may exit right after this, so the running job is stopped
+	// first. Otherwise, the resources it created are left behind,
+	// like a Kubernetes pod that runs until something else deletes it.
+	p.stopRunningJob()
 
 	p.disconnect()
 	p.executeShutdownHook(reason)
@@ -341,6 +351,30 @@ func (p *JobProcessor) Shutdown(reason ShutdownReason, code int) {
 
 	if p.ExitOnShutdown {
 		os.Exit(code)
+	}
+}
+
+// This does not take p.mutex: JobFinished() holds it while waiting
+// for the sync loop, which may be the one shutting down. Job.Stop()
+// stops the executor only once, even if StopJob() runs concurrently.
+func (p *JobProcessor) stopRunningJob() {
+	job := p.CurrentJob
+	if job == nil || job.IsFinished() {
+		return
+	}
+
+	log.Info("Stopping the running job before shutting down")
+	done := make(chan struct{})
+	go func() {
+		job.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		log.Info("Running job stopped")
+	case <-time.After(jobStopOnShutdownTimeout):
+		log.Errorf("Running job did not stop in %v - shutting down anyway", jobStopOnShutdownTimeout)
 	}
 }
 
