@@ -173,7 +173,7 @@ func agentPodName(jobsNamespace string) string {
 	// #nosec
 	ownNamespace, err := os.ReadFile(serviceAccountNamespaceFile)
 	if err != nil {
-		log.Infof("Agent is not running in a Kubernetes pod - job resources will not have an owner")
+		log.Info("Agent is not running in a Kubernetes pod - job resources will not have an owner")
 		return ""
 	}
 
