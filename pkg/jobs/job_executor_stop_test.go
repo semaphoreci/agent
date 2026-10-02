@@ -3,6 +3,7 @@ package jobs
 import (
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -232,30 +233,57 @@ func Test__JobResultWhenExecutorDoesNotBoot(t *testing.T) {
 	})
 }
 
+// Makes the agent look like it runs in a pod in the given namespace,
+// or outside of any pod, if it is empty.
+func runAgentInNamespace(t *testing.T, namespace string) {
+	previous := serviceAccountNamespaceFile
+	t.Cleanup(func() { serviceAccountNamespaceFile = previous })
+
+	serviceAccountNamespaceFile = filepath.Join(t.TempDir(), "namespace")
+	if namespace != "" {
+		assert.NoError(t, os.WriteFile(serviceAccountNamespaceFile, []byte(namespace), 0600))
+	}
+}
+
 func Test__AgentPodName(t *testing.T) {
+	hostname, err := os.Hostname()
+	assert.NoError(t, err)
+
 	t.Run("uses KUBERNETES_POD_NAME when set", func(t *testing.T) {
 		t.Setenv("KUBERNETES_POD_NAME", "agent-pod-from-env")
-		assert.Equal(t, "agent-pod-from-env", agentPodName())
+		runAgentInNamespace(t, "jobs")
+		assert.Equal(t, "agent-pod-from-env", agentPodName("jobs"))
 	})
 
-	t.Run("inside the cluster -> falls back to the hostname", func(t *testing.T) {
+	t.Run("pod in the jobs namespace -> falls back to the hostname", func(t *testing.T) {
 		t.Setenv("KUBERNETES_POD_NAME", "")
-		t.Setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
-		hostname, err := os.Hostname()
-		assert.NoError(t, err)
-		assert.Equal(t, hostname, agentPodName())
+		runAgentInNamespace(t, "jobs")
+		assert.Equal(t, hostname, agentPodName("jobs"))
+	})
+
+	t.Run("namespace file with a trailing newline -> still matches", func(t *testing.T) {
+		t.Setenv("KUBERNETES_POD_NAME", "")
+		runAgentInNamespace(t, "jobs\n")
+		assert.Equal(t, hostname, agentPodName("jobs"))
+	})
+
+	t.Run("pod in another namespace -> no pod name, a same-named pod in the jobs namespace is not used", func(t *testing.T) {
+		t.Setenv("KUBERNETES_POD_NAME", "")
+		runAgentInNamespace(t, "agents")
+		assert.Equal(t, "", agentPodName("jobs"))
 	})
 
 	t.Run("outside the cluster -> no pod name", func(t *testing.T) {
 		t.Setenv("KUBERNETES_POD_NAME", "")
-		t.Setenv("KUBERNETES_SERVICE_HOST", "")
-		assert.Equal(t, "", agentPodName())
+		t.Setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+		runAgentInNamespace(t, "")
+		assert.Equal(t, "", agentPodName("jobs"))
 	})
 
 	t.Run("outside the cluster, KUBERNETES_POD_NAME set -> uses it", func(t *testing.T) {
 		t.Setenv("KUBERNETES_POD_NAME", "agent-pod-from-env")
-		t.Setenv("KUBERNETES_SERVICE_HOST", "")
-		assert.Equal(t, "agent-pod-from-env", agentPodName())
+		runAgentInNamespace(t, "")
+		assert.Equal(t, "agent-pod-from-env", agentPodName("jobs"))
 	})
 }
 

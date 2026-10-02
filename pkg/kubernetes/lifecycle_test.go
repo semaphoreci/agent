@@ -8,6 +8,8 @@ import (
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
+	log "github.com/sirupsen/logrus"
+	logtest "github.com/sirupsen/logrus/hooks/test"
 	assert "github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -358,5 +360,104 @@ func Test__OwnerReferenceLookupRetries(t *testing.T) {
 		client.CancelRequests()
 		client.LoadOwnerReference()
 		assert.Equal(t, 1, *calls)
+	})
+}
+
+func Test__CreateOutcomeUnknown(t *testing.T) {
+	request := &api.JobRequest{
+		JobID:   testJobID,
+		Compose: api.Compose{Containers: []api.Container{{Name: "main", Image: "some-image"}}},
+	}
+
+	failCreates := func(resource string, err error) *fake.Clientset {
+		clientset := fake.NewSimpleClientset()
+		clientset.PrependReactor("create", resource, func(action k8stesting.Action) (bool, runtime.Object, error) {
+			return true, nil, err
+		})
+
+		return clientset
+	}
+
+	unknown := map[string]error{
+		"canceled request":    context.Canceled,
+		"timed out request":   context.DeadlineExceeded,
+		"connection error":    errors.New("connection reset by peer"),
+		"server timeout":      apierrors.NewServerTimeout(schema.GroupResource{Resource: "pods"}, "create", 1),
+		"timeout":             apierrors.NewTimeoutError("timeout", 1),
+		"internal error":      apierrors.NewInternalError(errors.New("etcd")),
+		"service unavailable": apierrors.NewServiceUnavailable("unavailable"),
+	}
+
+	for name, err := range unknown {
+		t.Run(name+" -> pod may exist", func(t *testing.T) {
+			client := newTestClient(t, failCreates("pods", err), Config{Namespace: "default"})
+			assert.Error(t, client.CreatePod("job-pod", "job-secret", "", request))
+			assert.True(t, client.CreateOutcomeUnknown())
+		})
+
+		t.Run(name+" -> secret may exist", func(t *testing.T) {
+			client := newTestClient(t, failCreates("secrets", err), Config{Namespace: "default"})
+			assert.Error(t, client.CreateSecret("job-secret", request))
+			assert.True(t, client.CreateOutcomeUnknown())
+		})
+
+		t.Run(name+" -> image pull secret may exist", func(t *testing.T) {
+			client := newTestClient(t, failCreates("secrets", err), Config{Namespace: "default"})
+			assert.Error(t, client.CreateImagePullSecret("job-pull-secret", testJobID, dockerCredentials()))
+			assert.True(t, client.CreateOutcomeUnknown())
+		})
+	}
+
+	rejected := map[string]error{
+		"forbidden":      apierrors.NewForbidden(schema.GroupResource{Resource: "pods"}, "job-pod", errors.New("rbac")),
+		"invalid":        apierrors.NewBadRequest("invalid pod spec"),
+		"already exists": apierrors.NewAlreadyExists(schema.GroupResource{Resource: "pods"}, "job-pod"),
+	}
+
+	for name, err := range rejected {
+		t.Run(name+" -> nothing was created", func(t *testing.T) {
+			client := newTestClient(t, failCreates("pods", err), Config{Namespace: "default"})
+			assert.Error(t, client.CreatePod("job-pod", "job-secret", "", request))
+			assert.False(t, client.CreateOutcomeUnknown())
+		})
+	}
+
+	t.Run("creates succeed -> outcome known", func(t *testing.T) {
+		client := newTestClient(t, fake.NewSimpleClientset(), Config{Namespace: "default"})
+		createJobResources(t, client, testJobID)
+		assert.False(t, client.CreateOutcomeUnknown())
+	})
+}
+
+func Test__OwnerReferenceLookupLogLevel(t *testing.T) {
+	levels := func(fn func()) []log.Level {
+		hook := logtest.NewLocal(log.StandardLogger())
+		defer log.StandardLogger().ReplaceHooks(make(log.LevelHooks))
+
+		fn()
+		result := []log.Level{}
+		for _, entry := range hook.AllEntries() {
+			result = append(result, entry.Level)
+		}
+
+		return result
+	}
+
+	t.Run("no agent pod name -> info, no warning or error", func(t *testing.T) {
+		client := newTestClient(t, fake.NewSimpleClientset(), Config{Namespace: "default"})
+		got := levels(client.LoadOwnerReference)
+		assert.Equal(t, []log.Level{log.InfoLevel}, got)
+	})
+
+	t.Run("agent pod lookup fails -> error", func(t *testing.T) {
+		client := newTestClient(t, fake.NewSimpleClientset(), Config{Namespace: "default", OwnerPodName: "agent-pod"})
+		got := levels(client.LoadOwnerReference)
+		assert.Equal(t, []log.Level{log.ErrorLevel}, got)
+	})
+
+	t.Run("agent pod found -> info", func(t *testing.T) {
+		client := newTestClient(t, fake.NewSimpleClientset(agentPod("agent-pod", "agent-uid")), Config{Namespace: "default", OwnerPodName: "agent-pod"})
+		got := levels(client.LoadOwnerReference)
+		assert.Equal(t, []log.Level{log.InfoLevel}, got)
 	})
 }

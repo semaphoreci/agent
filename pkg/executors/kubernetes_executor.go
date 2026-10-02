@@ -22,6 +22,10 @@ import (
 // The maximum time Cleanup() takes, for all of the job's resources.
 const defaultCleanupTimeout = 60 * time.Second
 
+// How long Cleanup() waits before deleting the job's resources once more,
+// when a request to create one of them failed without a definitive answer.
+const defaultUnknownCreateRecheckDelay = 5 * time.Second
+
 type KubernetesExecutor struct {
 	k8sClient       *kubernetes.KubernetesClient
 	jobRequest      *api.JobRequest
@@ -49,6 +53,9 @@ type KubernetesExecutor struct {
 	// The maximum time Cleanup() takes. Shorter in tests.
 	cleanupTimeout time.Duration
 
+	// Shorter in tests.
+	unknownCreateRecheckDelay time.Duration
+
 	// We need to keep track if the initial environment has already
 	// been exposed or not, because ExportEnvVars() gets called twice.
 	initialEnvironmentExposed bool
@@ -75,10 +82,11 @@ func NewKubernetesExecutor(jobRequest *api.JobRequest, logger *eventlogger.Logge
 
 func newKubernetesExecutorWithClient(jobRequest *api.JobRequest, logger *eventlogger.Logger, k8sClient *kubernetes.KubernetesClient) *KubernetesExecutor {
 	return &KubernetesExecutor{
-		k8sClient:      k8sClient,
-		jobRequest:     jobRequest,
-		logger:         logger,
-		cleanupTimeout: defaultCleanupTimeout,
+		k8sClient:                 k8sClient,
+		jobRequest:                jobRequest,
+		logger:                    logger,
+		cleanupTimeout:            defaultCleanupTimeout,
+		unknownCreateRecheckDelay: defaultUnknownCreateRecheckDelay,
 	}
 }
 
@@ -542,6 +550,21 @@ func (e *KubernetesExecutor) Cleanup() int {
 	defer cancel()
 
 	e.removeK8sResources(ctx, podName, envSecretName, imagePullSecret)
+
+	// A create request that was canceled, or that timed out, can still
+	// be completed by the API server after the deletion above found nothing.
+	// Nothing is created after Cleanup() starts, so a second pass, a bit
+	// later, removes what such a request might have created.
+	if e.k8sClient.CreateOutcomeUnknown() {
+		log.Info("A request to create the job's resources did not complete - deleting them again")
+		select {
+		case <-time.After(e.unknownCreateRecheckDelay):
+			e.removeK8sResources(ctx, podName, envSecretName, imagePullSecret)
+		case <-ctx.Done():
+			log.Error("No time left to delete the job's resources again")
+		}
+	}
+
 	e.removeLocalResources()
 	return 0
 }

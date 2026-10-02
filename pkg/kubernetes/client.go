@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/ghodss/yaml"
@@ -143,6 +145,11 @@ type KubernetesClient struct {
 	// Deletions do not use it: they need to run after the cancelation.
 	requestsCtx    context.Context
 	cancelRequests context.CancelFunc
+
+	// Set when a create request failed without a definitive answer from
+	// the API server, like when it is canceled or times out. The API server
+	// may still create the resource after that, even after it was deleted.
+	createOutcomeUnknown atomic.Bool
 }
 
 func NewKubernetesClient(clientset kubernetes.Interface, config Config) (*KubernetesClient, error) {
@@ -269,13 +276,13 @@ func (c *KubernetesClient) LoadPodSpec() error {
 func (c *KubernetesClient) LoadOwnerReference() {
 	c.ownerReferences = nil
 	if c.config.OwnerPodName == "" {
-		log.Warn("Agent pod name is unknown - job resources will not have an owner")
+		log.Info("Agent pod name is unknown - job resources will not have an owner")
 		return
 	}
 
 	pod, err := c.getOwnerPod()
 	if err != nil {
-		log.Warnf("Could not find agent pod '%s' - job resources will not have an owner: %v", c.config.OwnerPodName, err)
+		log.Errorf("Could not find agent pod '%s' - job resources will not have an owner: %v", c.config.OwnerPodName, err)
 		return
 	}
 
@@ -335,6 +342,27 @@ func (c *KubernetesClient) requestContext() (context.Context, context.CancelFunc
 // or wait for the job's resources. Deletions are not affected.
 func (c *KubernetesClient) CancelRequests() {
 	c.cancelRequests()
+}
+
+// CreateOutcomeUnknown reports if a resource may have been created
+// even though its create request failed.
+func (c *KubernetesClient) CreateOutcomeUnknown() bool {
+	return c.createOutcomeUnknown.Load()
+}
+
+// A create request that failed with an error from the API server
+// rejecting it did not create anything. Anything else, like a canceled
+// request, a timeout, or a server error, might still have created it.
+func (c *KubernetesClient) recordCreateError(err error) {
+	var status apierrors.APIStatus
+	if !errors.As(err, &status) ||
+		apierrors.IsTimeout(err) ||
+		apierrors.IsServerTimeout(err) ||
+		apierrors.IsInternalError(err) ||
+		apierrors.IsServiceUnavailable(err) ||
+		apierrors.IsUnexpectedServerError(err) {
+		c.createOutcomeUnknown.Store(true)
+	}
 }
 
 func (c *KubernetesClient) objectMeta(name, jobID string) v1.ObjectMeta {
@@ -408,6 +436,7 @@ func (c *KubernetesClient) CreateSecret(name string, jobRequest *api.JobRequest)
 		Create(ctx, &secret, v1.CreateOptions{})
 
 	if err != nil {
+		c.recordCreateError(err)
 		return fmt.Errorf("error creating secret '%s': %v", name, err)
 	}
 
@@ -427,6 +456,7 @@ func (c *KubernetesClient) CreateImagePullSecret(secretName, jobID string, crede
 		Secrets(c.config.Namespace).
 		Create(ctx, secret, v1.CreateOptions{})
 	if err != nil {
+		c.recordCreateError(err)
 		return fmt.Errorf("error creating image pull secret '%s': %v", secretName, err)
 	}
 
@@ -469,6 +499,7 @@ func (c *KubernetesClient) CreatePod(name string, envSecretName string, imagePul
 		Create(ctx, pod, v1.CreateOptions{})
 
 	if err != nil {
+		c.recordCreateError(err)
 		return fmt.Errorf("error creating pod: %v", err)
 	}
 

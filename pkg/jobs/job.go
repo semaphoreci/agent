@@ -153,25 +153,42 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 	return job, nil
 }
 
+// Where Kubernetes exposes the namespace of the pod's service account,
+// which is the pod's own namespace. A variable so tests can change it.
+var serviceAccountNamespaceFile = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+
 // The name of the pod the agent is running in, used to make it the owner of
 // the job's Kubernetes resources. KUBERNETES_POD_NAME can be exposed through
-// the downwards API. Otherwise, if the agent runs inside the cluster, we use
-// the hostname, which Kubernetes sets to the pod name unless the pod spec
-// overrides it. An agent running outside of the cluster has no pod, and its
-// hostname could match an unrelated pod, whose deletion would then delete
-// the job's resources, so no owner is used for it.
-func agentPodName() string {
+// the downwards API. Otherwise, if the agent runs in a pod in the namespace
+// the job's resources are created in, we use the hostname, which Kubernetes
+// sets to the pod name unless the pod spec overrides it. An agent running
+// anywhere else has no pod there, and its hostname could match an unrelated
+// pod, whose deletion would then delete the job's resources, so no owner
+// is used for it.
+func agentPodName(jobsNamespace string) string {
 	if name := os.Getenv("KUBERNETES_POD_NAME"); name != "" {
 		return name
 	}
 
-	if os.Getenv("KUBERNETES_SERVICE_HOST") == "" {
+	// #nosec
+	ownNamespace, err := os.ReadFile(serviceAccountNamespaceFile)
+	if err != nil {
+		log.Infof("Agent is not running in a Kubernetes pod - job resources will not have an owner")
+		return ""
+	}
+
+	if strings.TrimSpace(string(ownNamespace)) != jobsNamespace {
+		log.Infof(
+			"Agent pod is not in the '%s' namespace - job resources will not have an owner",
+			jobsNamespace,
+		)
+
 		return ""
 	}
 
 	hostname, err := os.Hostname()
 	if err != nil {
-		log.Warnf("Could not determine hostname: %v", err)
+		log.Errorf("Could not determine hostname - job resources will not have an owner: %v", err)
 		return ""
 	}
 
@@ -190,7 +207,7 @@ func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOpti
 
 		return executors.NewKubernetesExecutor(request, logger, kubernetes.Config{
 			Namespace:                 namespace,
-			OwnerPodName:              agentPodName(),
+			OwnerPodName:              agentPodName(namespace),
 			PodActiveDeadlineSeconds:  jobOptions.KubernetesPodDeadlineSeconds,
 			ImageValidator:            jobOptions.KubernetesImageValidator,
 			PodSpecDecoratorConfigMap: jobOptions.PodSpecDecoratorConfigMap,

@@ -2,8 +2,12 @@ package executors
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	goruntime "runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -20,6 +24,7 @@ import (
 	k8sclient "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/rest"
 	k8stesting "k8s.io/client-go/testing"
 )
 
@@ -81,7 +86,9 @@ func newK8sExecutor(t *testing.T, clientset k8sclient.Interface) *KubernetesExec
 	assert.NoError(t, err)
 
 	logger, _ := eventlogger.DefaultTestLogger()
-	return newKubernetesExecutorWithClient(k8sJobRequest(), logger, client)
+	e := newKubernetesExecutorWithClient(k8sJobRequest(), logger, client)
+	e.unknownCreateRecheckDelay = 10 * time.Millisecond
+	return e
 }
 
 func assertNoJobResources(t *testing.T, clientset *fake.Clientset) {
@@ -290,7 +297,9 @@ func newK8sExecutorWithPolling(t *testing.T, clientset k8sclient.Interface, atte
 	assert.NoError(t, err)
 
 	logger, _ := eventlogger.DefaultTestLogger()
-	return newKubernetesExecutorWithClient(k8sJobRequest(), logger, client)
+	e := newKubernetesExecutorWithClient(k8sJobRequest(), logger, client)
+	e.unknownCreateRecheckDelay = 10 * time.Millisecond
+	return e
 }
 
 func setJobPodPhase(t *testing.T, clientset *fake.Clientset, phase corev1.PodPhase) {
@@ -490,4 +499,155 @@ func Test__KubernetesExecutor__CommandsWithoutShell(t *testing.T) {
 		assert.NotZero(t, e.RunCommandWithOptions(CommandOptions{Command: "echo hello"}))
 		assert.Equal(t, 0, e.Stop())
 	})
+}
+
+// A fake API server that holds a pod creation until the client gives up on
+// it, and only creates the pod after the agent already tried to delete it,
+// like a slow API server completing a request the client canceled.
+type lateCommitAPIServer struct {
+	mu            sync.Mutex
+	pods          map[string]bool
+	secrets       map[string]bool
+	pendingPod    string
+	committed     bool
+	createStarted chan struct{}
+	podDeletes    int
+}
+
+func newLateCommitAPIServer() *lateCommitAPIServer {
+	return &lateCommitAPIServer{
+		pods:          map[string]bool{},
+		secrets:       map[string]bool{},
+		createStarted: make(chan struct{}),
+	}
+}
+
+func (s *lateCommitAPIServer) notFound(w http.ResponseWriter, kind, name string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotFound)
+	_ = json.NewEncoder(w).Encode(apierrors.NewNotFound(corev1.Resource(kind), name).ErrStatus)
+}
+
+func (s *lateCommitAPIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	const prefix = "/api/v1/namespaces/default/"
+	path := strings.TrimPrefix(r.URL.Path, prefix)
+	parts := strings.Split(path, "/")
+	kind := parts[0]
+	name := ""
+	if len(parts) > 1 {
+		name = parts[1]
+	}
+
+	switch {
+	case r.Method == http.MethodGet && kind == "pods":
+		s.notFound(w, kind, name)
+
+	case r.Method == http.MethodPost && kind == "secrets":
+		var secret corev1.Secret
+		_ = json.NewDecoder(r.Body).Decode(&secret)
+		s.mu.Lock()
+		s.secrets[secret.Name] = true
+		s.mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(secret)
+
+	case r.Method == http.MethodPost && kind == "pods":
+		var pod corev1.Pod
+		_ = json.NewDecoder(r.Body).Decode(&pod)
+		s.mu.Lock()
+		s.pendingPod = pod.Name
+		s.mu.Unlock()
+		close(s.createStarted)
+
+		// Hold the request until the client cancels it.
+		<-r.Context().Done()
+
+	case r.Method == http.MethodDelete && kind == "secrets":
+		s.mu.Lock()
+		found := s.secrets[name]
+		delete(s.secrets, name)
+		s.mu.Unlock()
+		if !found {
+			s.notFound(w, kind, name)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"Status","apiVersion":"v1","status":"Success"}`))
+
+	case r.Method == http.MethodDelete && kind == "pods":
+		s.mu.Lock()
+		s.podDeletes++
+		found := s.pods[name]
+		delete(s.pods, name)
+
+		// The canceled creation completes right after the first delete.
+		if s.pendingPod == name {
+			s.pods[name] = true
+			s.pendingPod = ""
+			s.committed = true
+		}
+		s.mu.Unlock()
+
+		if !found {
+			s.notFound(w, kind, name)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"Status","apiVersion":"v1","status":"Success"}`))
+
+	default:
+		w.WriteHeader(http.StatusNotImplemented)
+	}
+}
+
+func (s *lateCommitAPIServer) jobPodExists() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.pods["semaphore-job-"+k8sTestJobID]
+}
+
+func Test__KubernetesExecutor__PodCreatedAfterCanceledRequestIsDeleted(t *testing.T) {
+	server := newLateCommitAPIServer()
+	httpServer := httptest.NewServer(server)
+	defer httpServer.Close()
+
+	clientset, err := k8sclient.NewForConfig(&rest.Config{
+		Host:          httpServer.URL,
+		ContentConfig: rest.ContentConfig{ContentType: "application/json"},
+	})
+	assert.NoError(t, err)
+
+	e := newK8sExecutor(t, clientset)
+	prepareDone := make(chan int, 1)
+	go func() { prepareDone <- e.Prepare() }()
+	<-server.createStarted
+
+	// Stop cancels the pod creation, which the API server completes anyway.
+	assert.Equal(t, 0, returnsWithin(t, 10*time.Second, e.Stop))
+	assert.Equal(t, 1, <-prepareDone)
+	assert.True(t, e.k8sClient.CreateOutcomeUnknown())
+
+	// The creation did complete on the server, after the first delete.
+	server.mu.Lock()
+	assert.True(t, server.committed)
+	server.mu.Unlock()
+	assert.False(t, server.jobPodExists(), "pod created by the canceled request was left behind")
+	server.mu.Lock()
+	assert.Equal(t, 2, server.podDeletes)
+	assert.Empty(t, server.secrets)
+	server.mu.Unlock()
+}
+
+func Test__KubernetesExecutor__NoSecondCleanupPassWhenCreatesSucceed(t *testing.T) {
+	clientset := fake.NewSimpleClientset(agentPodObject())
+	e := newK8sExecutor(t, clientset)
+	assert.Equal(t, 0, e.Prepare())
+	assert.False(t, e.k8sClient.CreateOutcomeUnknown())
+
+	assert.Equal(t, 0, e.Stop())
+	assert.Equal(t, 2, countActions(clientset, "delete"))
+	assertNoJobResources(t, clientset)
 }
