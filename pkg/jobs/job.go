@@ -65,6 +65,10 @@ type Job struct {
 	Finished              bool
 	UploadJobLogs         string
 	UserAgent             string
+
+	// The executor is stopped exactly once per job, either by Stop(),
+	// or at the end of the job, whichever comes first.
+	executorStopOnce sync.Once
 }
 
 type JobOptions struct {
@@ -81,6 +85,7 @@ type JobOptions struct {
 	KubernetesLabels                 map[string]string
 	KubernetesImageValidator         *kubernetes.ImageValidator
 	KubernetesDefaultImage           string
+	KubernetesPodDeadlineSeconds     int64
 	UploadJobLogs                    string
 	RefreshTokenFn                   func() (string, error)
 	UserAgent                        string
@@ -144,6 +149,31 @@ func NewJobWithOptions(options *JobOptions) (*Job, error) {
 	return job, nil
 }
 
+// The name of the pod the agent is running in, used to make it the owner of
+// the job's Kubernetes resources. KUBERNETES_POD_NAME can be exposed through
+// the downwards API. Otherwise, if the agent runs inside the cluster, we use
+// the hostname, which Kubernetes sets to the pod name unless the pod spec
+// overrides it. An agent running outside of the cluster has no pod, and its
+// hostname could match an unrelated pod, whose deletion would then delete
+// the job's resources, so no owner is used for it.
+func agentPodName() string {
+	if name := os.Getenv("KUBERNETES_POD_NAME"); name != "" {
+		return name
+	}
+
+	if os.Getenv("KUBERNETES_SERVICE_HOST") == "" {
+		return ""
+	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Warnf("Could not determine hostname: %v", err)
+		return ""
+	}
+
+	return hostname
+}
+
 func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOptions JobOptions) (executors.Executor, error) {
 	if jobOptions.UseKubernetesExecutor {
 		// The downwards API allows the namespace to be exposed
@@ -156,6 +186,8 @@ func CreateExecutor(request *api.JobRequest, logger *eventlogger.Logger, jobOpti
 
 		return executors.NewKubernetesExecutor(request, logger, kubernetes.Config{
 			Namespace:                 namespace,
+			OwnerPodName:              agentPodName(),
+			PodActiveDeadlineSeconds:  jobOptions.KubernetesPodDeadlineSeconds,
 			ImageValidator:            jobOptions.KubernetesImageValidator,
 			PodSpecDecoratorConfigMap: jobOptions.PodSpecDecoratorConfigMap,
 			PodPollingAttempts:        jobOptions.KubernetesPodStartTimeoutSeconds,
@@ -343,6 +375,11 @@ func (job *Job) RunWithOptions(options RunOptions) {
 	exitCode := job.PrepareEnvironment()
 	if exitCode == 0 {
 		executorRunning = true
+	} else if job.Stopped {
+		// The executor gives up booting when the job is stopped,
+		// and that is a stopped job, not a failed one.
+		log.Info("Job was stopped while the executor was booting up")
+		result = JobStopped
 	} else {
 		log.Error("Executor failed to boot up")
 	}
@@ -367,10 +404,11 @@ func (job *Job) RunWithOptions(options RunOptions) {
 		log.Errorf("Error tearing down job: %v", err)
 	}
 
-	// the executor is already stopped when the job is stopped, so there's no need to stop it again
-	if !job.Stopped {
-		job.Executor.Stop()
-	}
+	// Stop the executor, unless Stop() already did it. This can't be keyed
+	// on job.Stopped: a job whose commands exit with 130 is also marked as
+	// stopped, but nothing stopped its executor, which would leave behind
+	// the resources it created, like a Kubernetes pod.
+	job.stopExecutor()
 
 	job.Finished = true
 	if options.OnJobFinished != nil {
@@ -820,9 +858,14 @@ func (job *Job) Stop() {
 	job.Stopped = true
 
 	log.Debug("Invoking process stopping")
+	job.stopExecutor()
+}
 
-	PreventPanicPropagation(func() {
-		job.Executor.Stop()
+func (job *Job) stopExecutor() {
+	job.executorStopOnce.Do(func() {
+		PreventPanicPropagation(func() {
+			job.Executor.Stop()
+		})
 	})
 }
 

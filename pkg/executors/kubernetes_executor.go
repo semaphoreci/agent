@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	api "github.com/semaphoreci/agent/pkg/api"
@@ -17,6 +18,9 @@ import (
 
 	log "github.com/sirupsen/logrus"
 )
+
+// The maximum time Cleanup() takes, for all of the job's resources.
+const defaultCleanupTimeout = 60 * time.Second
 
 type KubernetesExecutor struct {
 	k8sClient       *kubernetes.KubernetesClient
@@ -29,6 +33,21 @@ type KubernetesExecutor struct {
 
 	// If the executor is stopped before it even starts, we need to cancel it.
 	cancelFunc context.CancelFunc
+
+	// Stop() runs on a different goroutine than Prepare() and Start().
+	// mu serializes the creation of Kubernetes resources with their removal:
+	// once stopped is set, nothing else is created, and anything created
+	// before that is visible to Cleanup(). Without it, a job stopped while
+	// its pod is being created leaves the pod running forever.
+	mu        sync.Mutex
+	stopped   bool
+	cleanedUp bool
+
+	// Starts the shell session in the job pod. Replaced in tests.
+	startShell func() (*shell.Shell, error)
+
+	// The maximum time Cleanup() takes. Shorter in tests.
+	cleanupTimeout time.Duration
 
 	// We need to keep track if the initial environment has already
 	// been exposed or not, because ExportEnvVars() gets called twice.
@@ -51,11 +70,16 @@ func NewKubernetesExecutor(jobRequest *api.JobRequest, logger *eventlogger.Logge
 		return nil, err
 	}
 
+	return newKubernetesExecutorWithClient(jobRequest, logger, k8sClient), nil
+}
+
+func newKubernetesExecutorWithClient(jobRequest *api.JobRequest, logger *eventlogger.Logger, k8sClient *kubernetes.KubernetesClient) *KubernetesExecutor {
 	return &KubernetesExecutor{
-		k8sClient:  k8sClient,
-		jobRequest: jobRequest,
-		logger:     logger,
-	}, nil
+		k8sClient:      k8sClient,
+		jobRequest:     jobRequest,
+		logger:         logger,
+		cleanupTimeout: defaultCleanupTimeout,
+	}
 }
 
 func (e *KubernetesExecutor) Prepare() int {
@@ -70,6 +94,18 @@ func (e *KubernetesExecutor) Prepare() int {
 		e.logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
+	// Held until every resource is created, so a concurrent Stop()
+	// waits for them to exist before removing them.
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.stopped {
+		log.Info("Job was stopped before its Kubernetes resources were created")
+		e.logger.LogCommandOutput("Job was stopped before its Kubernetes resources were created.\n")
+		exitCode = 1
+		return exitCode
+	}
+
 	err := e.k8sClient.LoadPodSpec()
 	if err != nil {
 		log.Errorf("Failed to load pod spec: %v", err)
@@ -77,6 +113,8 @@ func (e *KubernetesExecutor) Prepare() int {
 		exitCode = 1
 		return exitCode
 	}
+
+	e.k8sClient.LoadOwnerReference()
 
 	e.podName = fmt.Sprintf("semaphore-job-%s", e.jobRequest.JobID)
 	e.envSecretName = fmt.Sprintf("%s-secret", e.podName)
@@ -92,7 +130,7 @@ func (e *KubernetesExecutor) Prepare() int {
 	// we create a temporary secret to store them and use it to pull the image.
 	if len(e.jobRequest.Compose.ImagePullCredentials) > 0 {
 		e.imagePullSecret = fmt.Sprintf("%s-image-pull-secret", e.podName)
-		err = e.k8sClient.CreateImagePullSecret(e.imagePullSecret, e.jobRequest.Compose.ImagePullCredentials)
+		err = e.k8sClient.CreateImagePullSecret(e.imagePullSecret, e.jobRequest.JobID, e.jobRequest.Compose.ImagePullCredentials)
 		if err != nil {
 			log.Errorf("Failed to create temporary image pull secret: %v", err)
 			e.logger.LogCommandOutput(fmt.Sprintf("Failed to create temporary image pull secret: %v\n", err))
@@ -124,8 +162,17 @@ func (e *KubernetesExecutor) Start() int {
 		e.logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 	}()
 
+	e.mu.Lock()
+	if e.stopped {
+		e.mu.Unlock()
+		log.Info("Job was stopped before its shell session started")
+		exitCode = 1
+		return exitCode
+	}
+
 	ctx, cancel := context.WithCancel(context.TODO())
 	e.cancelFunc = cancel
+	e.mu.Unlock()
 
 	err := e.k8sClient.WaitForPod(ctx, e.podName, func(msg string) {
 		e.logger.LogCommandOutput(msg + "\n")
@@ -142,41 +189,33 @@ func (e *KubernetesExecutor) Start() int {
 	e.logger.LogCommandOutput("Pod is ready.\n")
 	e.logger.LogCommandOutput("Starting a new bash session in the pod...\n")
 
-	// #nosec
-	executable := "kubectl"
-	args := []string{
-		"exec",
-		"-it",
-		e.podName,
-		"-c",
-		"main",
-		"--",
-		"bash",
-		"--login",
+	startShell := e.startShell
+	if startShell == nil {
+		startShell = e.startShellInPod
 	}
 
-	shell, err := shell.NewShellFromExecAndArgs(executable, args, os.TempDir())
+	shell, err := startShell()
 	if err != nil {
-		log.Errorf("Failed to create shell: %v", err)
-		e.logger.LogCommandOutput("Failed to create shell in kubernetes container\n")
-		e.logger.LogCommandOutput(err.Error())
+		exitCode = 1
+		return exitCode
+	}
+
+	e.mu.Lock()
+	if e.stopped {
+		e.mu.Unlock()
+		log.Info("Job was stopped while its shell session was starting")
+		if err := shell.Close(); err != nil {
+			log.Errorf("Error closing shell: %v", err)
+		}
 
 		exitCode = 1
 		return exitCode
 	}
 
-	err = shell.Start()
-	if err != nil {
-		log.Errorf("Failed to start shell err: %+v", err)
-		e.logger.LogCommandOutput("Failed to start shell in kubernetes container\n")
-		e.logger.LogCommandOutput(err.Error())
-
-		exitCode = 1
-		return exitCode
-	}
+	e.Shell = shell
+	e.mu.Unlock()
 
 	e.logger.LogCommandOutput("Shell session is ready.\n")
-	e.Shell = shell
 
 	// Find the user being used to run the commands.
 	// Mostly helpful when troubleshooting issues with permissions on the container.
@@ -220,6 +259,39 @@ func (e *KubernetesExecutor) Start() int {
 	log.Infof("Working directory: %s", output)
 	e.logger.LogCommandOutput(fmt.Sprintf("Working directory: %s", output))
 	return exitCode
+}
+
+func (e *KubernetesExecutor) startShellInPod() (*shell.Shell, error) {
+	// #nosec
+	executable := "kubectl"
+	args := []string{
+		"exec",
+		"-it",
+		e.podName,
+		"-c",
+		"main",
+		"--",
+		"bash",
+		"--login",
+	}
+
+	sh, err := shell.NewShellFromExecAndArgs(executable, args, os.TempDir())
+	if err != nil {
+		log.Errorf("Failed to create shell: %v", err)
+		e.logger.LogCommandOutput("Failed to create shell in kubernetes container\n")
+		e.logger.LogCommandOutput(err.Error())
+		return nil, err
+	}
+
+	err = sh.Start()
+	if err != nil {
+		log.Errorf("Failed to start shell err: %+v", err)
+		e.logger.LogCommandOutput("Failed to start shell in kubernetes container\n")
+		e.logger.LogCommandOutput(err.Error())
+		return nil, err
+	}
+
+	return sh, nil
 }
 
 // This function gets called twice during a job's execution:
@@ -415,12 +487,22 @@ func (e *KubernetesExecutor) RunCommandWithOptions(options CommandOptions) int {
 func (e *KubernetesExecutor) Stop() int {
 	log.Debug("Starting the process killing procedure")
 
+	// Abort any Kubernetes request Prepare() or Start() is waiting on,
+	// so we don't wait for a slow API server before cleaning up.
+	e.k8sClient.CancelRequests()
+
+	// Waits for a Prepare() in progress to finish creating resources.
+	e.mu.Lock()
+	e.stopped = true
 	if e.cancelFunc != nil {
 		e.cancelFunc()
 	}
 
-	if e.Shell != nil {
-		err := e.Shell.Close()
+	sh := e.Shell
+	e.mu.Unlock()
+
+	if sh != nil {
+		err := sh.Close()
 		if err != nil {
 			log.Errorf("Process killing procedure returned an error %+v\n", err)
 		}
@@ -429,33 +511,68 @@ func (e *KubernetesExecutor) Stop() int {
 	return e.Cleanup()
 }
 
+// Cleanup removes the resources created for the job. It only runs once,
+// and nothing is created after it, even if Prepare() is called later.
 func (e *KubernetesExecutor) Cleanup() int {
-	e.removeK8sResources()
+	e.mu.Lock()
+	e.stopped = true
+	if e.cleanedUp {
+		e.mu.Unlock()
+		return 0
+	}
+
+	e.cleanedUp = true
+	podName, envSecretName, imagePullSecret := e.podName, e.envSecretName, e.imagePullSecret
+	e.mu.Unlock()
+
+	// One deadline for the whole cleanup, since a stop waits for it.
+	ctx, cancel := context.WithTimeout(context.Background(), e.cleanupTimeout)
+	defer cancel()
+
+	e.removeK8sResources(ctx, podName, envSecretName, imagePullSecret)
 	e.removeLocalResources()
 	return 0
 }
 
-func (e *KubernetesExecutor) removeK8sResources() {
-	if e.podName != "" {
-		if err := e.k8sClient.DeletePod(e.podName); err != nil {
-			log.Errorf("Error deleting pod '%s': %v\n", e.podName, err)
-		}
+// The resources are deleted concurrently, all within the same deadline.
+func (e *KubernetesExecutor) removeK8sResources(ctx context.Context, podName, envSecretName, imagePullSecret string) {
+	var wg sync.WaitGroup
+	run := func(fn func()) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			fn()
+		}()
 	}
 
-	if e.envSecretName != "" {
-		if err := e.k8sClient.DeleteSecret(e.envSecretName); err != nil {
-			log.Errorf("Error deleting secret '%s': %v\n", e.envSecretName, err)
-		}
+	if podName != "" {
+		run(func() {
+			if err := e.k8sClient.DeletePod(ctx, podName); err != nil {
+				log.Errorf("Error deleting pod '%s': %v\n", podName, err)
+			}
+		})
+	}
+
+	if envSecretName != "" {
+		run(func() {
+			if err := e.k8sClient.DeleteSecret(ctx, envSecretName); err != nil {
+				log.Errorf("Error deleting secret '%s': %v\n", envSecretName, err)
+			}
+		})
 	}
 
 	// Not all jobs create this temporary secret,
 	// just the ones that send credentials to pull images
 	// in the job definition, so we only delete it if it was previously created.
-	if e.imagePullSecret != "" {
-		if err := e.k8sClient.DeleteSecret(e.imagePullSecret); err != nil {
-			log.Errorf("Error deleting secret '%s': %v\n", e.imagePullSecret, err)
-		}
+	if imagePullSecret != "" {
+		run(func() {
+			if err := e.k8sClient.DeleteSecret(ctx, imagePullSecret); err != nil {
+				log.Errorf("Error deleting secret '%s': %v\n", imagePullSecret, err)
+			}
+		})
 	}
+
+	wg.Wait()
 }
 
 func (e *KubernetesExecutor) removeLocalResources() {

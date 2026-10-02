@@ -295,20 +295,23 @@ func (e *ShellExecutor) RunCommandWithOptions(options CommandOptions) int {
 func (e *ShellExecutor) Stop() int {
 	log.Debug("Starting the process killing procedure")
 
-	err := e.Shell.Close()
-	if err != nil {
-		log.Error(err)
-	}
+	// The job can be stopped before its shell is started.
+	if e.Shell != nil {
+		err := e.Shell.Close()
+		if err != nil {
+			log.Error(err)
+		}
 
-	err = e.Shell.Terminate()
-	if err != nil {
-		log.Errorf("Error terminating shell: %v", err)
-		return 1
+		err = e.Shell.Terminate()
+		if err != nil {
+			log.Errorf("Error terminating shell: %v", err)
+			return 1
+		}
 	}
 
 	exitCode := e.Cleanup()
 	if exitCode != 0 {
-		log.Errorf("Error cleaning up executor resources: %v", err)
+		log.Errorf("Error cleaning up executor resources: exit code %d", exitCode)
 		return exitCode
 	}
 

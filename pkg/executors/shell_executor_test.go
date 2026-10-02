@@ -441,3 +441,22 @@ func setupShellExecutor(t *testing.T, selfHosted bool) (*ShellExecutor, *eventlo
 
 	return e, testLoggerBackend
 }
+
+func Test__ShellExecutor__StopBeforeStart(t *testing.T) {
+	testLogger, _ := eventlogger.DefaultTestLogger()
+	e := NewShellExecutor(basicRequest(), testLogger, true)
+	assert.Zero(t, e.Prepare())
+	assert.Zero(t, e.Stop())
+}
+
+func Test__ShellExecutor__StopAfterStart(t *testing.T) {
+	e, _ := setupShellExecutor(t, true)
+	sh := e.Shell
+	assert.Zero(t, e.Stop())
+
+	select {
+	case <-sh.ExitSignal:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the shell was not closed")
+	}
+}

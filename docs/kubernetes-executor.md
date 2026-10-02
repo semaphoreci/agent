@@ -2,10 +2,12 @@ The Kubernetes executor creates a new Kubernetes pod to run every job it receive
 
 - [Requirements](#requirements)
 - [Permissions](#permissions)
+- [Cleanup of job resources](#cleanup-of-job-resources)
 - [Limitations](#limitations)
 - [Configuration](#configuration)
   - [--kubernetes-executor](#--kubernetes-executor)
   - [--kubernetes-pod-start-timeout](#--kubernetes-pod-start-timeout)
+  - [--kubernetes-pod-active-deadline-seconds](#--kubernetes-pod-active-deadline-seconds)
   - [--kubernetes-pod-spec](#--kubernetes-pod-spec)
 - [Examples](#examples)
   - [Specifying containers](#specifying-containers)
@@ -43,6 +45,16 @@ The Kubernetes permissions required by the agent to use the Kubernetes executor 
   verbs: ["create", "delete"]
 ```
 
+## Cleanup of job resources
+
+For each job, the Kubernetes executor creates a pod and one or two secrets, labeled with `semaphoreci.com/job-id=<job-id>`. The agent deletes them when the job finishes or is stopped.
+
+If the agent is itself running in a pod, it makes that pod the owner of the job's resources, through an [owner reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents/). If the agent pod is deleted before the agent can clean up (for example, it is evicted or OOM-killed and its pod is removed), Kubernetes garbage-collects the job's pod and secrets, instead of leaving them running. Note that this also stops the job pod: a job whose agent pod is deleted does not keep running.
+
+The agent finds its own pod by the `KUBERNETES_POD_NAME` environment variable, which can be exposed through the [downward API](https://kubernetes.io/docs/tasks/inject-data-application/environment-variable-expose-pod-information), falling back to the hostname when the agent runs inside the cluster. An agent running outside of the cluster only uses `KUBERNETES_POD_NAME`. If the agent pod uses `hostNetwork: true` or sets its own hostname, set `KUBERNETES_POD_NAME`, since the hostname is not the pod name then. The pod must be in the same namespace used for the jobs. If the pod cannot be found, the job still runs, but its resources have no owner.
+
+Kubernetes only garbage-collects the job's resources once the agent pod object is deleted, not when the agent container stops. If something keeps finished agent pods around (for example, a retention period for finished Kubernetes jobs), use `--kubernetes-pod-active-deadline-seconds` to bound how long an orphaned job pod can run.
+
 ## Limitations
 
 - Running system-level software such as systemd and Docker requires privileged access to the Kubernetes nodes, which is not safe. If you need to run those workflows, consider using the [agent-aws-stack](https://github.com/renderedtext/agent-aws-stack) or [sysbox](https://github.com/nestybox/sysbox).
@@ -58,6 +70,10 @@ If the agent is running inside a Kubernetes pod, it uses the service account Kub
 ### --kubernetes-pod-start-timeout
 
 By default, the Kubernetes executor waits for 300s for the pod to be ready to run the Semaphore job. If the pod doesn't come up in time, the Semaphore job will fail. That value can be configured with the Semaphore agent `--kubernetes-pod-start-timeout` parameter, which accepts a number of seconds.
+
+### --kubernetes-pod-active-deadline-seconds
+
+A safety net for job pods that outlive their agent. If set to a value greater than zero, it is used as the [activeDeadlineSeconds](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-lifetime) of the job pod, unless the pod spec from `--kubernetes-pod-spec` already sets one. Disabled by default. The value must be longer than your longest job: a job still running when its pod reaches the deadline fails.
 
 ### --kubernetes-pod-spec
 

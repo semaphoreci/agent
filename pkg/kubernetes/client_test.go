@@ -153,7 +153,7 @@ func Test__CreateImagePullSecret(t *testing.T) {
 	t.Run("bad image pull credentials -> error", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
 		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
-		err := client.CreateImagePullSecret("badsecret", []api.ImagePullCredentials{
+		err := client.CreateImagePullSecret("badsecret", "", []api.ImagePullCredentials{
 			{
 				EnvVars: []api.EnvVar{
 					{Name: "DOCKER_CREDENTIAL_TYPE", Value: base64.StdEncoding.EncodeToString([]byte("NOT_SUPPORTED"))},
@@ -170,7 +170,7 @@ func Test__CreateImagePullSecret(t *testing.T) {
 		client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
 		secretName := "mysecretname"
 
-		err := client.CreateImagePullSecret(secretName, []api.ImagePullCredentials{
+		err := client.CreateImagePullSecret(secretName, "", []api.ImagePullCredentials{
 			{
 				EnvVars: []api.EnvVar{
 					{Name: "DOCKER_CREDENTIAL_TYPE", Value: base64.StdEncoding.EncodeToString([]byte(api.ImagePullCredentialsStrategyGenericDocker))},
@@ -205,7 +205,7 @@ func Test__CreateImagePullSecret(t *testing.T) {
 			},
 		})
 
-		err := client.CreateImagePullSecret(secretName, []api.ImagePullCredentials{
+		err := client.CreateImagePullSecret(secretName, "", []api.ImagePullCredentials{
 			{
 				EnvVars: []api.EnvVar{
 					{Name: "DOCKER_CREDENTIAL_TYPE", Value: base64.StdEncoding.EncodeToString([]byte(api.ImagePullCredentialsStrategyGenericDocker))},
@@ -920,7 +920,7 @@ func Test_DeletePod(t *testing.T) {
 	})
 
 	client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
-	assert.NoError(t, client.DeletePod(podName))
+	assert.NoError(t, client.DeletePod(context.Background(), podName))
 
 	// pod does not exist anymore
 	_, err := clientset.CoreV1().
@@ -941,7 +941,7 @@ func Test_DeleteSecret(t *testing.T) {
 	})
 
 	client, _ := NewKubernetesClient(clientset, Config{Namespace: "default"})
-	assert.NoError(t, client.DeleteSecret(secretName))
+	assert.NoError(t, client.DeleteSecret(context.Background(), secretName))
 
 	// secret does not exist anymore
 	_, err := clientset.CoreV1().
