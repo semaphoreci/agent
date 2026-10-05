@@ -2,7 +2,9 @@ package executors
 
 import (
 	"encoding/base64"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -10,6 +12,7 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
+	shell "github.com/semaphoreci/agent/pkg/shell"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -253,4 +256,89 @@ func Test__DockerComposeExecutor__composeExecutableAndArgs(t *testing.T) {
 			assert.Equal(t, tc.expectedArgs, args)
 		})
 	}
+}
+
+func newStoppableComposeExecutor() *DockerComposeExecutor {
+	testLogger, _ := eventlogger.DefaultTestLogger()
+	request := &api.JobRequest{
+		Compose: api.Compose{
+			Containers: []api.Container{{Name: "main", Image: "some-image"}},
+		},
+	}
+
+	return NewDockerComposeExecutor(request, testLogger, DockerComposeExecutorOptions{})
+}
+
+func Test__DockerComposeExecutor__StoppedExecutorDoesNotBoot(t *testing.T) {
+	t.Run("single stop before Prepare -> Prepare and Start fail, no shell", func(t *testing.T) {
+		e := newStoppableComposeExecutor()
+		marker := filepath.Join(t.TempDir(), "host-setup-ran")
+		e.jobRequest.Compose.HostSetupCommands = []api.Command{{Directive: "touch " + marker}}
+		assert.Zero(t, e.Stop())
+
+		assert.NotZero(t, e.Prepare())
+		assert.NoFileExists(t, marker, "host setup commands ran for a stopped job")
+		assert.NotZero(t, e.Start())
+		assert.Nil(t, e.Shell)
+	})
+
+	t.Run("repeated stops -> Start still fails, no shell", func(t *testing.T) {
+		e := newStoppableComposeExecutor()
+		assert.Zero(t, e.Stop())
+		assert.Zero(t, e.Stop())
+
+		assert.NotZero(t, e.Start())
+		assert.Nil(t, e.Shell)
+	})
+
+	t.Run("commands on a never-started executor -> non-zero, no panic", func(t *testing.T) {
+		e := newStoppableComposeExecutor()
+		assert.Zero(t, e.Stop())
+
+		assert.NotZero(t, e.RunCommandWithOptions(CommandOptions{Command: "echo hello"}))
+		assert.NotZero(t, e.RunCommand("echo hello", false, ""))
+		_, code := e.GetOutputFromCommand("echo hello")
+		assert.NotZero(t, code)
+	})
+}
+
+func Test__DockerComposeExecutor__StopWhileShellStarts(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
+	t.Run("stopped while the shell starts -> shell closed, not used", func(t *testing.T) {
+		e := newStoppableComposeExecutor()
+
+		var sh *shell.Shell
+		e.newShell = func(executable string, args []string, storagePath string) (*shell.Shell, error) {
+			var err error
+			sh, err = shell.NewShell(os.TempDir())
+
+			// The stop lands after the shell is created, before Start() uses it.
+			assert.Zero(t, e.Stop())
+			return sh, err
+		}
+
+		assert.NotZero(t, e.startBashSession())
+		assert.Nil(t, e.Shell)
+
+		select {
+		case <-sh.ExitSignal:
+		case <-time.After(5 * time.Second):
+			t.Fatal("the shell started concurrently with the stop was not closed")
+		}
+	})
+
+	t.Run("no stop -> shell is used", func(t *testing.T) {
+		e := newStoppableComposeExecutor()
+		e.newShell = func(executable string, args []string, storagePath string) (*shell.Shell, error) {
+			return shell.NewShell(os.TempDir())
+		}
+
+		assert.Zero(t, e.startBashSession())
+		assert.NotNil(t, e.Shell)
+		assert.Zero(t, e.RunCommand("echo hello", true, ""))
+		assert.NoError(t, e.Shell.Close())
+	})
 }

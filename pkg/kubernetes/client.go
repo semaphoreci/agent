@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/ghodss/yaml"
@@ -18,11 +20,31 @@ import (
 	"github.com/semaphoreci/agent/pkg/shell"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
+
+// JobIDLabel is added to every resource created for a job,
+// so they can be found by the Semaphore job ID.
+const JobIDLabel = "semaphoreci.com/job-id"
+
+const (
+	defaultDeleteAttempts = 5
+	defaultDeleteInterval = 2 * time.Second
+	apiRequestTimeout     = 30 * time.Second
+
+	// Each delete attempt gets a shorter deadline, and all of them are
+	// also bounded by the deadline the caller passes in.
+	deleteRequestTimeout = 10 * time.Second
+
+	ownerLookupAttempts = 3
+)
+
+// A variable so tests don't need to wait for it.
+var ownerLookupInterval = time.Second
 
 type Config struct {
 	Namespace                 string
@@ -32,6 +54,19 @@ type Config struct {
 	Labels                    map[string]string
 	PodPollingInterval        time.Duration
 	DefaultImage              string
+
+	// The name of the pod the agent itself is running in.
+	// If set, and the pod can be found in the namespace, the resources
+	// created for the job are owned by it, so Kubernetes garbage-collects
+	// them if the agent pod goes away without cleaning them up.
+	OwnerPodName string
+
+	// If greater than zero, and the pod spec decorator does not set one,
+	// used as the activeDeadlineSeconds for the job pod.
+	PodActiveDeadlineSeconds int64
+
+	DeleteAttempts int
+	DeleteInterval time.Duration
 }
 
 func (c *Config) LabelMap() map[string]string {
@@ -40,6 +75,37 @@ func (c *Config) LabelMap() map[string]string {
 	}
 
 	return c.Labels
+}
+
+// Labels for a resource created for a job.
+// A copy, so the shared configuration is never modified.
+func (c *Config) labelsForJob(jobID string) map[string]string {
+	labels := map[string]string{}
+	for k, v := range c.LabelMap() {
+		labels[k] = v
+	}
+
+	if jobID != "" {
+		labels[JobIDLabel] = jobID
+	}
+
+	return labels
+}
+
+func (c *Config) deleteAttempts() int {
+	if c.DeleteAttempts <= 0 {
+		return defaultDeleteAttempts
+	}
+
+	return c.DeleteAttempts
+}
+
+func (c *Config) deleteInterval() time.Duration {
+	if c.DeleteInterval <= 0 {
+		return defaultDeleteInterval
+	}
+
+	return c.DeleteInterval
 }
 
 func (c *Config) PollingInterval() time.Duration {
@@ -72,6 +138,18 @@ type KubernetesClient struct {
 	podSpec              *corev1.PodSpec
 	mainContainerSpec    *corev1.Container
 	sidecarContainerSpec *corev1.Container
+	ownerReferences      []v1.OwnerReference
+
+	// Parent of every request made to create or wait for the job's resources.
+	// Canceled when the job is stopped, so a slow API server does not delay it.
+	// Deletions do not use it: they need to run after the cancelation.
+	requestsCtx    context.Context
+	cancelRequests context.CancelFunc
+
+	// Set when a create request failed without a definitive answer from
+	// the API server, like when it is canceled or times out. The API server
+	// may still create the resource after that, even after it was deleted.
+	createOutcomeUnknown atomic.Bool
 }
 
 func NewKubernetesClient(clientset kubernetes.Interface, config Config) (*KubernetesClient, error) {
@@ -79,9 +157,12 @@ func NewKubernetesClient(clientset kubernetes.Interface, config Config) (*Kubern
 		return nil, fmt.Errorf("config is invalid: %v", err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	c := &KubernetesClient{
-		clientset: clientset,
-		config:    config,
+		clientset:      clientset,
+		config:         config,
+		requestsCtx:    ctx,
+		cancelRequests: cancel,
 	}
 
 	return c, nil
@@ -129,9 +210,12 @@ func (c *KubernetesClient) LoadPodSpec() error {
 		return nil
 	}
 
+	ctx, cancel := c.requestContext()
+	defer cancel()
+
 	configMap, err := c.clientset.CoreV1().
 		ConfigMaps(c.config.Namespace).
-		Get(context.TODO(), c.config.PodSpecDecoratorConfigMap, v1.GetOptions{})
+		Get(ctx, c.config.PodSpecDecoratorConfigMap, v1.GetOptions{})
 
 	if err != nil {
 		return fmt.Errorf("error finding configmap '%s': %v", c.config.PodSpecDecoratorConfigMap, err)
@@ -182,6 +266,114 @@ func (c *KubernetesClient) LoadPodSpec() error {
 	return nil
 }
 
+// LoadOwnerReference finds the pod the agent is running in, and makes it
+// the owner of every resource created for the job from now on. If the agent
+// pod is deleted without the agent cleaning up (eviction, OOM kill, node loss),
+// Kubernetes garbage-collects the job pod and its secrets.
+//
+// Failing to find the agent pod is not fatal: the job runs as before,
+// with resources that are only removed by the agent itself.
+func (c *KubernetesClient) LoadOwnerReference() {
+	c.ownerReferences = nil
+	if c.config.OwnerPodName == "" {
+		log.Info("Agent pod name is unknown - job resources will not have an owner")
+		return
+	}
+
+	pod, err := c.getOwnerPod()
+	if err != nil {
+		log.Errorf("Could not find agent pod '%s' - job resources will not have an owner: %v", c.config.OwnerPodName, err)
+		return
+	}
+
+	// We do not set blockOwnerDeletion:
+	// deleting the agent pod should never wait for the job resources,
+	// and setting it requires extra permissions on the owner.
+	c.ownerReferences = []v1.OwnerReference{
+		{
+			APIVersion: "v1",
+			Kind:       "Pod",
+			Name:       pod.Name,
+			UID:        pod.UID,
+		},
+	}
+
+	log.Infof("Job resources will be owned by agent pod '%s'", pod.Name)
+}
+
+// A missing pod, or no permission to see it, will not change by retrying.
+// Anything else, like a timeout, gets a few more tries, unless the job is stopped.
+func (c *KubernetesClient) getOwnerPod() (*corev1.Pod, error) {
+	var lastErr error
+	for attempt := 1; attempt <= ownerLookupAttempts; attempt++ {
+		ctx, cancel := c.requestContext()
+		pod, err := c.clientset.CoreV1().
+			Pods(c.config.Namespace).
+			Get(ctx, c.config.OwnerPodName, v1.GetOptions{})
+		cancel()
+
+		if err == nil {
+			return pod, nil
+		}
+
+		lastErr = err
+		if apierrors.IsNotFound(err) || apierrors.IsForbidden(err) {
+			return nil, err
+		}
+
+		if attempt < ownerLookupAttempts {
+			log.Warnf("Error finding agent pod '%s' (attempt %d) - retrying: %v", c.config.OwnerPodName, attempt, err)
+			select {
+			case <-time.After(ownerLookupInterval):
+			case <-c.requestsCtx.Done():
+				return nil, err
+			}
+		}
+	}
+
+	return nil, lastErr
+}
+
+func (c *KubernetesClient) requestContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(c.requestsCtx, apiRequestTimeout)
+}
+
+// CancelRequests aborts in-flight and future requests to create
+// or wait for the job's resources. Deletions are not affected.
+func (c *KubernetesClient) CancelRequests() {
+	c.cancelRequests()
+}
+
+// CreateOutcomeUnknown reports if a resource may have been created
+// even though its create request failed.
+func (c *KubernetesClient) CreateOutcomeUnknown() bool {
+	return c.createOutcomeUnknown.Load()
+}
+
+// A create request that failed with an error from the API server
+// rejecting it did not create anything. Anything else, like a canceled
+// request, a timeout, or a server error, might still have created it.
+func (c *KubernetesClient) recordCreateError(err error) {
+	var status apierrors.APIStatus
+	if !errors.As(err, &status) ||
+		apierrors.IsTimeout(err) ||
+		apierrors.IsServerTimeout(err) ||
+		apierrors.IsInternalError(err) ||
+		apierrors.IsServiceUnavailable(err) ||
+		apierrors.IsUnexpectedServerError(err) {
+		c.createOutcomeUnknown.Store(true)
+	}
+}
+
+func (c *KubernetesClient) objectMeta(name, jobID string) v1.ObjectMeta {
+	return v1.ObjectMeta{
+		Name:            name,
+		Namespace:       c.config.Namespace,
+		Labels:          c.config.labelsForJob(jobID),
+		OwnerReferences: append([]v1.OwnerReference{}, c.ownerReferences...),
+	}
+}
+
 func (c *KubernetesClient) CreateSecret(name string, jobRequest *api.JobRequest) error {
 	environment, err := shell.CreateEnvironment(jobRequest.EnvVars, []config.HostEnvVar{})
 	if err != nil {
@@ -230,44 +422,48 @@ func (c *KubernetesClient) CreateSecret(name string, jobRequest *api.JobRequest)
 	}
 
 	secret := corev1.Secret{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      name,
-			Namespace: c.config.Namespace,
-			Labels:    c.config.LabelMap(),
-		},
+		ObjectMeta: c.objectMeta(name, jobRequest.JobID),
 		Type:       corev1.SecretTypeOpaque,
 		Immutable:  &immutable,
 		StringData: data,
 	}
 
+	ctx, cancel := c.requestContext()
+	defer cancel()
+
 	_, err = c.clientset.CoreV1().
 		Secrets(c.config.Namespace).
-		Create(context.Background(), &secret, v1.CreateOptions{})
+		Create(ctx, &secret, v1.CreateOptions{})
 
 	if err != nil {
+		c.recordCreateError(err)
 		return fmt.Errorf("error creating secret '%s': %v", name, err)
 	}
 
 	return nil
 }
 
-func (c *KubernetesClient) CreateImagePullSecret(secretName string, credentials []api.ImagePullCredentials) error {
-	secret, err := c.buildImagePullSecret(secretName, credentials)
+func (c *KubernetesClient) CreateImagePullSecret(secretName, jobID string, credentials []api.ImagePullCredentials) error {
+	secret, err := c.buildImagePullSecret(secretName, jobID, credentials)
 	if err != nil {
 		return fmt.Errorf("error building image pull secret spec for '%s': %v", secretName, err)
 	}
 
+	ctx, cancel := c.requestContext()
+	defer cancel()
+
 	_, err = c.clientset.CoreV1().
 		Secrets(c.config.Namespace).
-		Create(context.Background(), secret, v1.CreateOptions{})
+		Create(ctx, secret, v1.CreateOptions{})
 	if err != nil {
+		c.recordCreateError(err)
 		return fmt.Errorf("error creating image pull secret '%s': %v", secretName, err)
 	}
 
 	return nil
 }
 
-func (c *KubernetesClient) buildImagePullSecret(secretName string, credentials []api.ImagePullCredentials) (*corev1.Secret, error) {
+func (c *KubernetesClient) buildImagePullSecret(secretName, jobID string, credentials []api.ImagePullCredentials) (*corev1.Secret, error) {
 	data, err := docker.NewDockerConfig(credentials)
 	if err != nil {
 		return nil, fmt.Errorf("error creating docker config for '%s': %v", secretName, err)
@@ -280,14 +476,10 @@ func (c *KubernetesClient) buildImagePullSecret(secretName string, credentials [
 
 	immutable := true
 	secret := corev1.Secret{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      secretName,
-			Namespace: c.config.Namespace,
-			Labels:    c.config.LabelMap(),
-		},
-		Type:      corev1.SecretTypeDockerConfigJson,
-		Immutable: &immutable,
-		Data:      map[string][]byte{corev1.DockerConfigJsonKey: json},
+		ObjectMeta: c.objectMeta(secretName, jobID),
+		Type:       corev1.SecretTypeDockerConfigJson,
+		Immutable:  &immutable,
+		Data:       map[string][]byte{corev1.DockerConfigJsonKey: json},
 	}
 
 	return &secret, nil
@@ -299,11 +491,15 @@ func (c *KubernetesClient) CreatePod(name string, envSecretName string, imagePul
 		return fmt.Errorf("error building pod spec: %v", err)
 	}
 
+	ctx, cancel := c.requestContext()
+	defer cancel()
+
 	_, err = c.clientset.CoreV1().
 		Pods(c.config.Namespace).
-		Create(context.TODO(), pod, v1.CreateOptions{})
+		Create(ctx, pod, v1.CreateOptions{})
 
 	if err != nil {
+		c.recordCreateError(err)
 		return fmt.Errorf("error creating pod: %v", err)
 	}
 
@@ -327,6 +523,14 @@ func (c *KubernetesClient) podSpecFromJobRequest(podName string, envSecretName s
 	spec.HostAliases = c.hostAliases(containers)
 	spec.ImagePullSecrets = append(spec.ImagePullSecrets, c.imagePullSecrets(imagePullSecret)...)
 	spec.RestartPolicy = corev1.RestartPolicyNever
+
+	// A safety net for pods left behind by an agent that could not clean up.
+	// A deadline set by the pod spec decorator always takes precedence.
+	if spec.ActiveDeadlineSeconds == nil && c.config.PodActiveDeadlineSeconds > 0 {
+		deadline := c.config.PodActiveDeadlineSeconds
+		spec.ActiveDeadlineSeconds = &deadline
+	}
+
 	spec.Volumes = append(spec.Volumes, corev1.Volume{
 		Name: "environment",
 		VolumeSource: corev1.VolumeSource{
@@ -337,12 +541,8 @@ func (c *KubernetesClient) podSpecFromJobRequest(podName string, envSecretName s
 	})
 
 	return &corev1.Pod{
-		Spec: *spec,
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: c.config.Namespace,
-			Name:      podName,
-			Labels:    c.config.LabelMap(),
-		},
+		Spec:       *spec,
+		ObjectMeta: c.objectMeta(podName, jobRequest.JobID),
 	}, nil
 }
 
@@ -478,7 +678,7 @@ func (c *KubernetesClient) WaitForPod(ctx context.Context, name string, logFn fu
 		DelayBetweenAttempts: c.config.PollingInterval(),
 		HideError:            true,
 		Fn: func() error {
-			r = c.findPod(name)
+			r = c.findPod(ctx, name)
 			if r.continueWaiting {
 				if r.err != nil {
 					logFn(r.err.Error())
@@ -505,10 +705,13 @@ type findPodResult struct {
 	err             error
 }
 
-func (c *KubernetesClient) findPod(name string) findPodResult {
+func (c *KubernetesClient) findPod(ctx context.Context, name string) findPodResult {
+	ctx, cancel := context.WithTimeout(ctx, apiRequestTimeout)
+	defer cancel()
+
 	pod, err := c.clientset.CoreV1().
 		Pods(c.config.Namespace).
-		Get(context.Background(), name, v1.GetOptions{})
+		Get(ctx, name, v1.GetOptions{})
 
 	if err != nil {
 		return findPodResult{continueWaiting: true, err: err}
@@ -629,14 +832,39 @@ func (c *KubernetesClient) getContainerStatuses(statuses []corev1.ContainerStatu
 	return messages
 }
 
-func (c *KubernetesClient) DeletePod(name string) error {
-	return c.clientset.CoreV1().
-		Pods(c.config.Namespace).
-		Delete(context.Background(), name, v1.DeleteOptions{})
+func (c *KubernetesClient) DeletePod(ctx context.Context, name string) error {
+	return c.deleteWithRetries(ctx, fmt.Sprintf("Delete pod %s", name), func(ctx context.Context) error {
+		return c.clientset.CoreV1().
+			Pods(c.config.Namespace).
+			Delete(ctx, name, v1.DeleteOptions{})
+	})
 }
 
-func (c *KubernetesClient) DeleteSecret(name string) error {
-	return c.clientset.CoreV1().
-		Secrets(c.config.Namespace).
-		Delete(context.Background(), name, v1.DeleteOptions{})
+func (c *KubernetesClient) DeleteSecret(ctx context.Context, name string) error {
+	return c.deleteWithRetries(ctx, fmt.Sprintf("Delete secret %s", name), func(ctx context.Context) error {
+		return c.clientset.CoreV1().
+			Secrets(c.config.Namespace).
+			Delete(ctx, name, v1.DeleteOptions{})
+	})
+}
+
+// A resource that is already gone is what we want, so it is not an error.
+// Anything else is retried a bounded number of times, within ctx's deadline.
+func (c *KubernetesClient) deleteWithRetries(ctx context.Context, task string, fn func(ctx context.Context) error) error {
+	return retry.RetryWithConstantWaitAndContext(ctx, retry.RetryOptions{
+		Task:                 task,
+		MaxAttempts:          c.config.deleteAttempts(),
+		DelayBetweenAttempts: c.config.deleteInterval(),
+		Fn: func() error {
+			attemptCtx, cancel := context.WithTimeout(ctx, deleteRequestTimeout)
+			defer cancel()
+
+			err := fn(attemptCtx)
+			if err == nil || apierrors.IsNotFound(err) {
+				return nil
+			}
+
+			return err
+		},
+	})
 }
