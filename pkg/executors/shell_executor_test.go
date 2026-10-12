@@ -14,6 +14,7 @@ import (
 	api "github.com/semaphoreci/agent/pkg/api"
 	"github.com/semaphoreci/agent/pkg/config"
 	eventlogger "github.com/semaphoreci/agent/pkg/eventlogger"
+	shell "github.com/semaphoreci/agent/pkg/shell"
 	testsupport "github.com/semaphoreci/agent/test/support"
 	assert "github.com/stretchr/testify/assert"
 )
@@ -440,4 +441,106 @@ func setupShellExecutor(t *testing.T, selfHosted bool) (*ShellExecutor, *eventlo
 	assert.Zero(t, e.Start())
 
 	return e, testLoggerBackend
+}
+
+func Test__ShellExecutor__StopBeforeStart(t *testing.T) {
+	testLogger, _ := eventlogger.DefaultTestLogger()
+	e := NewShellExecutor(basicRequest(), testLogger, true)
+	assert.Zero(t, e.Prepare())
+	assert.Zero(t, e.Stop())
+}
+
+func Test__ShellExecutor__StopAfterStart(t *testing.T) {
+	// On Windows there is no boot process to wait on, so ExitSignal never fires.
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
+	e, _ := setupShellExecutor(t, true)
+	sh := e.Shell
+	assert.Zero(t, e.Stop())
+
+	select {
+	case <-sh.ExitSignal:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the shell was not closed")
+	}
+}
+
+func Test__ShellExecutor__StoppedExecutorDoesNotBoot(t *testing.T) {
+	t.Run("single stop before Prepare -> Prepare and Start fail, no shell", func(t *testing.T) {
+		testLogger, _ := eventlogger.DefaultTestLogger()
+		e := NewShellExecutor(basicRequest(), testLogger, true)
+		shells := 0
+		e.newShell = func(storagePath string) (*shell.Shell, error) {
+			shells++
+			return shell.NewShell(storagePath)
+		}
+
+		assert.Zero(t, e.Stop())
+
+		assert.NotZero(t, e.Prepare())
+		assert.NotZero(t, e.Start())
+		assert.Nil(t, e.Shell)
+		assert.Zero(t, shells, "a shell was started for a stopped job")
+	})
+
+	t.Run("repeated stops -> Start still fails, no shell", func(t *testing.T) {
+		testLogger, _ := eventlogger.DefaultTestLogger()
+		e := NewShellExecutor(basicRequest(), testLogger, true)
+		assert.Zero(t, e.Prepare())
+		assert.Zero(t, e.Stop())
+		assert.Zero(t, e.Stop())
+
+		assert.NotZero(t, e.Start())
+		assert.Nil(t, e.Shell)
+	})
+
+	t.Run("commands on a never-started executor -> non-zero, no panic", func(t *testing.T) {
+		testLogger, _ := eventlogger.DefaultTestLogger()
+		e := NewShellExecutor(basicRequest(), testLogger, true)
+		assert.Zero(t, e.Stop())
+
+		assert.NotZero(t, e.RunCommandWithOptions(CommandOptions{Command: "echo hello"}))
+		assert.NotZero(t, e.RunCommand("echo hello", false, ""))
+		_, code := e.GetOutputFromCommand("echo hello")
+		assert.NotZero(t, code)
+	})
+
+	t.Run("no stop -> boots and runs commands", func(t *testing.T) {
+		e, _ := setupShellExecutor(t, true)
+		assert.NotNil(t, e.Shell)
+		assert.Zero(t, e.RunCommand("echo hello", true, ""))
+		assert.Zero(t, e.Stop())
+	})
+}
+
+func Test__ShellExecutor__StopWhileShellStarts(t *testing.T) {
+	// On Windows there is no boot process to wait on, so ExitSignal never fires.
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
+	testLogger, _ := eventlogger.DefaultTestLogger()
+	e := NewShellExecutor(basicRequest(), testLogger, true)
+	assert.Zero(t, e.Prepare())
+
+	var sh *shell.Shell
+	e.newShell = func(storagePath string) (*shell.Shell, error) {
+		var err error
+		sh, err = shell.NewShell(storagePath)
+
+		// The stop lands after the shell is created, before Start() uses it.
+		assert.Zero(t, e.Stop())
+		return sh, err
+	}
+
+	assert.NotZero(t, e.Start())
+	assert.Nil(t, e.Shell)
+
+	select {
+	case <-sh.ExitSignal:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the shell started concurrently with the stop was not closed")
+	}
 }
