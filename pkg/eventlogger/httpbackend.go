@@ -176,8 +176,16 @@ func (l *HTTPBackend) newRequest() error {
 	}
 
 	log.Infof("Pushing next batch of logs with %d log events...", (nextStartFrom - l.startFrom))
+
+	// Store buffer contents so we can retry after token refresh
+	bufferBytes := buffer.Bytes()
+
+	return l.sendLogRequest(bufferBytes, nextStartFrom, false)
+}
+
+func (l *HTTPBackend) sendLogRequest(bufferBytes []byte, nextStartFrom int, isRetry bool) error {
 	url := fmt.Sprintf("%s?start_from=%d", l.config.URL, l.startFrom)
-	request, err := http.NewRequest("POST", url, buffer)
+	request, err := http.NewRequest("POST", url, bytes.NewReader(bufferBytes))
 	if err != nil {
 		return err
 	}
@@ -206,16 +214,21 @@ func (l *HTTPBackend) newRequest() error {
 		return errors.New("no more space available for logs - stopping")
 
 	// The token issued for the agent expired.
-	// Try to refresh the token and try again.
-	// Here, we only update the token, and we let the caller do the retrying.
+	// Try to refresh the token and retry immediately.
 	case http.StatusUnauthorized:
+		// Only retry once to avoid infinite loops
+		if isRetry {
+			return fmt.Errorf("request to %s failed after token refresh: %s", url, response.Status)
+		}
+
 		newToken, err := l.config.RefreshTokenFn()
 		if err != nil {
 			return err
 		}
 
 		l.config.Token = newToken
-		return fmt.Errorf("request to %s failed: %s", url, response.Status)
+		log.Infof("Retrying log push with refreshed token...")
+		return l.sendLogRequest(bufferBytes, nextStartFrom, true)
 
 	// something else went wrong
 	default:
