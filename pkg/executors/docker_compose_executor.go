@@ -626,8 +626,13 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	}
 
 	reader := bufio.NewReader(tty)
+	var output strings.Builder
 	for {
 		line, err := reader.ReadString('\n')
+
+		// ReadString returns the final unterminated tail alongside the error, and
+		// that tail often carries the pull failure message — capture it before the break.
+		output.WriteString(line)
 		if err != nil {
 			break
 		}
@@ -640,7 +645,7 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	exitCode := 0
 
 	if err := cmd.Wait(); err != nil {
-		log.Errorf("Docker pull failed: %v", err)
+		log.Errorf("Docker pull failed: %v; output:\n%s", err, output.String())
 		e.SubmitDockerStats("compose.docker.error.rate")
 		exitCode = 1
 	}
