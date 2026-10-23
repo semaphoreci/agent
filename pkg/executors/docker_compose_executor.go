@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -117,7 +118,12 @@ func (e *DockerComposeExecutor) Prepare() int {
 		return 1
 	}
 
-	compose := ConstructDockerComposeFile(e.dockerConfiguration, e.exposeKvmDevice, filesToInject)
+	compose, err := ConstructDockerComposeFile(e.dockerConfiguration, e.exposeKvmDevice, filesToInject)
+	if err != nil {
+		log.Errorf("Error constructing docker compose manifest: %v", err)
+		return 1
+	}
+
 	log.Debug("Compose File:")
 	log.Debug(compose)
 
@@ -625,22 +631,16 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 		return 1
 	}
 
-	reader := bufio.NewReader(tty)
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			break
-		}
-
+	output := readPullOutput(tty, pullOutputTailSize, func(line string) {
 		log.Debug("(tty) ", line)
 
 		e.Logger.LogCommandOutput(line + "\n")
-	}
+	})
 
 	exitCode := 0
 
 	if err := cmd.Wait(); err != nil {
-		log.Errorf("Docker pull failed: %v", err)
+		log.Errorf("Docker pull failed: %v; output:\n%s", err, output)
 		e.SubmitDockerStats("compose.docker.error.rate")
 		exitCode = 1
 	}
@@ -652,6 +652,34 @@ func (e *DockerComposeExecutor) pullDockerImages() int {
 	e.Logger.LogCommandFinished(directive, exitCode, commandStartedAt, commandFinishedAt)
 
 	return exitCode
+}
+
+// pullOutputTailSize bounds the pull output kept for the failure log: `run` also
+// starts the main container's entrypoint, whose output is unbounded, and compose
+// reports a pull error last.
+const pullOutputTailSize = 64 * 1024
+
+// readPullOutput passes each line of r to onLine and returns the last limit
+// bytes read.
+func readPullOutput(r io.Reader, limit int, onLine func(string)) string {
+	reader := bufio.NewReader(r)
+	var output []byte
+	for {
+		// ReadString returns an unterminated last line along with the error.
+		line, err := reader.ReadString('\n')
+		if line != "" {
+			output = append(output, line...)
+			if len(output) > limit {
+				output = output[len(output)-limit:]
+			}
+
+			onLine(line)
+		}
+
+		if err != nil {
+			return string(output)
+		}
+	}
 }
 
 func (e *DockerComposeExecutor) ExportEnvVars(envVars []api.EnvVar, hostEnvVars []config.HostEnvVar) int {
