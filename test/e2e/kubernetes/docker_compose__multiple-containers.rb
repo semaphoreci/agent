@@ -25,7 +25,7 @@ start_job <<-JSON
       "containers": [
         {
           "name": "main",
-          "image": "registry.semaphoreci.com/ruby:3.0"
+          "image": "registry.semaphoreci.com/ruby:4.0"
         },
         {
           "name": "redis",
