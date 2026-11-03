@@ -42,6 +42,17 @@ type HTTPBackendConfig struct {
 }
 
 func NewHTTPBackend(config HTTPBackendConfig) (*HTTPBackend, error) {
+	httpBackend, err := newHTTPBackend(config)
+	if err != nil {
+		return nil, err
+	}
+
+	go httpBackend.push()
+
+	return httpBackend, nil
+}
+
+func newHTTPBackend(config HTTPBackendConfig) (*HTTPBackend, error) {
 	if config.LinesPerRequest <= 0 || config.LinesPerRequest > MaxLinesPerRequest {
 		return nil, fmt.Errorf("config.LinesPerRequest must be between 1 and %d", MaxLinesPerRequest)
 	}
@@ -68,8 +79,6 @@ func NewHTTPBackend(config HTTPBackendConfig) (*HTTPBackend, error) {
 		startFrom:   0,
 		config:      config,
 	}
-
-	go httpBackend.push()
 
 	return &httpBackend, nil
 }
@@ -118,6 +127,7 @@ func (l *HTTPBackend) push() {
 		 * Send the next batch of logs.
 		 * If an error occurs, it will be retried in the next tick,
 		 * so there is no need to retry requests that failed here.
+		 * The exception is a 401, which is retried once inline after refreshing the token.
 		 */
 		err := l.newRequest()
 		if err != nil {
@@ -176,18 +186,28 @@ func (l *HTTPBackend) newRequest() error {
 	}
 
 	log.Infof("Pushing next batch of logs with %d log events...", (nextStartFrom - l.startFrom))
+
 	url := fmt.Sprintf("%s?start_from=%d", l.config.URL, l.startFrom)
-	request, err := http.NewRequest("POST", url, buffer)
+	body := buffer.Bytes()
+	response, err := l.post(url, body)
 	if err != nil {
 		return err
 	}
 
-	request.Header.Set("Content-Type", "text/plain")
-	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", l.config.Token))
-	request.Header.Set("User-Agent", l.config.UserAgent)
-	response, err := l.client.Do(request)
-	if err != nil {
-		return err
+	// The token issued for the agent expired.
+	// Refresh it and resend the same batch once, immediately.
+	if response.StatusCode == http.StatusUnauthorized {
+		newToken, err := l.config.RefreshTokenFn()
+		if err != nil {
+			return fmt.Errorf("request to %s failed: %s; token refresh failed: %w", url, response.Status, err)
+		}
+
+		l.config.Token = newToken
+		log.Infof("Retrying log push with refreshed token...")
+		response, err = l.post(url, body)
+		if err != nil {
+			return err
+		}
 	}
 
 	switch response.StatusCode {
@@ -205,22 +225,37 @@ func (l *HTTPBackend) newRequest() error {
 		l.useArtifact = true
 		return errors.New("no more space available for logs - stopping")
 
-	// The token issued for the agent expired.
-	// Try to refresh the token and try again.
-	// Here, we only update the token, and we let the caller do the retrying.
+	// The refreshed token was rejected too.
 	case http.StatusUnauthorized:
-		newToken, err := l.config.RefreshTokenFn()
-		if err != nil {
-			return err
-		}
-
-		l.config.Token = newToken
-		return fmt.Errorf("request to %s failed: %s", url, response.Status)
+		return fmt.Errorf("request to %s failed after token refresh: %s", url, response.Status)
 
 	// something else went wrong
 	default:
 		return fmt.Errorf("request to %s failed: %s", url, response.Status)
 	}
+}
+
+// post sends one batch of logs. The response body is drained and closed
+// before returning, so callers can only inspect the status.
+func (l *HTTPBackend) post(url string, body []byte) (*http.Response, error) {
+	request, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+
+	request.Header.Set("Content-Type", "text/plain")
+	request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", l.config.Token))
+	request.Header.Set("User-Agent", l.config.UserAgent)
+	response, err := l.client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+
+	// Draining lets the connection be reused; the cap bounds the cost of a large error page.
+	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4<<10))
+	response.Body.Close()
+
+	return response, nil
 }
 
 func (l *HTTPBackend) CloseWithOptions(options CloseOptions) error {
