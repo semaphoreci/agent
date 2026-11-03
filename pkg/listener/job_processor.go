@@ -49,6 +49,7 @@ func StartJobProcessor(httpClient *http.Client, apiClient *selfhostedapi.API, co
 		KubernetesPodStartTimeoutSeconds: config.KubernetesPodStartTimeoutSeconds,
 		KubernetesLabels:                 config.KubernetesLabels,
 		KubernetesDefaultImage:           config.KubernetesDefaultImage,
+		KubernetesPodDeadlineSeconds:     config.KubernetesPodDeadlineSeconds,
 	}
 
 	go p.Start()
@@ -74,6 +75,12 @@ type JobProcessor struct {
 	mutex              sync.Mutex
 	forceSyncCh        chan (bool)
 
+	// Guards CurrentJob and shuttingDown. Separate from mutex, which
+	// JobFinished() holds while waiting for the sync loop, since the sync
+	// loop itself may be shutting down and needs to look at the current job.
+	jobMu        sync.Mutex
+	shuttingDown bool
+
 	// Job processor config
 	DisconnectRetryAttempts          int
 	GetJobRetryAttempts              int
@@ -96,6 +103,7 @@ type JobProcessor struct {
 	KubernetesPodStartTimeoutSeconds int
 	KubernetesLabels                 map[string]string
 	KubernetesDefaultImage           string
+	KubernetesPodDeadlineSeconds     int64
 }
 
 func (p *JobProcessor) Start() {
@@ -113,6 +121,9 @@ func (p *JobProcessor) SyncLoop() {
 
 		// Here, we wait for the delay sent in the API to pass
 		// or we sync again before the delay has passed, if needed.
+		// This select also runs once after a Sync() that shut the agent
+		// down: a job stopped by Shutdown() reports its result through
+		// JobFinished(), which holds p.mutex until forceSyncCh is read.
 		select {
 		case <-p.forceSyncCh:
 			log.Debug("Forcing sync due to state change")
@@ -215,6 +226,7 @@ func (p *JobProcessor) RunJob(jobID string) {
 		KubernetesLabels:                 p.KubernetesLabels,
 		KubernetesImageValidator:         p.KubernetesImageValidator,
 		KubernetesDefaultImage:           p.KubernetesDefaultImage,
+		KubernetesPodDeadlineSeconds:     p.KubernetesPodDeadlineSeconds,
 		UploadJobLogs:                    p.UploadJobLogs,
 		UserAgent:                        p.UserAgent,
 		RefreshTokenFn: func() (string, error) {
@@ -228,8 +240,18 @@ func (p *JobProcessor) RunJob(jobID string) {
 		return
 	}
 
+	// A shutdown that started while the job was being fetched
+	// did not see it, so it would not stop it: the job is not run.
+	p.jobMu.Lock()
+	if p.shuttingDown {
+		p.jobMu.Unlock()
+		log.Infof("Agent is shutting down - not running job %s", jobID)
+		return
+	}
+
 	p.State = selfhostedapi.AgentStateRunningJob
 	p.CurrentJob = job
+	p.jobMu.Unlock()
 
 	go job.RunWithOptions(jobs.RunOptions{
 		EnvVars:               p.EnvVars,
@@ -276,7 +298,13 @@ func (p *JobProcessor) StopJob(jobID string) {
 	p.CurrentJobID = jobID
 	p.State = selfhostedapi.AgentStateStoppingJob
 
-	p.CurrentJob.Stop()
+	p.jobMu.Lock()
+	job := p.CurrentJob
+	p.jobMu.Unlock()
+
+	if job != nil {
+		job.Stop()
+	}
 }
 
 func (p *JobProcessor) JobFinished(result selfhostedapi.JobResult) {
@@ -289,7 +317,9 @@ func (p *JobProcessor) JobFinished(result selfhostedapi.JobResult) {
 
 func (p *JobProcessor) WaitForJobs() {
 	p.CurrentJobID = ""
+	p.jobMu.Lock()
 	p.CurrentJob = nil
+	p.jobMu.Unlock()
 	p.CurrentJobResult = ""
 	p.State = selfhostedapi.AgentStateWaitingForJobs
 }
@@ -329,8 +359,18 @@ func (p *JobProcessor) disconnect() {
 	}
 }
 
+// How long Shutdown() waits for the running job to stop.
+// Stopping a Kubernetes job takes at most about a minute.
+// A variable so tests don't need to wait for it.
+var jobStopOnShutdownTimeout = 90 * time.Second
+
 func (p *JobProcessor) Shutdown(reason ShutdownReason, code int) {
 	p.ShutdownReason = reason
+
+	// The agent may exit right after this, so the running job is stopped
+	// first. Otherwise, the resources it created are left behind,
+	// like a Kubernetes pod that runs until something else deletes it.
+	p.stopRunningJob()
 
 	p.disconnect()
 	p.executeShutdownHook(reason)
@@ -338,6 +378,35 @@ func (p *JobProcessor) Shutdown(reason ShutdownReason, code int) {
 
 	if p.ExitOnShutdown {
 		os.Exit(code)
+	}
+}
+
+// This does not take p.mutex: JobFinished() holds it while waiting
+// for the sync loop, which may be the one shutting down. Job.Stop()
+// stops the executor only once, even if StopJob() runs concurrently.
+// Once this runs, RunJob() does not start a job anymore.
+func (p *JobProcessor) stopRunningJob() {
+	p.jobMu.Lock()
+	p.shuttingDown = true
+	job := p.CurrentJob
+	p.jobMu.Unlock()
+
+	if job == nil || job.IsFinished() {
+		return
+	}
+
+	log.Info("Stopping the running job before shutting down")
+	done := make(chan struct{})
+	go func() {
+		job.Stop()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		log.Info("Running job stopped")
+	case <-time.After(jobStopOnShutdownTimeout):
+		log.Errorf("Running job did not stop in %v - shutting down anyway", jobStopOnShutdownTimeout)
 	}
 }
 

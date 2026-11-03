@@ -52,6 +52,7 @@ type Config struct {
 	KubernetesPodStartTimeoutSeconds int
 	KubernetesLabels                 map[string]string
 	KubernetesDefaultImage           string
+	KubernetesPodDeadlineSeconds     int64
 }
 
 func Start(httpClient *http.Client, config Config) (*Listener, error) {

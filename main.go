@@ -101,8 +101,8 @@ func getLogFilePath() string {
 		return filepath.Join(os.TempDir(), "agent_log")
 	}
 
-	parentDirectory := path.Dir(logFilePath)
-	err := os.MkdirAll(parentDirectory, 0640)
+	parentDirectory := filepath.Clean(path.Dir(logFilePath))
+	err := os.MkdirAll(parentDirectory, 0750)
 	if err != nil {
 		log.Panicf("Could not create directories to place log file in '%s': %v", logFilePath, err)
 	}
@@ -140,6 +140,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		fmt.Sprintf("Timeout for the pod to be ready, in seconds. Default is %d.", config.DefaultKubernetesPodStartTimeout),
 	)
 	_ = pflag.String(config.KubernetesDefaultImage, "", "Default image to use in Kubernetes executor if no containers are specified in the job request")
+	_ = pflag.Int64(config.KubernetesPodDeadline, 0, "activeDeadlineSeconds for the pods created by the Kubernetes executor, if the pod spec does not set one. Default is 0 (no deadline).")
 
 	pflag.Parse()
 
@@ -178,6 +179,10 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 
 	if viper.GetInt(config.KubernetesPodStartTimeout) < 0 {
 		log.Fatal("Kubernetes pod start timeout can't be negative. Exiting...")
+	}
+
+	if viper.GetInt64(config.KubernetesPodDeadline) < 0 {
+		log.Fatal("Kubernetes pod active deadline can't be negative. Exiting...")
 	}
 
 	scheme := "https"
@@ -230,6 +235,7 @@ func RunListener(httpClient *http.Client, logfile io.Writer) {
 		KubernetesPodStartTimeoutSeconds: viper.GetInt(config.KubernetesPodStartTimeout),
 		KubernetesLabels:                 kubernetesLabels,
 		KubernetesDefaultImage:           viper.GetString(config.KubernetesDefaultImage),
+		KubernetesPodDeadlineSeconds:     viper.GetInt64(config.KubernetesPodDeadline),
 	}
 
 	go func() {
@@ -435,7 +441,7 @@ func RunSingleJob(httpClient *http.Client) {
 		panic(err)
 	}
 
-	job.JobLogArchived = true
+	job.SetLogArchivalStatus(jobs.JobLogArchivalStatusCompleted)
 
 	job.Run()
 }

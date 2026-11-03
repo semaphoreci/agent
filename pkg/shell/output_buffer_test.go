@@ -1,7 +1,6 @@
 package shell
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -205,32 +204,24 @@ func Test__OutputBuffer__DoesNotWaitForeverForOutputToBeFlushed(t *testing.T) {
 		input = append(input, 'a')
 	}
 
-	buffer, _ := NewOutputBufferWithFlushTimeout(func(s string) {}, time.Second)
+	flushTimeout := 100 * time.Millisecond
 
-	// write a lot of data to the buffer
+	// A consumer slower than the flush timeout makes even a single flush overrun
+	// the deadline, so Close() is guaranteed to give up with a context deadline
+	// error instead of draining the buffer. This is deterministic; the previous
+	// version raced a concurrent writer to keep the buffer non-empty, which could
+	// intermittently let the buffer drain and made Close() return nil (flaky).
+	buffer, _ := NewOutputBufferWithFlushTimeout(func(s string) {
+		time.Sleep(3 * flushTimeout)
+	}, flushTimeout)
+
+	// Pre-fill so the buffer is non-empty when Close() starts flushing.
 	for i := 0; i < 1000; i++ {
 		buffer.Append(input)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// on a separate goroutine, we continuosly write
-	// to make sure the buffer is never empty
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				buffer.Append(input)
-			}
-		}
-	}()
-
-	// here, we try to close, which will not work
-	// since we will attempt to flush while the buffer is being continuosly written.
+	// Close() flushes one chunk - which blocks in the slow consumer past the
+	// deadline - and then returns the deadline error rather than draining the rest.
 	err := buffer.Close()
 	assert.ErrorContains(t, err, "context deadline exceeded")
-	cancel()
 }

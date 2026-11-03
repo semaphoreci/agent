@@ -90,7 +90,7 @@ func (l *FileBackend) CloseWithOptions(options CloseOptions) error {
 }
 
 func (l *FileBackend) Iterate(fn func([]byte) error) error {
-	fd, err := os.OpenFile(l.path, os.O_RDONLY, os.ModePerm)
+	fd, err := os.OpenFile(l.path, os.O_RDONLY, 0600)
 	if err != nil {
 		return fmt.Errorf("error opening file '%s': %v", l.path, err)
 	}
@@ -112,7 +112,7 @@ func (l *FileBackend) Iterate(fn func([]byte) error) error {
 }
 
 func (l *FileBackend) Read(startingLineNumber, maxLines int, writer io.Writer) (int, error) {
-	fd, err := os.OpenFile(l.path, os.O_RDONLY, os.ModePerm)
+	fd, err := os.OpenFile(l.path, os.O_RDONLY, 0600)
 	if err != nil {
 		return startingLineNumber, err
 	}
@@ -140,7 +140,11 @@ func (l *FileBackend) Read(startingLineNumber, maxLines int, writer io.Writer) (
 
 		// Otherwise, we advance to the next line and stream the current line.
 		lineNumber++
-		fmt.Fprint(writer, line)
+		_, err = fmt.Fprint(writer, line)
+		if err != nil {
+			_ = fd.Close()
+			return lineNumber, err
+		}
 		linesStreamed++
 
 		// if we have streamed the number of lines we want, we stop.

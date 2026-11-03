@@ -101,7 +101,11 @@ func Test__Shell__HandlingBashProcessKill(t *testing.T) {
 			}
 		`
 	} else {
-		cmd = "echo Hello && exit 1"
+		// The `sleep` gives the agent time to read and flush "Hello" from the PTY
+		// before `exit 1` abruptly closes the shell. Without the gap, the output
+		// read races the shell-closed signal and "Hello" is dropped intermittently,
+		// which is what made this test flaky.
+		cmd = "echo Hello && sleep 1 && exit 1"
 	}
 
 	p1 := shell.NewProcessWithOutput(cmd, func(line string) {
@@ -109,7 +113,7 @@ func Test__Shell__HandlingBashProcessKill(t *testing.T) {
 	})
 
 	p1.Run()
-	assert.Equal(t, output.String(), "Hello\n")
+	assert.Equal(t, "Hello\n", output.String())
 }
 
 func Test__Shell__HandlingBashProcessKillThatHasBackgroundJobs(t *testing.T) {

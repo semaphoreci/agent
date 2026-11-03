@@ -18,7 +18,8 @@ func InjectEntriesToAuthorizedKeys(keys []api.PublicKey) error {
 	}
 
 	sshDirectory := filepath.Join(homeDir, ".ssh")
-	err = os.MkdirAll(sshDirectory, os.ModePerm)
+	// SSH requires the .ssh directory to be accessible only by its owner.
+	err = os.MkdirAll(sshDirectory, 0700)
 	if err != nil {
 		return err
 	}
