@@ -253,7 +253,7 @@ func (l *HTTPBackend) post(url string, body []byte) (*http.Response, error) {
 
 	// Draining lets the connection be reused; the cap bounds the cost of a large error page.
 	_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4<<10))
-	response.Body.Close()
+	_ = response.Body.Close()
 
 	return response, nil
 }
