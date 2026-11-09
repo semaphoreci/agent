@@ -13,7 +13,10 @@ start_job <<-JSON
       "containers": [
         {
           "name": "main",
-          "image": "registry.semaphoreci.com/ruby:2.6"
+          "image": "registry.semaphoreci.com/ruby:2.6",
+          "env_vars": [
+            { "name": "BAZ", "value": "#{`printf '%s' 'p@ss$HOME.x' | base64 | tr -d '\n'`}" }
+          ]
         }
       ],
       "host_setup_commands": [
@@ -28,7 +31,8 @@ start_job <<-JSON
     "files": [],
 
     "commands": [
-      { "directive": "echo Hello World" }
+      { "directive": "echo Hello World" },
+      { "directive": "echo $BAZ" }
     ],
 
     "callbacks": {
@@ -58,6 +62,9 @@ assert_job_log <<-LOG
   {"event":"cmd_started",  "timestamp":"*", "directive":"echo Hello World"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Hello World\\n"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"echo Hello World","exit_code":0,"finished_at":"*","started_at":"*"}
+  {"event":"cmd_started",  "timestamp":"*", "directive":"echo $BAZ"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"p@ss$HOME.x\\n"}
+  {"event":"cmd_finished", "timestamp":"*", "directive":"echo $BAZ","exit_code":0,"finished_at":"*","started_at":"*"}
   {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Exporting SEMAPHORE_JOB_RESULT\\n"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"Exporting environment variables","exit_code":0,"started_at":"*","finished_at":"*"}

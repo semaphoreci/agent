@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -254,6 +255,50 @@ func Test__DockerComposeExecutor__composeExecutableAndArgs(t *testing.T) {
 			exec, args := e.composeExecutableAndArgs()
 			assert.Equal(t, tc.expectedExec, exec)
 			assert.Equal(t, tc.expectedArgs, args)
+		})
+	}
+}
+
+func Test__DockerComposeExecutor__readPullOutput(t *testing.T) {
+	testCases := []struct {
+		name          string
+		input         string
+		limit         int
+		expected      string
+		expectedLines []string
+	}{
+		{
+			name:          "includes the unterminated last line",
+			input:         "Pulling main ... done\r\nerror: pull access denied",
+			limit:         pullOutputTailSize,
+			expected:      "Pulling main ... done\r\nerror: pull access denied",
+			expectedLines: []string{"Pulling main ... done\r\n", "error: pull access denied"},
+		},
+		{
+			name:          "over the limit keeps the tail",
+			input:         "first\ntail\n",
+			limit:         5,
+			expected:      "tail\n",
+			expectedLines: []string{"first\n", "tail\n"},
+		},
+		{
+			name:          "line longer than the limit keeps its tail",
+			input:         "abcdefgh",
+			limit:         3,
+			expected:      "fgh",
+			expectedLines: []string{"abcdefgh"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			lines := []string{}
+			output := readPullOutput(strings.NewReader(tc.input), tc.limit, func(line string) {
+				lines = append(lines, line)
+			})
+
+			assert.Equal(t, tc.expected, output)
+			assert.Equal(t, tc.expectedLines, lines)
 		})
 	}
 }
