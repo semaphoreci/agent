@@ -1,12 +1,14 @@
 package eventlogger
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	testsupport "github.com/semaphoreci/agent/test/support"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func Test__ArgumentsMustBeValid(t *testing.T) {
@@ -282,6 +284,89 @@ func Test__TokenIsRefreshed(t *testing.T) {
 	}, simplifiedEvents)
 
 	mockServer.Close()
+}
+
+func Test__RequestIsRetriedImmediatelyAfterTokenRefresh(t *testing.T) {
+	mockServer := testsupport.NewLoghubMockServer()
+	mockServer.Init()
+	defer mockServer.Close()
+
+	refreshCount := 0
+	httpBackend := newHTTPBackendWithoutPush(t, mockServer.URL(), func() (string, error) {
+		refreshCount++
+		return "some-new-and-shiny-valid-token", nil
+	})
+
+	generateLogEvents(t, 1, httpBackend)
+
+	// One newRequest() call must refresh the token and resend the batch,
+	// rather than leaving the resend to the next push() tick.
+	assert.Nil(t, httpBackend.newRequest())
+	assert.Equal(t, 1, refreshCount)
+	assert.Equal(t, "some-new-and-shiny-valid-token", httpBackend.config.Token)
+	assert.Equal(t, []int{5}, mockServer.GetBatchSizesUsed())
+	assert.Equal(t, 5, httpBackend.startFrom)
+}
+
+func Test__RequestIsRetriedOnlyOnceAfterTokenRefresh(t *testing.T) {
+	mockServer := testsupport.NewLoghubMockServer()
+	mockServer.Init()
+	defer mockServer.Close()
+
+	refreshCount := 0
+	httpBackend := newHTTPBackendWithoutPush(t, mockServer.URL(), func() (string, error) {
+		refreshCount++
+		return testsupport.ExpiredLogToken, nil
+	})
+
+	generateLogEvents(t, 1, httpBackend)
+
+	assert.ErrorContains(t, httpBackend.newRequest(), "failed after token refresh")
+
+	assert.Equal(t, 1, refreshCount)
+	assert.Empty(t, mockServer.GetLogs())
+	assert.Equal(t, 0, httpBackend.startFrom)
+}
+
+func Test__RequestIsNotRetriedIfTokenRefreshFails(t *testing.T) {
+	mockServer := testsupport.NewLoghubMockServer()
+	mockServer.Init()
+	defer mockServer.Close()
+
+	refreshCount := 0
+	httpBackend := newHTTPBackendWithoutPush(t, mockServer.URL(), func() (string, error) {
+		refreshCount++
+		return "", errors.New("refresh endpoint unavailable")
+	})
+
+	generateLogEvents(t, 1, httpBackend)
+
+	assert.ErrorContains(t, httpBackend.newRequest(), "token refresh failed: refresh endpoint unavailable")
+
+	assert.Equal(t, 1, refreshCount)
+	assert.Equal(t, testsupport.ExpiredLogToken, httpBackend.config.Token)
+	assert.Empty(t, mockServer.GetLogs())
+	assert.Equal(t, 0, httpBackend.startFrom)
+}
+
+// newHTTPBackendWithoutPush builds an HTTPBackend that does not start the
+// background push goroutine, so tests can drive newRequest() deterministically.
+func newHTTPBackendWithoutPush(t *testing.T, url string, refreshTokenFn func() (string, error)) *HTTPBackend {
+	t.Helper()
+
+	httpBackend, err := newHTTPBackend(HTTPBackendConfig{
+		URL:                   url,
+		Token:                 testsupport.ExpiredLogToken,
+		LinesPerRequest:       20,
+		FlushTimeoutInSeconds: DefaultFlushTimeoutInSeconds,
+		UserAgent:             fmt.Sprintf("SemaphoreAgent/%s", testsupport.AgentVersionExpected),
+		RefreshTokenFn:        refreshTokenFn,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, httpBackend.Open())
+	t.Cleanup(func() { assert.NoError(t, httpBackend.fileBackend.Close()) })
+	return httpBackend
 }
 
 func generateLogEventsWithOutputGenerator(t testing.TB, outputEventsCount int, backend Backend, outputGenerator func() string) {
