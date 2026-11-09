@@ -15,7 +15,8 @@ start_job <<-JSON
           "name": "main",
           "image": "registry.semaphoreci.com/ruby:2.6",
           "env_vars": [
-            { "name": "FOO", "value": "#{`echo "bar" | base64 | tr -d '\n'`}" }
+            { "name": "FOO", "value": "#{`echo "bar" | base64 | tr -d '\n'`}" },
+            { "name": "BAZ", "value": "#{`printf '%s' 'p@ss$HOME.x' | base64 | tr -d '\n'`}" }
           ]
         }
       ]
@@ -24,7 +25,8 @@ start_job <<-JSON
     "files": [],
 
     "commands": [
-      { "directive": "echo $FOO" }
+      { "directive": "echo $FOO" },
+      { "directive": "echo $BAZ" }
     ],
 
     "epilogue_always_commands": [],
@@ -59,6 +61,10 @@ assert_job_log <<-LOG
   {"event":"cmd_started",  "timestamp":"*", "directive":"echo $FOO"}
   {"event":"cmd_output",   "timestamp":"*", "output":"bar\\n"}
   {"event":"cmd_finished", "timestamp":"*", "directive":"echo $FOO","exit_code":0,"finished_at":"*","started_at":"*"}
+
+  {"event":"cmd_started",  "timestamp":"*", "directive":"echo $BAZ"}
+  {"event":"cmd_output",   "timestamp":"*", "output":"p@ss$HOME.x\\n"}
+  {"event":"cmd_finished", "timestamp":"*", "directive":"echo $BAZ","exit_code":0,"finished_at":"*","started_at":"*"}
 
   {"event":"cmd_started",  "timestamp":"*", "directive":"Exporting environment variables"}
   {"event":"cmd_output",   "timestamp":"*", "output":"Exporting SEMAPHORE_JOB_RESULT\\n"}
