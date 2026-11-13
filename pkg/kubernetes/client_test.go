@@ -380,6 +380,44 @@ func Test__CreatePod(t *testing.T) {
 		}
 	})
 
+	t.Run("main container command from pod spec", func(t *testing.T) {
+		clientset := newFakeClientset([]runtime.Object{
+			podSpecWithCommand("default"),
+		})
+
+		imageValidator, _ := NewImageValidator([]string{})
+		client, err := NewKubernetesClient(clientset, Config{
+			Namespace:                 "default",
+			PodSpecDecoratorConfigMap: "pod-spec",
+			ImageValidator:            imageValidator,
+		})
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		_ = client.LoadPodSpec()
+		podName := "mypod"
+		assert.NoError(t, client.CreatePod(podName, "mysecret", "", &api.JobRequest{
+			Compose: api.Compose{
+				Containers: []api.Container{
+					{Name: "main", Image: "custom-image"},
+					{Name: "db", Image: "postgres:9.6"},
+				},
+			},
+		}))
+
+		pod, err := clientset.CoreV1().
+			Pods("default").
+			Get(context.Background(), podName, v1.GetOptions{})
+
+		assert.NoError(t, err)
+		if assert.Len(t, pod.Spec.Containers, 2) {
+			assert.Equal(t, []string{"bash", "-c", "trap 'exit 0' TERM; sleep infinity & wait"}, pod.Spec.Containers[0].Command)
+			assert.Empty(t, pod.Spec.Containers[1].Command)
+		}
+	})
+
 	t.Run("container with env vars", func(t *testing.T) {
 		clientset := newFakeClientset([]runtime.Object{})
 		imageValidator, _ := NewImageValidator([]string{})
@@ -1037,6 +1075,17 @@ func podSpecWithImageVolume(namespace string) *corev1.ConfigMap {
         volumeMounts:
           - name: deps
             mountPath: /deps
+      `,
+		},
+	}
+}
+
+func podSpecWithCommand(namespace string) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: v1.ObjectMeta{Name: "pod-spec", Namespace: namespace},
+		Data: map[string]string{
+			"mainContainer": `
+        command: ["bash", "-c", "trap 'exit 0' TERM; sleep infinity & wait"]
       `,
 		},
 	}

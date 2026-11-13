@@ -611,7 +611,11 @@ func (c *KubernetesClient) buildMainContainer(mainContainerFromAPI *api.Containe
 	mainContainer.Name = "main"
 	mainContainer.Image = mainContainerFromAPI.Image
 	mainContainer.Env = append(mainContainer.Env, c.convertEnvVars(mainContainerFromAPI.EnvVars)...)
-	mainContainer.Command = []string{"bash", "-c", "sleep infinity"}
+	// Keep the main container alive for the job. A command from the pod spec
+	// decorator wins, e.g. one that exits cleanly when the pod is deleted.
+	if len(mainContainer.Command) == 0 {
+		mainContainer.Command = []string{"bash", "-c", "sleep infinity"}
+	}
 
 	// We append the volume mount for the environment variables secret,
 	// to the list of volume mounts configured.
